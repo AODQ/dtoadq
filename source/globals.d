@@ -2,6 +2,7 @@ module globals;
 public import AOD = AODCore.aod;
 public import AODCore.aod : Vector;
 public static import math = std.math;
+public static import cl = opencl;
 public import trait = std.traits;
 public import std.stdio : writeln;
 public import std.conv : to;

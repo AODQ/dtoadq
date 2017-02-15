@@ -1,6 +1,7 @@
 {
 	"fileVersion": 1,
 	"versions": {
+		"derelict-cl": "2.0.0",
 		"derelict-ogg": "1.0.2",
 		"derelict-il": "1.0.1",
 		"derelict-vorbis": "1.0.2",
