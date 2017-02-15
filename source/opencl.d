@@ -10,6 +10,7 @@ auto RPlatforms() {
   cl_uint platform_amt = 10;
   platforms.length = platform_amt;
   getPlatformIDs(platform_amt, platforms.ptr, &platform_amt);
+  platforms.length = platform_amt;
   return platforms;
 }
 
@@ -44,7 +45,7 @@ auto RPlatform_Info(PlatformID platform) {
 }
 
 void Print_Device_Information ( ) {
-  auto platforms = RPlatforms;
+  auto platforms = RPlatforms
   writeln("PLATFORMS: ", platforms);
   import std.algorithm;
   platforms.each!(n => n.RPlatform_Info.writeln);
