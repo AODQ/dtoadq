@@ -1,6 +1,6 @@
 module globals;
-public import AOD = AODCore.aod;
-public import AODCore.aod : Vector;
+public import AOD;
+public import AOD : Vector;
 public static import math = std.math;
 public static import cl = opencl;
 public import trait = std.traits;
