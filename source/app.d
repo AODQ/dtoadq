@@ -21,16 +21,23 @@ void OpenCL_Test ( ) {
 AOD.SheetContainer CLImage_To_Image(CLImage image) {
   import derelict.opengl3.gl3;
   GLuint texture;
+  glGetError();
   glGenTextures(1, &texture);
+  writeln("error: ", glGetError());
   glBindTexture(GL_TEXTURE_2D, texture);
+  writeln("error: ", glGetError());
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+  writeln("error: %x".format(glGetError()));
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+  writeln("error: ", glGetError());
   glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image.width, image.height, 0,
       GL_RGBA, GL_UNSIGNED_BYTE, cast(void*)image.buffer.ptr
   );
+  writeln("error: ", glGetError());
   glBindTexture(GL_TEXTURE_2D, 0);
-  while ( glGetError() != 0 )
-    writeln("error: ", glGetError());
+  writeln("error: ", glGetError());
+  writeln("TEXTURE: ", texture);
+  writeln(image.buffer);
   return AOD.SheetContainer(texture, image.width, image.height);
 }
 
@@ -46,6 +53,9 @@ class RenderMe : AOD.Entity {
 }
 
 void main() {
+  scope ( exit ) {
+    writeln("Successfully ended");
+  }
   Init();
   Game_Init();
 
