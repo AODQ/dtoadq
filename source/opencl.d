@@ -244,15 +244,35 @@ CLImage Test_OpenCL ( ) {
   int err;
   immutable(int) dim = 64;
 
-  auto program = Compile(q{
-    __kernel void hello(__read_only image2d_t input_image,
-                        __write_only image2d_t output_image) {
-      size_t tid = get_global_id(0);
-      const sampler_t sample = CLK_FILTER_NEAREST;
-      uint4 col = read_imageui(input_image, sample, (int2)(tid, 20));
-      write_imageui(output_image, (int2)(tid, 20), col);
+  auto program = Compile(`
+      __constant sampler_t sampler =
+          CLK_NORMALIZED_COORDS_FALSE |
+          CLK_ADDRESS_CLAMP_TO_EDGE   |
+          CLK_FILTER_NEAREST;
+
+      __kernel void hello(__read_only image2d_t input_image,
+                         __write_only image2d_t output_image) {
+
+      uint kernel_weights[9] = { 1, 2, 1,
+                                 2, 4, 2,
+                                 1, 2, 1 };
+
+      int2 start = (int2)(get_global_id(0) - 1, get_global_id(1) - 1);
+      int2 end   = (int2)(get_global_id(0) + 1, get_global_id(1) + 1);
+      int2 out   = (int2)(get_global_id(0),     get_global_id(1));
+
+      if ( out.x < 16 && out.y < 16 ) {
+        int weight = 0;
+        uint4 col = (uint4)(0, 0, 0, 255);
+        for ( int y = start.y; y <= end.y; ++ y )
+          for ( int x = start.x; x <= end.x; ++ x ) {
+            col += (kernel_weights[weight]*8);
+            weight += 1;
+          }
+        write_imageui(output_image, out, (uint4)(25, 25, 25, 255));
+      }
     }
-  });
+  `);
 
   import std.string;
   auto e = "hello".toStringz;
@@ -268,8 +288,9 @@ CLImage Test_OpenCL ( ) {
   auto Img_format = cl_image_format(CL_RGBA, CL_UNORM_INT8);
   auto Img_descriptor = cl_image_desc(CL_MEM_OBJECT_IMAGE2D, dim, dim,
                                       1, 0, 0, 0, 0, 0, null);
-  auto input  = clCreateImage(program.context, CL_MEM_READ_ONLY,
-                    &Img_format, &Img_descriptor, null, &err);
+  auto input  = clCreateImage(program.context,
+                    CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
+                    &Img_format, &Img_descriptor, input_image_buffer.ptr, &err);
   CLAssert(err, "Create image input");
   auto image  = clCreateImage(program.context, CL_MEM_WRITE_ONLY,
                   &Img_format, &Img_descriptor, null, &err);
@@ -288,7 +309,8 @@ CLImage Test_OpenCL ( ) {
            "Setting kernel of input");
   CLAssert(clSetKernelArg(kernel, 1, cl_mem.sizeof, &image),
            "Setting kernel of image");
-  size_t global = input_image_buffer.length;
+  size_t[2] global = [dim, dim];
+  size_t[2] local  = [16,  16 ];
 
   import std.datetime;
   writeln("Starting");
@@ -296,7 +318,7 @@ CLImage Test_OpenCL ( ) {
   watch.start;
   // enqueue kernel command for execution
   CLAssert(clEnqueueNDRangeKernel(program.command_queue, kernel, 1, null,
-                                  &global, null, 0, null, null),
+                                  global.ptr, local.ptr, 0, null, null),
            "Enqueue kernel command for execution");
   CLAssert(clFinish(program.command_queue),
            "Finish execution");
@@ -312,6 +334,7 @@ CLImage Test_OpenCL ( ) {
             origin.ptr, region.ptr, 0, 0, image_buffer.ptr, 0, null, null),
            "Enqueue image");
   auto img = CLImage(image_buffer.dup, dim, dim);
+  writeln("RESULTS: ", image_buffer);
   // cleanup opencl resources
   clReleaseMemObject(input);
   clReleaseMemObject(image);
@@ -319,6 +342,5 @@ CLImage Test_OpenCL ( ) {
   clReleaseKernel(kernel);
   clReleaseCommandQueue(program.command_queue);
   clReleaseContext(program.context);
-  writeln("asdf");
   return img;
 }
