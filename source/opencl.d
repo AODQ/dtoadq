@@ -243,7 +243,7 @@ struct CLImage {
 
 CLImage Test_OpenCL ( ) {
   float[] input_data;
-  foreach ( i; 0 .. 100 )
+  foreach ( i; 0 .. 200_000 )
     input_data ~= i;
   int err;
   immutable(int) dim = 64;
@@ -254,7 +254,7 @@ CLImage Test_OpenCL ( ) {
       size_t id = get_global_id(0);
       size_t tid = input[id];
       output[id] = tid;
-      write_imageui(image, (int2)(tid, tid), (uint4)(50, 50, 50, 200));
+      write_imageui(image, (int2)(tid, tid), (uint4)(0, 0, 0, 255));
     }
   `);
 
@@ -325,12 +325,16 @@ CLImage Test_OpenCL ( ) {
             region = [1, 1, 1];
   ubyte[] image_buffer;
   image_buffer.length = dim*dim;
+  foreach ( ref i; image_buffer ) {
+    i = 255;
+  }
   CLAssert(clEnqueueReadImage(program.command_queue, image, CL_TRUE,
             origin.ptr, region.ptr, 0, 0, image_buffer.ptr, 0, null, null),
            "Enqueue image");
   import core.thread;
   writeln("Waiting ...");
-  Thread.sleep(dur!"seconds"(5));
+  Thread.sleep(dur!"seconds"(1));
+  auto img = CLImage(image_buffer.dup, dim, dim);
   // cleanup opencl resources
   clReleaseMemObject(input);
   clReleaseMemObject(output);
@@ -339,5 +343,5 @@ CLImage Test_OpenCL ( ) {
   clReleaseKernel(kernel);
   clReleaseCommandQueue(program.command_queue);
   clReleaseContext(program.context);
-  return CLImage(image_buffer.dup, dim, dim);
+  return img;
 }
