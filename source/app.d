@@ -11,11 +11,11 @@ void Init ( ) {
 void Game_Init ( ) {
 }
 
-auto OpenCL_Test ( ) {
+void OpenCL_Test ( ) {
   import opencl;
 
   Initialize;
-  return Test_OpenCL;
+  AOD.Add(new RenderMe(Test_OpenCL));
 }
 
 AOD.SheetContainer CLImage_To_Image(CLImage image) {
@@ -55,14 +55,13 @@ void main() {
   scope ( exit ) {
     writeln("Successfully ended");
   }
-  writeln("--------------------");
-  writeln("opencl wrap test");
-  auto opencl_result = OpenCL_Test;
-  writeln("--------------------");
-
   Init();
   Game_Init();
-  AOD.Add(new RenderMe(opencl_result));
+
+  writeln("--------------------");
+  writeln("opencl wrap test");
+  OpenCL_Test;
+  writeln("--------------------");
 
   AOD.Run();
   return;
