@@ -11,11 +11,11 @@ void Init ( ) {
 void Game_Init ( ) {
 }
 
-void OpenCL_Test ( ) {
+auto OpenCL_Test ( ) {
   import opencl;
 
   Initialize;
-  AOD.Add(new RenderMe(Test_OpenCL));
+  return Test_OpenCL;
 }
 
 AOD.SheetContainer CLImage_To_Image(CLImage image) {
@@ -37,7 +37,6 @@ AOD.SheetContainer CLImage_To_Image(CLImage image) {
   glBindTexture(GL_TEXTURE_2D, 0);
   writeln("error: ", glGetError());
   writeln("TEXTURE: ", texture);
-  writeln(image.buffer);
   return AOD.SheetContainer(texture, image.width, image.height);
 }
 
@@ -56,13 +55,14 @@ void main() {
   scope ( exit ) {
     writeln("Successfully ended");
   }
-  Init();
-  Game_Init();
-
   writeln("--------------------");
   writeln("opencl wrap test");
-  OpenCL_Test;
+  auto opencl_result = OpenCL_Test;
   writeln("--------------------");
+
+  Init();
+  Game_Init();
+  AOD.Add(new RenderMe(opencl_result));
 
   AOD.Run();
   return;

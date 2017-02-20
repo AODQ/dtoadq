@@ -4,6 +4,7 @@
 		"derelict-cl": "2.0.0",
 		"derelict-ogg": "1.0.2",
 		"derelict-il": "1.0.1",
+		"aod": "~master",
 		"derelict-vorbis": "1.0.2",
 		"derelict-al": "1.0.3",
 		"derelict-ft": "1.1.3",

@@ -44,8 +44,9 @@ struct OpenCLProgram {
     import std.string;
     auto e = source.toStringz;
     program = clCreateProgramWithSource(context, 1, &e, null, &err);
-    CLAssert(err, "Create program with source");
-    if ( clBuildProgram(program, 0, null, null, null, null) != CL_SUCCESS ) {
+    writeln(clBuildProgram);
+    immutable(char*) Options = "-Werror -cl-std=CL1.2\0";
+    if ( clBuildProgram(program, 0, null, Options, null, null) != CL_SUCCESS ) {
       size_t len;
       clGetProgramBuildInfo(program, device.device_id, CL_PROGRAM_BUILD_LOG, 0,
                             null, &len);
@@ -54,6 +55,7 @@ struct OpenCLProgram {
                             len, log.ptr, null);
       assert(false, "Error building program:\n" ~ log);
     }
+    writeln("Build program: SUCCESS");
   }
 
 }
@@ -90,7 +92,7 @@ auto Set_Current_Platform() {
     write("Please enter a platform to choose: ");
     index = 0;
     // index = readln.chomp.to!int;
-    // assert(index >= 0 && index < platforms.length, " invalid platform index");
+    // assert(index >= 0 && index < platforms.length, " invalid platform index")
   }
   return cast(void*)platforms[index];
 }
@@ -98,7 +100,7 @@ auto Set_Current_Platform() {
 auto Set_Current_Device(CLPlatformID platform_id) {
   // --- get device information
   CLDeviceID device_id;
-  CLAssert(clGetDeviceIDs(platform_id, CL_DEVICE_TYPE_GPU, 1, &device_id, null),
+  CLAssert(clGetDeviceIDs(platform_id, CL_DEVICE_TYPE_CPU, 1, &device_id, null),
            "Get device id");
   return device_id;
 }
@@ -108,7 +110,7 @@ void Initialize ( ) {
   auto platform_id = Set_Current_Platform();
   auto device_id = Set_Current_Device(platform_id);
   DerelictCL.reload(RCL_Version(platform_id));
-  // DerelictCL.loadEXT(platform_id);
+  DerelictCL.loadEXT(platform_id);
   device = new Device(platform_id, device_id);
   // writeln(RDevice_Info(device_id));
 }
@@ -242,64 +244,36 @@ struct CLImage {
 
 CLImage Test_OpenCL ( ) {
   int err;
-  immutable(int) dim = 64;
+  immutable(int) dim = 256;
 
-  auto program = Compile(`
-      __constant sampler_t sampler =
-          CLK_NORMALIZED_COORDS_FALSE |
-          CLK_ADDRESS_CLAMP_TO_EDGE   |
-          CLK_FILTER_NEAREST;
-
-      __kernel void hello(__read_only image2d_t input_image,
-                         __write_only image2d_t output_image) {
-
-      uint kernel_weights[9] = { 1, 2, 1,
-                                 2, 4, 2,
-                                 1, 2, 1 };
-
-      int2 start = (int2)(get_global_id(0) - 1, get_global_id(1) - 1);
-      int2 end   = (int2)(get_global_id(0) + 1, get_global_id(1) + 1);
-      int2 out   = (int2)(get_global_id(0),     get_global_id(1));
-
-      if ( out.x < 16 && out.y < 16 ) {
-        int weight = 0;
-        uint4 col = (uint4)(0, 0, 0, 255);
-        for ( int y = start.y; y <= end.y; ++ y )
-          for ( int x = start.x; x <= end.x; ++ x ) {
-            col += (kernel_weights[weight]*8);
-            weight += 1;
-          }
-        write_imageui(output_image, out, (uint4)(25, 25, 25, 255));
-      }
-    }
-  `);
+  import opencl_program;
+  auto program = Compile(program_string);
 
   import std.string;
   auto e = "hello".toStringz;
   auto kernel = clCreateKernel(program.program, "hello", &err);
   CLAssert(err, "Create kernel");
   ubyte[] input_image_buffer;
-  input_image_buffer.length = dim*dim;
+  input_image_buffer.length = dim*dim*4;
   import std.random;
   foreach ( ref i; input_image_buffer ) {
-    i = uniform(0, 255).to!ubyte;
+    i = uniform(0, ubyte.max).to!ubyte;
   }
   writeln("Supported image formats: ", RSupported_Image_Formats(program));
   auto Img_format = cl_image_format(CL_RGBA, CL_UNORM_INT8);
-  auto Img_descriptor = cl_image_desc(CL_MEM_OBJECT_IMAGE2D, dim, dim,
+  auto Img_descriptor = cl_image_desc(CL_MEM_OBJECT_IMAGE2D, dim*4, dim,
                                       1, 0, 0, 0, 0, 0, null);
   auto input  = clCreateImage(program.context,
                     CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
                     &Img_format, &Img_descriptor, input_image_buffer.ptr, &err);
   CLAssert(err, "Create image input");
-  auto image  = clCreateImage(program.context, CL_MEM_WRITE_ONLY,
-                  &Img_format, &Img_descriptor, null, &err);
+  auto image  = clCreateBuffer(program.context, CL_MEM_WRITE_ONLY,
+                              dim*dim, null, &err);
   CLAssert(err, "Create image output");
 
   // load data into input buffer
   size_t[3] origin = [0, 0, 0],
             region = [1, 1, 1];
-  ubyte[] image_buffer;
   CLAssert(clEnqueueWriteImage(program.command_queue, input, CL_TRUE,
                    origin.ptr, region.ptr, 0, 0, input_image_buffer.ptr, 0,
                    null, null),
@@ -309,8 +283,8 @@ CLImage Test_OpenCL ( ) {
            "Setting kernel of input");
   CLAssert(clSetKernelArg(kernel, 1, cl_mem.sizeof, &image),
            "Setting kernel of image");
-  size_t[2] global = [dim, dim];
-  size_t[2] local  = [16,  16 ];
+  size_t[] global = [dim*dim];
+  size_t[2] local  = [128,  32 ];
 
   import std.datetime;
   writeln("Starting");
@@ -318,7 +292,7 @@ CLImage Test_OpenCL ( ) {
   watch.start;
   // enqueue kernel command for execution
   CLAssert(clEnqueueNDRangeKernel(program.command_queue, kernel, 1, null,
-                                  global.ptr, local.ptr, 0, null, null),
+                                  global.ptr, null, 0, null, null),
            "Enqueue kernel command for execution");
   CLAssert(clFinish(program.command_queue),
            "Finish execution");
@@ -326,15 +300,28 @@ CLImage Test_OpenCL ( ) {
   import core.time;
   writeln("Finished, duration: ", watch.peek().msecs, " milliseconds");
   // copy image from image buffer
+  uint[] image_buffer;
   image_buffer.length = dim*dim;
   foreach ( ref i; image_buffer ) {
-    i = 255;
+    i = uint.max;
   }
-  CLAssert(clEnqueueReadImage(program.command_queue, image, CL_TRUE,
-            origin.ptr, region.ptr, 0, 0, image_buffer.ptr, 0, null, null),
+  CLAssert(clEnqueueReadBuffer(program.command_queue, image, CL_TRUE,
+            0, image_buffer.length, image_buffer.ptr, 0, null, null),
            "Enqueue image");
-  auto img = CLImage(image_buffer.dup, dim, dim);
-  writeln("RESULTS: ", image_buffer);
+  writeln("Length: ", image_buffer.length);
+  ubyte[] r_image_buffer;
+  r_image_buffer.length = dim*dim*4;
+  foreach ( i; 0 .. image_buffer.length ) {
+    uint value = image_buffer[i];
+    ubyte[4] temp;
+    foreach ( o; 0 .. 4 ) {
+      temp[3 - o] = cast(ubyte)(value >> (o*8));
+    }
+    // writeln("Results: ", temp);
+    r_image_buffer[(i*4) .. (i*4)+4] = temp;
+  }
+  auto img = CLImage(r_image_buffer.dup, dim, dim);
+  // writeln(r_image_buffer);
   // cleanup opencl resources
   clReleaseMemObject(input);
   clReleaseMemObject(image);
