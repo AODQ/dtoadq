@@ -11,6 +11,12 @@ void Init ( ) {
 void Game_Init ( ) {
 }
 
+void Raycast_Test ( ) {
+  import opencl;
+  import raycast;
+  Initialize;
+  AOD.Add(new RenderMe(Test_Raycast));
+}
 void OpenCL_Test ( ) {
   import opencl;
 
