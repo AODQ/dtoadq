@@ -12,6 +12,7 @@ alias cl_program              CLProgram;
 alias cl_device_id            CLDeviceID;
 alias cl_platform_id          CLPlatformID;
 alias cl_kernel               CLKernel;
+alias cl_mem                  CLMem;
 
 class Device {
   CLPlatformID  platform_id;
@@ -27,37 +28,43 @@ private Device device;
 enum BufferType { write_only = CL_MEM_WRITE_ONLY,
                   read_only  = CL_MEM_READ_ONLY };
 
+struct BaseBuffer(BType) {
+  BufferType type;
+  CLMem cl_handle;
+  BType[] data;
+}
+
+struct OpenCLImage {
+  BaseBuffer!float _mybuffer;
+  alias _mybuffer this;
+  cl_image_format  format;
+  cl_image_desc    description;
+  size_t width, height;
+  this ( BufferType _type, float[] _data, cl_image_format _format,
+         cl_image_desc _description, size_t _width, size_t _height) {
+    _mybuffer = BaseBuffer!float(_type, CLMem(), _data);
+    format = _format;
+    description = _description;
+    width = _width; height = _height;
+  }
+}
+
+struct OpenCLBuffer(BType) {
+  BaseBuffer!BType _mybuffer;
+  alias _mybuffer this;
+  this ( BufferType _type, BType[] _data ) {
+    _mybuffer = BaseBuffer!BType(_type, CLMem(), _data);
+  }
+}
+
 class OpenCLProgram {
   CLContext            context;
   CLContextProperties  properties;
   CLCommandQueue       command_queue;
   CLProgram            program;
   CLKernel             kernel;
+  CLMem[]              mem_objects;
   int err;
-
-  struct BaseBuffer(BType) {
-    string name;
-    BufferType type;
-    cl_mem cl_handle;
-    BType[] buffer;
-  }
-
-  struct OpenCLImage {
-    BaseBuffer!float _MyBuffer;
-    alias _MyBuffer this;
-    cl_image_format  format;
-    cl_image_desc    description;
-    this ( string _name, 
-  }
-
-  struct OpenCLBuffer(BType) {
-    BaseBuffer!BType _MyBuffer;
-    alias _MyBuffer this;
-    this (
-  }
-
-  OpenCLImage[string] image_map;
-  OpenCLBuffer[string] buffer_map;
 public:
   this ( string source ) in {
     assert(device !is null);
@@ -85,37 +92,82 @@ public:
       assert(false, "Error building program:\n" ~ log);
     }
   }
+  ~this() {
+    Cleanup();
+  }
 
   void Set_Kernel(string kernel_name) {
     kernel = clCreateKernel(program, kernel_name.ptr, &err);
     CLAssert(err, "clCreateKernel");
   }
 
-  void Set_Image_Buffer(BufferType type, int dim, string name, int ind) {
-    Set_Image_Buffer(type, dim, dim, name);
+  OpenCLImage Set_Image_Buffer(BufferType type, int dim, int ind) {
+    return Set_Image_Buffer(type, dim, dim, ind);
   }
-  void Set_Image_Buffer(BufferType type, int width, int height, string name,
-                        int ind) {
+  OpenCLImage Set_Image_Buffer(BufferType type, int width, int height, int ind){
     OpenCLImage image = OpenCLImage(
-      name, type,
+      type, [],
       cl_image_format(CL_RGBA, CL_FLOAT),
       cl_image_desc (CL_MEM_OBJECT_IMAGE2D, width, height, 1,
-                    0, 0, 0, 0, 0, null), cl_mem(), []
+                    0, 0, 0, 0, 0, null),
+      width, height
     );
     image.cl_handle = clCreateImage(context, type, &image.format,
-                                              &image.description, null, &err);
-    image.buffer.length = height;
-    foreach ( ref i; image.buffer ) i.length = width;
-    CLAssert(err, "Creating image " ~ name);
-    image_map[name] = image;
-    CLAssert(clSetKernelArg(kernel, 0, cl_mem.sizeof, &image.cl_handle),
-             "Set kernel " ~ name);
+                                    &image.description, null, &err);
+    mem_objects ~= image.cl_handle;
+    CLAssert(err, "Creating image ");
+    image.data.length = width*height*4;
+    CLAssert(clSetKernelArg(kernel, ind, CLMem.sizeof, &image.cl_handle),
+             "Set kernel");
+    return image;
   }
 
-  void Set_Buffer(T)(BufferType type, string name, T[] type, int ind) {
-    OpenCLBuffer buffer = OpenCLBuffer(
-
+  OpenCLBuffer Set_Buffer(T)(BufferType type, T[] data, int ind) {
+    OpenCLBuffer buffer = OpenCLBuffer!T(
+      type, data.dup
     );
+    buffer.cl_handle = clCreateBuffer(context, type | CL_MEM_COPY_HOST_PTR,
+                             data.length, buffer.data, &err);
+    mem_objects ~= buffer;
+    CLAssert(err, "Creating buffer");
+    CLAssert(clSetKernelArg(kernel, ind, CLMem.sizeof, &buffer.cl_handle),
+             "Set kernel");
+    return buffer;
+  }
+
+  void Run(size_t[] global, size_t[] local) {
+    assert(global.length == local.length);
+    CLAssert(clEnqueueNDRangeKernel(command_queue, kernel, global.length, null,
+                                    global.ptr, local.ptr, 0, null, null),
+             "Enqueue image");
+  }
+
+  void Read_Buffer(BType)(ref OpenCLBuffer buffer) {
+    CLAssert(clEnqueueReadBuffer(command_queue, buffer.cl_handle, CL_TRUE, 0,
+                  BType.sizeof*buffer.data.length, buffer.data.ptr,
+                  0, null, null), "Enqueue read buffer");
+  }
+
+  void Read_Image(ref OpenCLImage image) {
+    static size_t[3] origin = [0, 0, 0];
+    size_t[3] region = [
+      image.width, image.height, 1
+    ];
+    CLAssert(clEnqueueReadImage(command_queue, image.cl_handle, CL_TRUE,
+                origin.ptr, region.ptr, 0, 0, image.data.ptr, 0, null, null),
+                "Enqueue image");
+  }
+
+  void Cleanup() {
+    if ( program == null ) break;
+    foreach ( mem; mem_objects )
+      clReleaseMemObject(mem);
+    mem = [];
+    clReleaseProgram(program);
+    clReleaseKernel(kernel);
+    clReleaseCommandQueue(command_queue);
+    clReleaseContext(context);
+    program = null;
   }
 }
 
