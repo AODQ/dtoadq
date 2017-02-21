@@ -52,8 +52,11 @@ struct OpenCLImage {
 struct OpenCLBuffer(BType) {
   BaseBuffer!BType _mybuffer;
   alias _mybuffer this;
+  uint length;
+  CLMem cl_length_handle;
   this ( BufferType _type, BType[] _data ) {
     _mybuffer = BaseBuffer!BType(_type, CLMem(), _data);
+    length = cast(uint)data.length;
   }
 }
 
@@ -122,24 +125,30 @@ public:
     return image;
   }
 
-  OpenCLBuffer Set_Buffer(T)(BufferType type, T[] data, int ind) {
-    OpenCLBuffer buffer = OpenCLBuffer!T(
+  OpenCLBuffer!T Set_Buffer(T)(BufferType type, T[] data, int ind) {
+    OpenCLBuffer!T buffer = OpenCLBuffer!T(
       type, data.dup
     );
     buffer.cl_handle = clCreateBuffer(context, type | CL_MEM_COPY_HOST_PTR,
-                             data.length, buffer.data, &err);
-    mem_objects ~= buffer;
+                             data.length, buffer.data.ptr, &err);
+    buffer.cl_length_handle = clCreateBuffer(context,
+                             CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
+                             buffer.length.sizeof, &buffer.length, &err);
+    mem_objects ~= buffer.cl_handle;
+    mem_objects ~= buffer.cl_length_handle;
     CLAssert(err, "Creating buffer");
     CLAssert(clSetKernelArg(kernel, ind, CLMem.sizeof, &buffer.cl_handle),
              "Set kernel");
+    CLAssert(clSetKernelArg(kernel, ind, CLMem.sizeof, &buffer.cl_length_handle),
+             "Set kernel length");
     return buffer;
   }
 
   void Run(size_t[] global, size_t[] local) {
     assert(global.length == local.length);
-    CLAssert(clEnqueueNDRangeKernel(command_queue, kernel, global.length, null,
-                                    global.ptr, local.ptr, 0, null, null),
-             "Enqueue image");
+    CLAssert(clEnqueueNDRangeKernel(command_queue, kernel,
+             cast(uint)global.length, null, global.ptr, local.ptr,
+             0, null, null), "EnqueueNDRangeKernel");
   }
 
   void Read_Buffer(BType)(ref OpenCLBuffer buffer) {
@@ -159,10 +168,10 @@ public:
   }
 
   void Cleanup() {
-    if ( program == null ) break;
+    if ( program == null ) return;
     foreach ( mem; mem_objects )
       clReleaseMemObject(mem);
-    mem = [];
+    mem_objects = [];
     clReleaseProgram(program);
     clReleaseKernel(kernel);
     clReleaseCommandQueue(command_queue);

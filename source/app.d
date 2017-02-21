@@ -66,7 +66,7 @@ void main() {
 
   writeln("--------------------");
   writeln("opencl wrap test");
-  OpenCL_Test;
+  Raycast_Test;
   writeln("--------------------");
 
   AOD.Run();

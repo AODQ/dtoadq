@@ -3,7 +3,10 @@ module opencl_program; immutable(string) Test_raycast_string = q{
 
   __kernel void Kernel_Raycast(
           __global float* vertex_data,
+          __global int* vertex_count,
           __write_only image2d_t output_image) {
+    int2 out = (int2)(get_global_id(0), get_global_id(1));
+    write_imagef(output_image, out, (float4)(0.2f, 0.9f, 0.5, 1.0f));
   }
 
 

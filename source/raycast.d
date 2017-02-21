@@ -1,8 +1,10 @@
 module raycast;
 import opencl;
 import opencl_program : Test_raycast_string;
+import globals;
 
 CLImage Test_Raycast ( ) {
+  writeln("RAYCAST TEST");
   immutable(int) Img_dim = 1024;
   auto program = Compile(Test_raycast_string);
   program.Set_Kernel("Kernel_Raycast");
