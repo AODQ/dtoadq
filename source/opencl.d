@@ -32,6 +32,7 @@ struct BaseBuffer(BType) {
   BufferType type;
   CLMem cl_handle;
   BType[] data;
+  int index;
 }
 
 struct OpenCLImage {
@@ -40,12 +41,20 @@ struct OpenCLImage {
   cl_image_format  format;
   cl_image_desc    description;
   size_t width, height;
-  this ( BufferType _type, float[] _data, cl_image_format _format,
+  this ( BufferType _type, float[] _data, int _ind, cl_image_format _format,
          cl_image_desc _description, size_t _width, size_t _height) {
-    _mybuffer = BaseBuffer!float(_type, CLMem(), _data);
+    _mybuffer = BaseBuffer!float(_type, CLMem(), _data, _ind);
     format = _format;
     description = _description;
     width = _width; height = _height;
+  }
+}
+
+struct OpenCLSingleton(BType) {
+  BaseBuffer!BType _mybuffer;
+  alias _mybuffer this;
+  this ( BufferType _type, BType _data, int _ind ) {
+    _mybuffer = BaseBuffer!BType(_type, CLMem(), [_data], _ind);
   }
 }
 
@@ -54,8 +63,8 @@ struct OpenCLBuffer(BType) {
   alias _mybuffer this;
   uint length;
   CLMem cl_length_handle;
-  this ( BufferType _type, BType[] _data ) {
-    _mybuffer = BaseBuffer!BType(_type, CLMem(), _data);
+  this ( BufferType _type, BType[] _data, int _ind ) {
+    _mybuffer = BaseBuffer!BType(_type, CLMem(), _data, _ind);
     length = cast(uint)data.length;
   }
 }
@@ -96,7 +105,7 @@ public:
     }
   }
   ~this() {
-    Cleanup();
+    Clean_Up();
   }
 
   void Set_Kernel(string kernel_name) {
@@ -109,7 +118,7 @@ public:
   }
   OpenCLImage Set_Image_Buffer(BufferType type, int width, int height, int ind){
     OpenCLImage image = OpenCLImage(
-      type, [],
+      type, [], ind,
       cl_image_format(CL_RGBA, CL_FLOAT),
       cl_image_desc (CL_MEM_OBJECT_IMAGE2D, width, height, 1,
                     0, 0, 0, 0, 0, null),
@@ -125,22 +134,42 @@ public:
     return image;
   }
 
+  OpenCLSingleton!T Set_Singleton(T)(BufferType type, T data, int ind) {
+    auto singleton = OpenCLSingleton!T(
+      type, data, ind
+    );
+    singleton.cl_handle = clCreateBuffer(context, type | CL_MEM_COPY_HOST_PTR,
+                                         T.sizeof, singleton.data.ptr, &err);
+    CLAssert(err, "clCreateBuffer");
+    CLAssert(clSetKernelArg(kernel, ind, CLMem.sizeof, &singleton.cl_handle),
+             "clSetKernelArg");
+    return singleton;
+  }
+
+  void Write(T)(OpenCLSingleton!T singleton) {
+    CLAssert(clEnqueueWriteBuffer(command_queue, singleton.cl_handle,
+                  CL_TRUE, 0, T.sizeof, &singleton.data[0],
+                  0, null, null), "clEnqueueWriteBuffer singleton");
+  }
+
   OpenCLBuffer!T Set_Buffer(T)(BufferType type, T[] data, int ind) {
     OpenCLBuffer!T buffer = OpenCLBuffer!T(
-      type, data.dup
+      type, data.dup, ind
     );
-    buffer.cl_handle = clCreateBuffer(context, type | CL_MEM_COPY_HOST_PTR,
-                             data.length, buffer.data.ptr, &err);
+
+    auto flags = type | (data is null? 0 : CL_MEM_COPY_HOST_PTR);
+    buffer.cl_handle = clCreateBuffer(context, flags, data.length*data.sizeof,
+                                      buffer.data.ptr, &err);
     buffer.cl_length_handle = clCreateBuffer(context,
                              CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
                              buffer.length.sizeof, &buffer.length, &err);
     mem_objects ~= buffer.cl_handle;
     mem_objects ~= buffer.cl_length_handle;
-    CLAssert(err, "Creating buffer");
+    CLAssert(err, "clCreateBufferl");
     CLAssert(clSetKernelArg(kernel, ind, CLMem.sizeof, &buffer.cl_handle),
-             "Set kernel");
-    CLAssert(clSetKernelArg(kernel, ind, CLMem.sizeof, &buffer.cl_length_handle),
-             "Set kernel length");
+             "clSetKernelArg");
+    CLAssert(clSetKernelArg(kernel, ind+1, CLMem.sizeof,
+             &buffer.cl_length_handle), "Set kernel length");
     return buffer;
   }
 
@@ -167,7 +196,7 @@ public:
                 "Enqueue image");
   }
 
-  void Cleanup() {
+  void Clean_Up() {
     if ( program == null ) return;
     foreach ( mem; mem_objects )
       clReleaseMemObject(mem);
@@ -181,11 +210,7 @@ public:
 }
 
 void CLAssert(int cond, string err) {
-  if ( cond == CL_SUCCESS ) {
-    writeln(err, ": SUCCESS");
-  } else {
-    assert(cond == CL_SUCCESS, err ~ ": " ~ CL_Error_String(cond));
-  }
+  assert(cond == CL_SUCCESS, err ~ ": " ~ CL_Error_String(cond));
 }
 
 auto RPlatforms() {
@@ -220,7 +245,7 @@ auto Set_Current_Platform() {
 auto Set_Current_Device(CLPlatformID platform_id) {
   // --- get device information
   CLDeviceID device_id;
-  CLAssert(clGetDeviceIDs(platform_id, CL_DEVICE_TYPE_CPU, 1, &device_id, null),
+  CLAssert(clGetDeviceIDs(platform_id, CL_DEVICE_TYPE_GPU, 1, &device_id, null),
            "Get device id");
   return device_id;
 }
