@@ -245,7 +245,7 @@ auto Set_Current_Platform() {
 auto Set_Current_Device(CLPlatformID platform_id) {
   // --- get device information
   CLDeviceID device_id;
-  CLAssert(clGetDeviceIDs(platform_id, CL_DEVICE_TYPE_GPU, 1, &device_id, null),
+  CLAssert(clGetDeviceIDs(platform_id, CL_DEVICE_TYPE_CPU, 1, &device_id, null),
            "Get device id");
   return device_id;
 }
