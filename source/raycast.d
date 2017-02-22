@@ -4,19 +4,27 @@ import opencl_program : Test_raycast_string;
 import globals;
 import core.time : MonoTime;
 
-struct float3 {
-  float[3] f;
+auto TF3(float[3] a) {
+  cl_float3 vec;
+  vec.x = a[0];
+  vec.y = a[1];
+  vec.z = a[2];
+  return vec;
 }
 
 struct Triangle {
-public:
-  float3[3] vertices;
+  cl_float3 A, B, C;
 }
 
-Triangle[] Create_Triangles(float[3] a, float[3] b, float[3] c) {
-  return [ Triangle ([
-      float3 ( a ), float3 ( b ), float3 ( c )
-    ]) ];
+Triangle[] Create_Triangles(float[3][][] triangles) {
+  Triangle[] results;
+  foreach ( sect; triangles ) {
+    cl_float3 A = TF3(sect[0]),
+              B = TF3(sect[1]),
+              C = TF3(sect[2]);
+    results ~= Triangle(A, B, C);
+  }
+  return results;
 }
 
 
@@ -32,10 +40,20 @@ class Raycaster : AOD.Entity {
 public:
   this ( ) {
     super();
-    float[3] pA = [20.0f,  0.3f,  20.0f],
-             pB = [100.0f, 0.3f,  20.0f],
-             pC = [ 20.0f, 0.3f, 100.0f];
-    vertices = Create_Triangles(pA, pB, pC);
+    float[3] pA = [ 120.0f,  0.3f, 120.0f ],
+             pB = [ 200.0f,  0.3f, 120.0f ],
+             pC = [ 120.0f,  0.3f, 200.0f ],
+             pD = [ 200.0f,  0.3f, 200.0f ],
+             pE = [ 110.0f,  0.5f, 110.0f ],
+             pF = [ 190.0f,  0.5f, 110.0f ],
+             pG = [ 110.0f,  0.5f, 190.0f ],
+             pH = [ 190.0f,  0.5f, 190.0f ];
+    vertices = Create_Triangles([
+      [pC, pA, pB], [pB, pD, pC],
+      [pA, pC, pG], [pA, pG, pE],
+      [pA, pE, pF], [pA, pF, pB],
+
+    ]);
     Set_Position(AOD.R_Window_Width/2, AOD.R_Window_Height/2);
     program = Compile(Test_raycast_string);
     program.Set_Kernel("Kernel_Raycast");

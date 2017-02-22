@@ -158,7 +158,7 @@ public:
     );
 
     auto flags = type | (data is null? 0 : CL_MEM_COPY_HOST_PTR);
-    buffer.cl_handle = clCreateBuffer(context, flags, data.length*data.sizeof,
+    buffer.cl_handle = clCreateBuffer(context, flags, data.length*T.sizeof,
                                       buffer.data.ptr, &err);
     buffer.cl_length_handle = clCreateBuffer(context,
                              CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
