@@ -14,6 +14,11 @@ auto TF3(float[3] a) {
 
 struct Triangle {
   cl_float3 A, B, C;
+  uint material_index;
+}
+
+struct Material {
+  cl_float3 ambient, diffuse, specular, emission, shininess;
 }
 
 Triangle[] Create_Triangles(float[3][][] triangles) {
@@ -22,21 +27,35 @@ Triangle[] Create_Triangles(float[3][][] triangles) {
     cl_float3 A = TF3(sect[0]),
               B = TF3(sect[1]),
               C = TF3(sect[2]);
-    results ~= Triangle(A, B, C);
+    uint index = sect[3][0].to!uint;
+    results ~= Triangle(A, B, C, index);
   }
   return results;
 }
 
+Material[] Create_Materials(float[3][][] material) {
+  Material[] results;
+  foreach ( sect; material ) {
+    cl_float3 A = TF3(sect[0]),
+              D = TF3(sect[1]),
+              S = TF3(sect[2]),
+              E = TF3(sect[3]),
+              H = TF3(sect[4]);
+    results ~= Material(A, D, S, E, H);
+  }
+  return results;
+}
 
-  // auto result = program.Set_Image_Buffer(BufferType.write_only, Img_dim, 0);
 class Raycaster : AOD.Entity {
   immutable(int) Img_dim = 512;
   OpenCLProgram program;
   OpenCLImage result;
-  OpenCLBuffer!Triangle buffer;
+  OpenCLBuffer!Triangle vertice_buffer;
+  Triangle[] vertices;
+  OpenCLBuffer!Material material_buffer;
+  Material[] material;
   OpenCLSingleton!float timer;
   MonoTime timer_start;
-  Triangle[] vertices;
 public:
   this ( ) {
     super();
@@ -48,18 +67,24 @@ public:
              pF = [ 190.0f,  0.5f, 110.0f ],
              pG = [ 110.0f,  0.5f, 190.0f ],
              pH = [ 190.0f,  0.5f, 190.0f ];
+    float[3] b = [0.0f, 0.0f, 0.0f],
+             l = [1.0f, 1.0f, 1.0f];
     vertices = Create_Triangles([
-      [pC, pA, pB], [pB, pD, pC],
-      [pA, pC, pG], [pA, pG, pE],
-      [pA, pE, pF], [pA, pF, pB],
-
+      [pC, pA, pB, b], [pB, pD, pC, b],
+      [pA, pC, pG, b], [pA, pG, pE, b],
+      [pA, pE, pF, b], [pA, pF, pB, b],
+    ]);
+    writeln(vertices);
+    material = Create_Materials([
+      [b, b, b, l, b]
     ]);
     Set_Position(AOD.R_Window_Width/2, AOD.R_Window_Height/2);
     program = Compile(Test_raycast_string);
     program.Set_Kernel("Kernel_Raycast");
     result = program.Set_Image_Buffer(BufferType.write_only, Img_dim, 0);
     timer  = program.Set_Singleton!float(BufferType.read_only, 0.0f, 1);
-    buffer = program.Set_Buffer!Triangle(BufferType.read_only, vertices, 2);
+    vertice_buffer  = program.Set_Buffer!Triangle(BufferType.read_only, vertices, 2);
+    material_buffer = program.Set_Buffer!Material(BufferType.read_only, material, 4);
     timer_start = MonoTime.currTime;
   }
   ~this ()  {
