@@ -1,6 +1,6 @@
 module opencl_program; immutable(string) Test_raycast_string = q{
 
-  __constant int Max_iters = 15;
+  __constant int Max_iters = 1;
 
   float2 rot ( float2 uv, float a ) {
     return (float2)(uv.x*cos(a) - uv.y*sin(a),
@@ -21,6 +21,7 @@ module opencl_program; immutable(string) Test_raycast_string = q{
     float3 position;
     float distance;
     Material material;
+    float3 colour;
   } Intersection_Info;
 
   typedef struct T_Ray {
@@ -29,6 +30,10 @@ module opencl_program; immutable(string) Test_raycast_string = q{
 
   float Dot(float3 a, float3 b) {
     return a.x*b.x + a.y*b.y + a.z*b.z;
+  }
+
+  float Hash ( float2 vec ) {
+    return fract( sin(vec.x+cos(vec.y*412.0f))*75138.1942 );
   }
 
   // mollor trombore for now, will use a quad moller-trumbore
@@ -66,16 +71,24 @@ module opencl_program; immutable(string) Test_raycast_string = q{
               Ray ray) {
     Intersection_Info info;
     info.intersection = false;
+    info.colour = (float3)(1.0f, 1.0f, 1.0f);
 
-    float closest_dist = FLT_MAX;
-    for ( uint i = 0; i != vertex_length; ++ i ) {
-      float result = Intersection(vertex_data[i], ray.o, ray.d);
-      if ( result > FLT_EPSILON && closest_dist > result ) {
-        info.distance = result;
-        info.intersection = true;
-        info.position = ray.o + ray.d*result;
-        info.material = material_data[vertex_data[i].material_index];
+    for ( uint global_it = 0; global_it != Max_iters; ++ global_it ) {
+      // --- find closest triangle ---
+      float closest_dist = FLT_MAX;
+      for ( uint i = 0; i != vertex_length; ++ i ) {
+        float result = Intersection(vertex_data[i], ray.o, ray.d);
+        if ( result > FLT_EPSILON && closest_dist > result ) {
+          info.distance = result;
+          info.intersection = true;
+          info.position = ray.o + ray.d*result;
+          info.material = material_data[vertex_data[i].material_index];
+          if ( info.material.emission.x >= 0.0f ) return info;
+        }
       }
+
+      // --- reflect off the triangle at a random point ---
+
     }
 
     return info;
@@ -87,7 +100,6 @@ module opencl_program; immutable(string) Test_raycast_string = q{
           __global Triangle* vertex_data,   global uint* vertex_lengthp,
           __global Material* material_data, global uint* material_lengthp
           ) {
-    float circle_size = 1.0f/(3.0f*pow(1.9f, ( float )(Max_iters)));
     float timer = timer_arr[0];
     uint vertex_length = *vertex_lengthp,
          material_length = *material_lengthp;
@@ -103,25 +115,9 @@ module opencl_program; immutable(string) Test_raycast_string = q{
     Intersection_Info info = Raycast_Scene(vertex_data, vertex_length,
                                            material_data, material_length, ray);
 
-    if ( isprint ) {
-      for ( uint i = 0; i != vertex_length; ++ i ) {
-        printf("%f %f %f\n", vertex_data[i].A[0],
-                             vertex_data[i].A[0],
-                             vertex_data[i].A[0]);
-        printf("%f %f %f\n", vertex_data[i].B[0],
-                             vertex_data[i].B[0],
-                             vertex_data[i].B[0]);
-        printf("%f %f %f\n", vertex_data[i].C[0],
-                             vertex_data[i].C[0],
-                             vertex_data[i].C[0]);
-        printf("-----\n");
-      }
-    }
     if ( info.intersection ) {
-      colour.x = info.distance;
-      if ( isprint )
-        printf("%f \n", info.material.emission.x);
       // colour.xyz = info.material.emission;
+      colour.x = info.distance;
     }
 
     write_imagef(output_image, out, colour);
