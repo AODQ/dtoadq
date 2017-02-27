@@ -77,6 +77,7 @@ class OpenCLProgram {
   CLKernel             kernel;
   CLMem[]              mem_objects;
   int err;
+  int param_count;
 public:
   this ( string source ) in {
     assert(device !is null);
@@ -113,12 +114,12 @@ public:
     CLAssert(err, "clCreateKernel");
   }
 
-  OpenCLImage Set_Image_Buffer(BufferType type, int dim, int ind) {
-    return Set_Image_Buffer(type, dim, dim, ind);
+  OpenCLImage Set_Image_Buffer(BufferType type, int dim) {
+    return Set_Image_Buffer(type, dim, dim);
   }
-  OpenCLImage Set_Image_Buffer(BufferType type, int width, int height, int ind){
+  OpenCLImage Set_Image_Buffer(BufferType type, int width, int height){
     OpenCLImage image = OpenCLImage(
-      type, [], ind,
+      type, [], param_count,
       cl_image_format(CL_RGBA, CL_FLOAT),
       cl_image_desc (CL_MEM_OBJECT_IMAGE2D, width, height, 1,
                     0, 0, 0, 0, 0, null),
@@ -129,32 +130,45 @@ public:
     mem_objects ~= image.cl_handle;
     CLAssert(err, "Creating image ");
     image.data.length = width*height*4;
-    CLAssert(clSetKernelArg(kernel, ind, CLMem.sizeof, &image.cl_handle),
-             "Set kernel");
+    foreach ( ref i; image.data )
+      i = 0.0f;
+    CLAssert(clSetKernelArg(kernel, param_count, CLMem.sizeof,&image.cl_handle),
+             "clSetKernelArg");
+    ++param_count;
     return image;
   }
 
-  OpenCLSingleton!T Set_Singleton(T)(BufferType type, T data, int ind) {
+  OpenCLSingleton!T Set_Singleton(T)(BufferType type, inout(T) data) {
     auto singleton = OpenCLSingleton!T(
-      type, data, ind
+      type, data, param_count
     );
     singleton.cl_handle = clCreateBuffer(context, type | CL_MEM_COPY_HOST_PTR,
                                          T.sizeof, singleton.data.ptr, &err);
     CLAssert(err, "clCreateBuffer");
-    CLAssert(clSetKernelArg(kernel, ind, CLMem.sizeof, &singleton.cl_handle),
+    CLAssert(clSetKernelArg(kernel, param_count, CLMem.sizeof,
+                            &singleton.cl_handle),
              "clSetKernelArg");
+    ++param_count;
     return singleton;
   }
 
+  void Write(OpenCLImage image) {
+    size_t[3] origin = [0, 0, 0];
+    size_t[3] region = [image.width, image.height, 1];
+    CLAssert(clEnqueueWriteImage(command_queue, image.cl_handle,
+                  CL_TRUE, origin.ptr, region.ptr, 0, 0, cast(void*)image.data.ptr,
+                  0, null, null),
+             "clEnqueueWriteImage");
+  }
   void Write(T)(OpenCLSingleton!T singleton) {
     CLAssert(clEnqueueWriteBuffer(command_queue, singleton.cl_handle,
                   CL_TRUE, 0, T.sizeof, &singleton.data[0],
                   0, null, null), "clEnqueueWriteBuffer singleton");
   }
 
-  OpenCLBuffer!T Set_Buffer(T)(BufferType type, T[] data, int ind) {
+  OpenCLBuffer!T Set_Buffer(T)(BufferType type, inout(T[]) data) {
     OpenCLBuffer!T buffer = OpenCLBuffer!T(
-      type, data.dup, ind
+      type, data.dup, param_count
     );
 
     auto flags = type | (data is null? 0 : CL_MEM_COPY_HOST_PTR);
@@ -166,10 +180,13 @@ public:
     mem_objects ~= buffer.cl_handle;
     mem_objects ~= buffer.cl_length_handle;
     CLAssert(err, "clCreateBufferl");
-    CLAssert(clSetKernelArg(kernel, ind, CLMem.sizeof, &buffer.cl_handle),
+    CLAssert(clSetKernelArg(kernel, param_count, CLMem.sizeof,
+                            &buffer.cl_handle),
              "clSetKernelArg");
-    CLAssert(clSetKernelArg(kernel, ind+1, CLMem.sizeof,
+    ++ param_count;
+    CLAssert(clSetKernelArg(kernel, param_count, CLMem.sizeof,
              &buffer.cl_length_handle), "Set kernel length");
+    ++ param_count;
     return buffer;
   }
 
@@ -384,12 +401,11 @@ khronos.org/registry/OpenCL/sdk/2.1/docs/man/xhtml/clCreateFromGLTexture.html
 describes corresponding opencl and opengl image formats
 */
 struct CLImage {
-  ubyte[] buffer;
+  float[] buffer;
   int width, height;
   this ( float[] _buffer, int _width, int _height )  {
     width = _width; height = _height;
-    foreach ( i; _buffer ) {
-      buffer ~= cast(ubyte)(i*255.0f);
-    }
+    import functional;
+    buffer = _buffer;
   }
 }

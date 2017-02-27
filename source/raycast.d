@@ -3,153 +3,49 @@ import opencl;
 import opencl_program : Test_raycast_string;
 import globals;
 import core.time : MonoTime;
+import scene;
 
-auto TF3(float[3] a) {
-  cl_float3 vec;
-  vec.x = a[0];
-  vec.y = a[1];
-  vec.z = a[2];
-  return vec;
-}
+struct RNG {
+  cl_ulong[16] seed;
+  cl_ulong p;
+};
 
-struct Triangle {
-  cl_float3 A, B, C;
-  cl_uint material_index;
-  cl_uint bufsize1, bufsize2, bufsize3;
-}
-
-struct Material {
-  cl_float3 ambient, diffuse, specular, emission, shininess;
-}
-
-Triangle[] Create_Triangles(float[3][][] triangles) {
-  Triangle[] results;
-  foreach ( sect; triangles ) {
-    cl_float3 A = TF3(sect[0]),
-              B = TF3(sect[1]),
-              C = TF3(sect[2]);
-    uint index = sect[3][0].to!uint;
-    Triangle t = Triangle(A, B, C);
-    t.material_index = index;
-    results ~= t;
+RNG Generate_New_RNG() {
+  RNG rng;
+  import std.random;
+  foreach ( ref i; rng.seed ) {
+    i = uniform(0, cl_ulong.max).to!(cl_ulong);
   }
-  return results;
-}
-
-Material Create_Material(float[3][] material) {
-  Material results;
-  cl_float3 A = TF3(material[0]),
-            D = TF3(material[1]),
-            S = TF3(material[2]),
-            E = TF3(material[3]),
-            H = TF3(material[4]);
-  return Material(A, D, S, E, H);
-}
-
-auto Create_Materials ( ) {
-  auto wall = Create_Material([
-    [0.5f, 0.5f, 0.5f],
-    [0.4f, 0.8f, 0.5f],
-    [0.0f, 0.0f, 0.0f],
-    [0.0f, 0.0f, 0.0f],
-    [0.0f, 0.0f, 0.0f],
-  ]);
-  auto light = Create_Material([
-    [0.0f, 0.0f, 0.0f],
-    [0.0f, 0.0f, 0.0f],
-    [0.0f, 0.0f, 0.0f],
-    [1.0f, 1.0f, 1.0f],
-    [0.0f, 0.0f, 0.0f],
-  ]);
-  auto box = Create_Material([
-    [0.5f, 0.5f, 0.5f],
-    [1.0f, 1.0f, 0.2f],
-    [0.0f, 0.0f, 0.0f],
-    [0.0f, 0.0f, 0.0f],
-    [0.0f, 0.0f, 0.0f],
-  ]);
-  return [ wall ] ~ [ light ] ~ [ box ];
-}
-
-Triangle[] Create_Box(uint material_index) {
-  float[3] pA = [ 120.0f,  0.3f, 120.0f ],
-            pB = [ 200.0f,  0.3f, 120.0f ],
-            pC = [ 120.0f,  0.3f, 200.0f ],
-            pD = [ 200.0f,  0.3f, 200.0f ],
-            pE = [ 110.0f,  0.5f, 110.0f ],
-            pF = [ 190.0f,  0.5f, 110.0f ],
-            pG = [ 110.0f,  0.5f, 190.0f ],
-            pH = [ 190.0f,  0.5f, 190.0f ];
-  float[3] m = [ material_index, 0.0f, 0.0f ];
-  return Create_Triangles([
-    [pC, pA, pB, m], [pB, pD, pC, m],
-    [pA, pC, pG, m], [pA, pG, pE, m],
-    [pA, pE, pF, m], [pA, pF, pB, m],
-  ]);
-}
-
-Triangle[] Create_Light(uint material_index) {
-  float[3] pA = [ 100.0f,  0.2f, 250.0f ],
-           pB = [ 200.0f,  0.1f, 250.0f ],
-           pC = [ 120.0f,  0.2f, 280.0f ];
-  float[3] m = [ material_index, 0.0f, 0.0f ];
-  return Create_Triangles([
-    [pC, pA, pB, m]
-  ]);
-}
-
-Triangle[] Create_Walls(uint material_index) {
-  float[3] pA = [  20.0f,  -5.3f,  20.0f ],
-           pB = [ 400.0f,  -5.3f,  20.0f ],
-           pC = [  20.0f,  -5.3f, 200.0f ],
-           pD = [ 400.0f,  -5.3f, 400.0f ],
-           pE = [  10.0f,   5.5f,  10.0f ],
-           pF = [ 390.0f,   5.5f,  10.0f ],
-           pG = [  10.0f,   5.5f, 390.0f ],
-           pH = [ 390.0f,   5.5f, 390.0f ];
-  float[3] m = [ material_index, 0.0f, 0.0f ];
-  return Create_Triangles([
-    [pC, pA, pB, m], [pB, pD, pC, m],
-    [pA, pC, pG, m], [pA, pG, pE, m],
-    [pA, pE, pF, m], [pA, pF, pB, m],
-  ]);
-}
-
-struct Scene {
-  Material[] materials;
-  Triangle[] vertices;
-}
-
-Triangle[] Create_Models ( ) {
-  auto material = Create_Materials();
-  // --- box ---
-  return Create_Box(2) ~ Create_Light(1) ~ Create_Walls(0);
-}
-
-Scene Create_Scene ( ) {
-  return Scene(Create_Materials(), Create_Models());
+  return rng;
 }
 
 class Raycaster : AOD.Entity {
   immutable(int) Img_dim = 512;
   OpenCLProgram program;
-  OpenCLImage result;
+  OpenCLImage img_buffer_write, img_buffer_read;
   OpenCLBuffer!Triangle vertice_buffer;
   OpenCLBuffer!Material material_buffer;
   OpenCLSingleton!float timer;
+  OpenCLSingleton!RNG rng_buffer;
   MonoTime timer_start;
 public:
   this ( ) {
     super();
     Set_Position(AOD.R_Window_Width/2, AOD.R_Window_Height/2);
-    auto scene = Create_Scene();
+    auto scene = Create_Scene("test");
     program = Compile(Test_raycast_string);
     program.Set_Kernel("Kernel_Raycast");
-    result = program.Set_Image_Buffer(BufferType.write_only, Img_dim, 0);
-    timer  = program.Set_Singleton!float(BufferType.read_only, 0.0f, 1);
-    auto RO = BufferType.read_only;
-    vertice_buffer  = program.Set_Buffer!Triangle(RO, scene.vertices, 2);
-    material_buffer = program.Set_Buffer!Material(RO, scene.materials, 4);
+    auto RO = BufferType.read_only,
+         WO = BufferType.write_only;
+    img_buffer_write = program.Set_Image_Buffer(WO, Img_dim);
+    img_buffer_read  = program.Set_Image_Buffer(RO, Img_dim);
+    timer  = program.Set_Singleton!float(RO, 0.0f);
+    vertice_buffer  = program.Set_Buffer!Triangle(RO, scene.vertices);
+    material_buffer = program.Set_Buffer!Material(RO, scene.materials);
+    writeln("MATERIALS: ", Material.sizeof);
+    auto rng = Generate_New_RNG();
+    writeln(rng);
+    rng_buffer      = program.Set_Singleton!RNG(RO, rng);
     timer_start = MonoTime.currTime;
   }
   ~this ()  {
@@ -165,9 +61,11 @@ public:
     auto duration = (MonoTime.currTime - timer_start).total!"msecs";
     timer.data[0] = duration/1000.0f;
     program.Write(timer);
+    program.Write(img_buffer_read);
     program.Run([Img_dim, Img_dim, 1], [1, 1, 1]);
-    program.Read_Image(result);
-    return CLImage(result.data, Img_dim, Img_dim);
+    program.Read_Image(img_buffer_write);
+    img_buffer_read.data = img_buffer_write.data;
+    return CLImage(img_buffer_write.data, Img_dim, Img_dim);
   }
 
   AOD.SheetContainer CLImage_To_Image(CLImage image) {
@@ -179,13 +77,14 @@ public:
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image.width, image.height, 0,
-        GL_RGBA, GL_UNSIGNED_BYTE, cast(void*)image.buffer.ptr
+        GL_RGBA, GL_FLOAT, cast(void*)image.buffer.ptr
     );
     glBindTexture(GL_TEXTURE_2D, 0);
     return AOD.SheetContainer(texture, image.width, image.height);
   }
 
   override void Render ( ) {
+    writeln("FPS: ", AOD.R_FPS());
     Set_Sprite(CLImage_To_Image(Run_CL()));
     super.Render();
   }

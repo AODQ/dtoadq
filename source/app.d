@@ -21,14 +21,11 @@ void main() {
   Init();
   Game_Init();
   import opencl : Initialize;
+  import raycast;
   Initialize();
 
-  import raycast;
-  writeln("--------------------");
-  writeln("opencl wrap test");
   auto raycaster = new Raycaster();
   AOD.Add(raycaster);
-  writeln("--------------------");
 
   AOD.Run();
   raycaster.Clean_Up();
