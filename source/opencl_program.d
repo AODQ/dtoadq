@@ -160,13 +160,13 @@ module opencl_program; immutable(string) Test_raycast_string = q{
   #define DEPTH 16
 
   __kernel void Kernel_Raycast(
-          __read_only image2d_t environment_map,
           __write_only image2d_t output_image,
           __read_only  image2d_t input_image,
           __global float* timer_arr,
           __global Triangle* vertex_data,   global uint* vertex_lengthp,
           __global Material* material_data, global uint* material_lengthp,
-          __global RNG* rng
+          __global RNG* rng,
+          __read_only  image2d_t environment_map
           ) {
     float timer = timer_arr[0];
     uint vertex_length = *vertex_lengthp,
@@ -185,14 +185,20 @@ module opencl_program; immutable(string) Test_raycast_string = q{
       Intersection_Info info = Raycast_Scene(vertex_data, vertex_length,
                                     material_data, material_length, ray);
       if ( !info.intersection ) {
-        // colour = weight * info.material.base_colour;
+        if ( depth > 0 )
+          weight *= info.material.base_colour;
+          // colour = weight * read_imagef(environment_map,
+          //         (float2)(info.intersection.position.x,
+          //                  info.intersection.position.y)).xyz;
+        else {
+          colour = read_imagef(environment_map, out).xyz;
+        }
+        hit = true;
         break;
       }
 
       if ( info.material.emission > FLT_EPSILON ) {
         float emittance = (info.material.emission/depth_ratio);
-        // if ( isprint )
-        //   printf("%f \n", emittance);
         colour = weight * info.material.base_colour * emittance;
         hit = true;
         break;
@@ -200,8 +206,7 @@ module opencl_program; immutable(string) Test_raycast_string = q{
 
       float3 brdf = DisneyBRDF(info.position, info.angle, info.normal,
                              (float3)(0.0f), (float3)(0.0f));
-      if ( isprint ) printf("%f %f %f\n", brdf.x, brdf.y, brdf.z);
-      weight *= info.material.base_colour*brdf;
+      weight *= info.material.base_colour;
       info.normal = info.normal * -sign(info.angle);
       float3 new_dir = Random_Hemisphere_Direction(info.normal, rng);
       ray.o = info.position;
@@ -212,7 +217,7 @@ module opencl_program; immutable(string) Test_raycast_string = q{
       float3 old_colour = read_imagef(input_image, out).xyz;
       float3 rcolour = mix(colour, old_colour, 0.2f);
       rcolour = fmax(0.0f, fmin(1.0f, rcolour));
-      rcolour = pow(rcolour, (float3)(1.0f / 0.5f));
+      // rcolour = pow(rcolour, (float3)(1.0f / 0.5f));
       write_imagef(output_image, out, (float4)(rcolour, 1.0));
     }
   }

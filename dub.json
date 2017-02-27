@@ -1,10 +1,11 @@
 {
-	"name": "raycaster",
-	"description": "A minimal D application.",
-	"copyright": "Copyright © 2017, aod",
-	"authors": ["aod"],
-	"dependencies": {
+  "name": "raycaster",
+  "description": "A minimal D application.",
+  "copyright": "Copyright © 2017, aod",
+  "authors": ["aod"],
+  "dependencies": {
     "derelict-cl":     "~>2.0.0",
-    "aod":             ">=0.0.0"
-	}
+    "aod":             ">=0.0.0",
+    "imageformats":    "~>6.1.0"
+  }
 }

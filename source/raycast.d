@@ -22,7 +22,7 @@ RNG Generate_New_RNG() {
 class Raycaster : AOD.Entity {
   immutable(int) Img_dim = 512;
   OpenCLProgram program;
-  OpenCLImage img_buffer_write, img_buffer_read;
+  OpenCLImage img_buffer_write, img_buffer_read, img_buffer_env;
   OpenCLBuffer!Triangle vertice_buffer;
   OpenCLBuffer!Material material_buffer;
   OpenCLSingleton!float timer;
@@ -46,6 +46,10 @@ public:
     auto rng = Generate_New_RNG();
     writeln(rng);
     rng_buffer      = program.Set_Singleton!RNG(RO, rng);
+    img_buffer_env  = program.Set_Image_Buffer(RO, Img_dim);
+    import image;
+    img_buffer_env.data = Read_Image("testenv.tga");
+    program.Write(img_buffer_env);
     timer_start = MonoTime.currTime;
   }
   ~this ()  {
