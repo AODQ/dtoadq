@@ -185,13 +185,13 @@ module opencl_program; immutable(string) Test_raycast_string = q{
       Intersection_Info info = Raycast_Scene(vertex_data, vertex_length,
                                     material_data, material_length, ray);
       if ( !info.intersection ) {
-        if ( depth > 0 )
+        if ( depth > 0 ) {
           weight *= info.material.base_colour;
-          // colour = weight * read_imagef(environment_map,
-          //         (float2)(info.intersection.position.x,
-          //                  info.intersection.position.y)).xyz;
-        else {
-          colour = read_imagef(environment_map, out).xyz;
+          int2 pos = (int2)(info.position.x, info.position.z);
+          colour = read_imagef(environment_map, pos).xyz;
+          // if ( isprint ) printf("%d %d\n", pos.x, pos.y);
+        } else {
+          // colour = read_imagef(environment_map, out).xyz;
         }
         hit = true;
         break;

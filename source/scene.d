@@ -95,23 +95,23 @@ immutable(Scene) Create_Scene(string scene_name) {
           .map!(n => n[2..$]
             .split(" ")
             .filter!(n => n.length > 0)
-            .map!(to!float))
+            .map!(n => n.to!float))
           .each!(n => vertices ~= [n.array[0 .. 3]]);
       data.filter!(n => n[0..2] == "f ")
-          .map!(n => n[2..$].split(" ").map!(to!size_t))
+          .map!(n => n[2..$].split(" ").filter!(n => n.chomp.length > 0).map!(n => n.to!size_t - 1))
           .each!(n => faces ~= [n.array[0 .. 4]]);
       string[] materials = data.filter!(n => n[0..2] == "m ")
                                .map!(n => n[2..$]).array;
       writeln("NAME: ", name);
-      writeln("VERTICES: \n", vertices, "\n----");
-      writeln("FACES: \n", faces, "\n----");
+      writeln("VERTICES: \n", vertices.length, "\n----");
+      writeln("FACES: \n", faces.length, "\n----");
       writeln("MATERIALS: \n", materials, "\n----");
       writeln("-------------");
       foreach ( face; faces ) {
         scene.vertices ~= Triangle(
           To_CLFloat3(vertices[face[0]]), To_CLFloat3(vertices[face[1]]),
           To_CLFloat3(vertices[face[2]]),
-          cast(uint)material_indices[materials[face[3]]]
+          cast(uint)material_indices[materials[face[3]+1]]
         );
       }
     }
