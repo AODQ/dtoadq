@@ -26,6 +26,19 @@ public:
   }
 }
 
+struct Camera {
+  cl_float3 position, direction;
+  cl_int2 dimensions;
+}
+
+auto Construct_Camera(float[3] pos, float[3] dir, int[2] dim) {
+  cl_int2 dimensions;
+  dimensions.x = dim[0]; dimensions.y = dim[1];
+  return Camera(
+    To_CLFloat3(pos), To_CLFloat3(dir), dimensions
+  );
+}
+
 auto To_CLFloat3(float[3] a) {
   cl_float3 vec;
   vec.x = a[0]; vec.y = a[1]; vec.z = a[2];

@@ -58,6 +58,18 @@ struct OpenCLSingleton(BType) {
   }
 }
 
+
+OpenCLImage Create_CL_Image(BufferType type, int width, int height,
+                                                int param_index) {
+  return OpenCLImage(
+    type, [], param_index,
+    cl_image_format(CL_RGBA, CL_FLOAT),
+    cl_image_desc (CL_MEM_OBJECT_IMAGE2D, width, height, 1,
+                  0, 0, 0, 0, 0, null),
+    width, height
+  );
+}
+
 struct OpenCLBuffer(BType) {
   BaseBuffer!BType _mybuffer;
   alias _mybuffer this;
@@ -118,13 +130,7 @@ public:
     return Set_Image_Buffer(type, dim, dim);
   }
   OpenCLImage Set_Image_Buffer(BufferType type, int width, int height){
-    OpenCLImage image = OpenCLImage(
-      type, [], param_count,
-      cl_image_format(CL_RGBA, CL_FLOAT),
-      cl_image_desc (CL_MEM_OBJECT_IMAGE2D, width, height, 1,
-                    0, 0, 0, 0, 0, null),
-      width, height
-    );
+    OpenCLImage image = Create_CL_Image(type, width, height, param_count);
     image.cl_handle = clCreateImage(context, type, &image.format,
                                     &image.description, null, &err);
     mem_objects ~= image.cl_handle;

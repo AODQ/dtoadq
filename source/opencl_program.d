@@ -30,6 +30,11 @@ module opencl_program; immutable(string) Test_raycast_string = q{
           emission;
   } Material;
 
+  typedef struct T_Camera {
+    float3 position, direction;
+    int2 dimensions;
+  } Camera;
+
   typedef struct T_Triangle {
     float3 A, B, C;
     uint material_index;
@@ -82,9 +87,9 @@ module opencl_program; immutable(string) Test_raycast_string = q{
     // if determinant is zero, ray lies in triangle
     float det = dot(edge1, P);
     // CULLING
-    if ( det < FLT_EPSILON ) return 0;
+    // if ( det < FLT_EPSILON ) return 0;
     // NON CULLING
-    // if ( fabs(det) < FLT_EPSILON ) return 0.0f;
+    if ( fabs(det) < FLT_EPSILON ) return 0.0f;
     float inv_det = 1.0f/det;
     // calculate distance from first vertex to ray origin
     float3 T = ray_o - tri.A;
@@ -129,15 +134,31 @@ module opencl_program; immutable(string) Test_raycast_string = q{
 
   // --- camera shit ---
 
-  Ray Camera_Ray(__global RNG* rng, uint x, uint y) {
-    float3 camera_pos = (float3)(0.0f, -2.0f, 0.0f);
-    float3 pixel_pos  = (float3)(x, 0.0f, y);
-    // lol antialiasing
-    float range = 0.01f;
-    float2 antialias  = (float2)(
-      HashFloat(rng, -range, range),
-      HashFloat(rng, -range, range));
-    camera_pos += (float3)(antialias, 0.0f);
+  /*
+
+    | ------- |
+    | o       | o = (0 0) - (128 128)/2 = -64 -64
+    |    x    | x = 1000 10 2000
+    |         | angle = 0 1.0 0
+    | ------- |
+
+    real o = (1000 10 2000) + (-64 0 -64) = (936 10 1936)
+    pixel pos = real o + angle*10.0f = (936 20 1936)
+
+  */
+
+  Ray Camera_Ray(__global RNG* rng, __global Camera* camera) {
+    int2 dim = (*camera).dimensions/2;
+    float2 o_pos = (float2)(get_global_id(0), get_global_id(1))*(*camera).position.y*-3.0f -
+                   (float2)(dim.x, dim.y);
+    float3 camera_pos = (*camera).position + (float3)(o_pos.x, 0.0f, o_pos.y);
+    float3 pixel_pos = camera_pos + (*camera).direction*100.0f;
+    // // lol antialiasing
+    // float range = 0.01f;
+    // float2 antialias  = (float2)(
+    //   HashFloat(rng, -range, range),
+    //   HashFloat(rng, -range, range));
+    // camera_pos += (float3)(antialias, 0.0f);
     Ray result;
     result.o = camera_pos;
     result.d = normalize(pixel_pos - camera_pos);
@@ -166,15 +187,17 @@ module opencl_program; immutable(string) Test_raycast_string = q{
           __global Triangle* vertex_data,   global uint* vertex_lengthp,
           __global Material* material_data, global uint* material_lengthp,
           __global RNG* rng,
-          __read_only  image2d_t environment_map
+          __read_only  image2d_t environment_map,
+          __global Camera* camera
           ) {
     float timer = timer_arr[0];
     uint vertex_length = *vertex_lengthp,
          material_length = *material_lengthp;
     int2 out = (int2)(get_global_id(0), get_global_id(1));
-    bool isprint = out.x%10 == 0 && out.y%2 == 0;
+    bool isprint  = out.x%10 == 0 && out.y%2 == 0,
+         isprintg = out.x == 0 && out.y == 0;
 
-    Ray ray = Camera_Ray(rng, out.x, out.y);
+    Ray ray = Camera_Ray(rng, camera);
 
     float3 colour = (float3)(0.0f, 0.0f, 0.0f);
     float3 weight = (float3)(1.0f, 1.0f, 1.0f);
@@ -185,15 +208,8 @@ module opencl_program; immutable(string) Test_raycast_string = q{
       Intersection_Info info = Raycast_Scene(vertex_data, vertex_length,
                                     material_data, material_length, ray);
       if ( !info.intersection ) {
-        if ( depth > 0 ) {
-          weight *= info.material.base_colour;
-          int2 pos = (int2)(info.position.x, info.position.z);
-          colour = read_imagef(environment_map, pos).xyz;
-          // if ( isprint ) printf("%d %d\n", pos.x, pos.y);
-        } else {
-          // colour = read_imagef(environment_map, out).xyz;
-        }
-        hit = true;
+        colour = weight * info.material.base_colour;
+        // hit = true;
         break;
       }
 
@@ -211,6 +227,9 @@ module opencl_program; immutable(string) Test_raycast_string = q{
       float3 new_dir = Random_Hemisphere_Direction(info.normal, rng);
       ray.o = info.position;
       ray.d = new_dir;
+      colour = info.material.base_colour * info.distance/10.0f + info.normal;
+      hit = true;
+      break;
     }
 
     if ( hit ) {

@@ -20,14 +20,17 @@ RNG Generate_New_RNG() {
 }
 
 class Raycaster : AOD.Entity {
-  immutable(int) Img_dim = 512;
+  immutable(int) Img_dim = 256;
   OpenCLProgram program;
   OpenCLImage img_buffer_write, img_buffer_read, img_buffer_env;
   OpenCLBuffer!Triangle vertice_buffer;
   OpenCLBuffer!Material material_buffer;
   OpenCLSingleton!float timer;
   OpenCLSingleton!RNG rng_buffer;
+  OpenCLSingleton!Camera camera_buffer;
+  Camera camera;
   MonoTime timer_start;
+  bool reset_camera;
 public:
   this ( ) {
     super();
@@ -49,6 +52,9 @@ public:
     img_buffer_env  = program.Set_Image_Buffer(RO, Img_dim);
     import image;
     img_buffer_env.data = Read_Image("testenv.tga");
+    camera = Construct_Camera([0.0f, 0.0f, 0.0f], [0.0f, 1.0f, 0.0f],
+                                                 [Img_dim, Img_dim]);
+    camera_buffer = program.Set_Singleton!Camera(RO, camera);
     program.Write(img_buffer_env);
     timer_start = MonoTime.currTime;
   }
@@ -61,14 +67,68 @@ public:
     program.Clean_Up();
   }
 
+  override void Update ( ) {
+    import derelict.sdl2.sdl;
+    auto left     = AOD.keystate[SDL_SCANCODE_A],
+         right    = AOD.keystate[SDL_SCANCODE_D],
+         forward  = AOD.keystate[SDL_SCANCODE_W],
+         backward = AOD.keystate[SDL_SCANCODE_S],
+         up       = AOD.keystate[SDL_SCANCODE_E],
+         down     = AOD.keystate[SDL_SCANCODE_Q];
+    reset_camera = ( left || right || up || down || forward || backward);
+    float cx = cast(int)(right)   - cast(int)(left),
+          cy = cast(int)(up)      - cast(int)(down),
+          cz = cast(int)(forward) - cast(int)(backward);
+    if ( AOD.keystate[SDL_SCANCODE_LSHIFT] ) {
+      cx *= 5.0f; cy *= 5.0f; cz *= 5.0f;
+    }
+    camera.position[0] += cx;
+    camera.position[1] += cy*0.01f;
+    camera.position[2] += cz;
+    static float lmx, lmy;
+    if ( AOD.R_Mouse_Left ) {
+      reset_camera = true;
+      float cmx = AOD.R_Mouse_X(0) - lmx,
+            cmy = AOD.R_Mouse_Y(0) - lmy;
+      camera.direction[0] += cmx * 0.005f;
+      camera.direction[2] += cmy * 0.005f;
+      // normalize
+      import std.math : sqrt;
+      float mag = sqrt((camera.direction[0]*camera.direction[0]) +
+                       (camera.direction[1]*camera.direction[1]) +
+                       (camera.direction[2]*camera.direction[2]));
+      if ( mag ) {
+        camera.direction[0] /= mag;
+        camera.direction[1] /= mag;
+        camera.direction[2] /= mag;
+      }
+    }
+    lmx = AOD.R_Mouse_X(0);
+    lmy = AOD.R_Mouse_Y(0);
+  }
+
   CLImage Run_CL() {
     auto duration = (MonoTime.currTime - timer_start).total!"msecs";
     timer.data[0] = duration/1000.0f;
+    if ( reset_camera ) {
+      import functional;
+      float[] buffer;
+      buffer.length = 4*Img_dim*Img_dim;
+      buffer = buffer.map!(n => n = 0).array;
+      img_buffer_read.data = buffer;
+      img_buffer_write.data = buffer;
+      program.Write(img_buffer_write);
+    } else {
+      img_buffer_read.data = img_buffer_write.data;
+    }
+    camera_buffer.data[0] = camera;
+
     program.Write(timer);
+    program.Write(camera_buffer);
     program.Write(img_buffer_read);
     program.Run([Img_dim, Img_dim, 1], [1, 1, 1]);
     program.Read_Image(img_buffer_write);
-    img_buffer_read.data = img_buffer_write.data;
+    reset_camera = false;
     return CLImage(img_buffer_write.data, Img_dim, Img_dim);
   }
 
@@ -90,6 +150,7 @@ public:
   override void Render ( ) {
     writeln("FPS: ", AOD.R_FPS());
     Set_Sprite(CLImage_To_Image(Run_CL()));
+    Set_Size(AOD.Vector(512.0f, 512.0f), true);
     super.Render();
   }
 }
