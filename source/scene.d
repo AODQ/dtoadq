@@ -138,6 +138,7 @@ immutable(Scene) Create_Scene(string scene_name) {
           cast(uint)material_indices[materials[face[3]]]
         );
       }
+      writeln(scene.vertices);
     }
   }
   return cast(immutable)scene;

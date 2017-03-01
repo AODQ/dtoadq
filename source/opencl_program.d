@@ -118,7 +118,9 @@ module opencl_program; immutable(string) Test_raycast_string = q{
     float closest_dist = FLT_MAX;
     for ( uint i = 0; i != vertex_length; ++ i ) {
       float result = Intersection(vertex_data[i], ray.o, ray.d);
-      if ( result > FLT_EPSILON && closest_dist > result ) {
+      if ( get_global_id(0) == 100 && get_global_id(1) == 100 )
+        printf("%f\n", result);
+      if ( result > FLT_EPSILON && closest_dist >= result ) {
         info.distance = result;
         info.intersection = true;
         info.position = ray.o + ray.d*result;
