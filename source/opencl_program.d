@@ -203,12 +203,14 @@ module opencl_program; immutable(string) Test_raycast_string = q{
     float3 weight = (float3)(1.0f, 1.0f, 1.0f);
     bool hit = false;
 
-    for ( int depth = 0; depth != DEPTH; ++ depth ) {
+    int depth = 0;
+    while ( true ) {
       float depth_ratio = 1.0f - (1.0f / (DEPTH - depth));
+      if ( HashFloat(rng, 0.0f, 1.0f) >= depth_ratio ) break;
       Intersection_Info info = Raycast_Scene(vertex_data, vertex_length,
                                     material_data, material_length, ray);
       if ( !info.intersection ) {
-        colour = weight * info.material.base_colour;
+        // colour = weight * info.material.base_colour;
         // hit = true;
         break;
       }
@@ -217,7 +219,8 @@ module opencl_program; immutable(string) Test_raycast_string = q{
         float emittance = (info.material.emission/depth_ratio);
         colour = weight * info.material.base_colour * emittance;
         hit = true;
-        break;
+        break
+;
       }
 
       float3 brdf = DisneyBRDF(info.position, info.angle, info.normal,
@@ -227,7 +230,7 @@ module opencl_program; immutable(string) Test_raycast_string = q{
       float3 new_dir = Random_Hemisphere_Direction(info.normal, rng);
       ray.o = info.position;
       ray.d = new_dir;
-      colour = info.material.base_colour * info.distance/10.0f + info.normal;
+      colour = weight * info.material.base_colour + info.normal;
       hit = true;
       break;
     }

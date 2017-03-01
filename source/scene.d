@@ -100,6 +100,15 @@ immutable(Scene) Create_Scene(string scene_name) {
     foreach ( fname; list ) {
       auto data = read(fname).to!string.split("\n") // split to array
                   .filter!(n => n.length > 2).array; // remove blank lines
+
+      auto RIndex() {
+        auto res = data.filter!(n => n.length > 6)
+                       .filter!(n => n[0..6] == "index ").array;
+        if ( res.length > 0 ) return res[0][6..$].to!int;
+        return 1;
+      }
+      int index = RIndex();
+      writeln("Index: ", index);
       string name = data.filter!(n => n[0..2] == "n ").array[0][2..$];
       writeln("READING DATA FOR: ", name);
       float[3][] vertices;
@@ -111,7 +120,9 @@ immutable(Scene) Create_Scene(string scene_name) {
             .map!(n => n.to!float))
           .each!(n => vertices ~= [n.array[0 .. 3]]);
       data.filter!(n => n[0..2] == "f ")
-          .map!(n => n[2..$].split(" ").filter!(n => n.chomp.length > 0).map!(n => n.to!size_t - 1))
+          .map!(n => n[2..$].split(" ")
+          .filter!(n => n.chomp.length > 0)
+          .map!(n => n.to!size_t - index))
           .each!(n => faces ~= [n.array[0 .. 4]]);
       string[] materials = data.filter!(n => n[0..2] == "m ")
                                .map!(n => n[2..$]).array;
@@ -124,7 +135,7 @@ immutable(Scene) Create_Scene(string scene_name) {
         scene.vertices ~= Triangle(
           To_CLFloat3(vertices[face[0]]), To_CLFloat3(vertices[face[1]]),
           To_CLFloat3(vertices[face[2]]),
-          cast(uint)material_indices[materials[face[3]+1]]
+          cast(uint)material_indices[materials[face[3]]]
         );
       }
     }
