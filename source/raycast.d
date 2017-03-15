@@ -68,48 +68,48 @@ public:
   }
 
   override void Update ( ) {
-    import derelict.sdl2.sdl;
-    auto left     = AOD.keystate[SDL_SCANCODE_A],
-         right    = AOD.keystate[SDL_SCANCODE_D],
-         forward  = AOD.keystate[SDL_SCANCODE_W],
-         backward = AOD.keystate[SDL_SCANCODE_S],
-         up       = AOD.keystate[SDL_SCANCODE_E],
-         down     = AOD.keystate[SDL_SCANCODE_Q],
-         rotleft  = AOD.keystate[SDL_SCANCODE_Z],
-         rotright = AOD.keystate[SDL_SCANCODE_C];
-    reset_camera = ( left || right || up || down || forward || backward);
-    float cx = cast(int)(right)   - cast(int)(left),
-          cy = cast(int)(up)      - cast(int)(down),
-          cz = cast(int)(forward) - cast(int)(backward),
-          rx = cast(int)(rotleft) - cast(int)(rotright)*0.00001;
-    if ( AOD.keystate[SDL_SCANCODE_LSHIFT] ) {
-      cx *= 5.0f; cy *= 5.0f; cz *= 5.0f; rx *= 5.0f;
-    }
-    camera.position[0] += cx;
-    camera.position[1] += cy*0.01f;
-    camera.position[2] += cz;
-    static float lmx, lmy;
-    import std.math : abs;
-    if ( AOD.R_Mouse_Left || abs(rx) >= 0.01 ) {
-      reset_camera = true;
-      float cmx = AOD.R_Mouse_X(0) - lmx,
-            cmy = AOD.R_Mouse_Y(0) - lmy;
-      camera.direction[0] += cmx * 0.005f;
-      camera.direction[1] += rx;
-      camera.direction[2] -= cmy * 0.005f;
-      // normalize
-      import std.math : sqrt;
-      float mag = sqrt((camera.direction[0]*camera.direction[0]) +
-                       (camera.direction[1]*camera.direction[1]) +
-                       (camera.direction[2]*camera.direction[2]));
-      if ( mag ) {
-        camera.direction[0] /= mag;
-        camera.direction[1] /= mag;
-        camera.direction[2] /= mag;
-      }
-    }
-    lmx = AOD.R_Mouse_X(0);
-    lmy = AOD.R_Mouse_Y(0);
+    // import derelict.sdl2.sdl;
+    // auto left     = AOD.keystate[SDL_SCANCODE_A],
+    //      right    = AOD.keystate[SDL_SCANCODE_D],
+    //      forward  = AOD.keystate[SDL_SCANCODE_W],
+    //      backward = AOD.keystate[SDL_SCANCODE_S],
+    //      up       = AOD.keystate[SDL_SCANCODE_E],
+    //      down     = AOD.keystate[SDL_SCANCODE_Q],
+    //      rotleft  = AOD.keystate[SDL_SCANCODE_Z],
+    //      rotright = AOD.keystate[SDL_SCANCODE_C];
+    // reset_camera = ( left || right || up || down || forward || backward);
+    // float cx = cast(int)(right)   - cast(int)(left),
+    //       cy = cast(int)(up)      - cast(int)(down),
+    //       cz = cast(int)(forward) - cast(int)(backward),
+    //       rx = cast(int)(rotleft) - cast(int)(rotright)*0.00001;
+    // if ( AOD.keystate[SDL_SCANCODE_LSHIFT] ) {
+    //   cx *= 5.0f; cy *= 5.0f; cz *= 5.0f; rx *= 5.0f;
+    // }
+    // camera.position[0] += cx;
+    // camera.position[1] += cy*0.01f;
+    // camera.position[2] += cz;
+    // static float lmx, lmy;
+    // import std.math : abs;
+    // if ( AOD.R_Mouse_Left || abs(rx) >= 0.01 ) {
+    //   reset_camera = true;
+    //   float cmx = AOD.R_Mouse_X(0) - lmx,
+    //         cmy = AOD.R_Mouse_Y(0) - lmy;
+    //   camera.direction[0] += cmx * 0.005f;
+    //   camera.direction[1] += rx;
+    //   camera.direction[2] -= cmy * 0.005f;
+    //   // normalize
+    //   import std.math : sqrt;
+    //   float mag = sqrt((camera.direction[0]*camera.direction[0]) +
+    //                    (camera.direction[1]*camera.direction[1]) +
+    //                    (camera.direction[2]*camera.direction[2]));
+    //   if ( mag ) {
+    //     camera.direction[0] /= mag;
+    //     camera.direction[1] /= mag;
+    //     camera.direction[2] /= mag;
+    //   }
+    // }
+    // lmx = AOD.R_Mouse_X(0);
+    // lmy = AOD.R_Mouse_Y(0);
   }
 
   CLImage Run_CL() {
@@ -152,7 +152,7 @@ public:
     return AOD.SheetContainer(texture, image.width, image.height);
   }
 
-  override void Render ( ) {
+  override void Render ( ) @trusted {
     writeln("FPS: ", AOD.R_FPS());
     Set_Sprite(CLImage_To_Image(Run_CL()));
     Set_Size(AOD.Vector(512.0f, 512.0f), true);
