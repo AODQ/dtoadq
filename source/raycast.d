@@ -23,8 +23,8 @@ class Raycaster : AOD.Entity {
   immutable(int) Img_dim = 256;
   OpenCLProgram program;
   OpenCLImage img_buffer_write, img_buffer_read, img_buffer_env;
-  OpenCLBuffer!Triangle vertice_buffer;
-  OpenCLBuffer!Material material_buffer;
+  // OpenCLBuffer!Triangle vertice_buffer;
+  // OpenCLBuffer!Material material_buffer;
   OpenCLSingleton!float timer;
   OpenCLSingleton!RNG rng_buffer;
   OpenCLSingleton!Camera camera_buffer;
@@ -33,30 +33,30 @@ class Raycaster : AOD.Entity {
   bool reset_camera;
 public:
   this ( ) {
-    super();
-    Set_Position(AOD.R_Window_Width/2, AOD.R_Window_Height/2);
-    auto scene = Create_Scene("test");
-    program = Compile(Test_raycast_string);
-    program.Set_Kernel("Kernel_Raycast");
-    auto RO = BufferType.read_only,
-         WO = BufferType.write_only;
-    img_buffer_write = program.Set_Image_Buffer(WO, Img_dim);
-    img_buffer_read  = program.Set_Image_Buffer(RO, Img_dim);
-    timer  = program.Set_Singleton!float(RO, 0.0f);
-    vertice_buffer  = program.Set_Buffer!Triangle(RO, scene.vertices);
-    material_buffer = program.Set_Buffer!Material(RO, scene.materials);
-    writeln("MATERIALS: ", Material.sizeof);
-    auto rng = Generate_New_RNG();
-    writeln(rng);
-    rng_buffer      = program.Set_Singleton!RNG(RO, rng);
-    img_buffer_env  = program.Set_Image_Buffer(RO, Img_dim);
-    import image;
-    img_buffer_env.data = Read_Image("testenv.tga");
-    camera = Construct_Camera([0.0f, 0.0f, 0.0f], [0.0f, 1.0f, 0.0f],
-                                                 [Img_dim, Img_dim]);
-    camera_buffer = program.Set_Singleton!Camera(RO, camera);
-    program.Write(img_buffer_env);
-    timer_start = MonoTime.currTime;
+    // super();
+    // Set_Position(AOD.R_Window_Width/2, AOD.R_Window_Height/2);
+    // auto scene = Create_Scene("test");
+    // program = Compile(Test_raycast_string);
+    // program.Set_Kernel("Kernel_Raycast");
+    // auto RO = BufferType.read_only,
+    //      WO = BufferType.write_only;
+    // img_buffer_write = program.Set_Image_Buffer(WO, Img_dim);
+    // img_buffer_read  = program.Set_Image_Buffer(RO, Img_dim);
+    // timer  = program.Set_Singleton!float(RO, 0.0f);
+    // vertice_buffer  = program.Set_Buffer!Triangle(RO, scene.vertices);
+    // material_buffer = program.Set_Buffer!Material(RO, scene.materials);
+    // writeln("MATERIALS: ", Material.sizeof);
+    // auto rng = Generate_New_RNG();
+    // writeln(rng);
+    // rng_buffer      = program.Set_Singleton!RNG(RO, rng);
+    // img_buffer_env  = program.Set_Image_Buffer(RO, Img_dim);
+    // import image;
+    // img_buffer_env.data = Read_Image("testenv.tga");
+    // camera = Construct_Camera([0.0f, 0.0f, 0.0f], [0.0f, 1.0f, 0.0f],
+    //                                              [Img_dim, Img_dim]);
+    // camera_buffer = program.Set_Singleton!Camera(RO, camera);
+    // program.Write(img_buffer_env);
+    // timer_start = MonoTime.currTime;
   }
   ~this ()  {
     Clean_Up();
@@ -113,28 +113,29 @@ public:
   }
 
   CLImage Run_CL() {
-    auto duration = (MonoTime.currTime - timer_start).total!"msecs";
-    timer.data[0] = duration/1000.0f;
-    if ( reset_camera ) {
-      import functional;
-      float[] buffer;
-      buffer.length = 4*Img_dim*Img_dim;
-      buffer = buffer.map!(n => n = 0).array;
-      img_buffer_read.data = buffer;
-      img_buffer_write.data = buffer;
-      program.Write(img_buffer_write);
-    } else {
-      img_buffer_read.data = img_buffer_write.data;
-    }
-    camera_buffer.data[0] = camera;
+    return CLImage(null, 0, 0);
+    // auto duration = (MonoTime.currTime - timer_start).total!"msecs";
+    // timer.data[0] = duration/1000.0f;
+    // if ( reset_camera ) {
+    //   import functional;
+    //   float[] buffer;
+    //   buffer.length = 4*Img_dim*Img_dim;
+    //   buffer = buffer.map!(n => n = 0).array;
+    //   img_buffer_read.data = buffer;
+    //   img_buffer_write.data = buffer;
+    //   program.Write(img_buffer_write);
+    // } else {
+    //   img_buffer_read.data = img_buffer_write.data;
+    // }
+    // camera_buffer.data[0] = camera;
 
-    program.Write(timer);
-    program.Write(camera_buffer);
-    program.Write(img_buffer_read);
-    program.Run([Img_dim, Img_dim, 1], [1, 1, 1]);
-    program.Read_Image(img_buffer_write);
-    reset_camera = false;
-    return CLImage(img_buffer_write.data, Img_dim, Img_dim);
+    // program.Write(timer);
+    // program.Write(camera_buffer);
+    // program.Write(img_buffer_read);
+    // program.Run([Img_dim, Img_dim, 1], [1, 1, 1]);
+    // program.Read_Image(img_buffer_write);
+    // reset_camera = false;
+    // return CLImage(img_buffer_write.data, Img_dim, Img_dim);
   }
 
   AOD.SheetContainer CLImage_To_Image(CLImage image) {

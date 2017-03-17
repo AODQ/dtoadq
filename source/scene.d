@@ -1,12 +1,7 @@
 module scene;
 import opencl;
 import globals;
-
-struct Triangle {
-  cl_float3 A, B, C;
-  cl_uint material_index;
-  cl_uint bufsize1, bufsize2, bufsize3;
-}
+import cloctree;
 
 struct Material {
   cl_float3 base_colour;
@@ -20,7 +15,7 @@ class Scene {
 public:
   string name;
   Material[] materials;
-  Triangle[] vertices;
+  OctreeData data;
   this ( string _name ) {
     name = _name;
   }
@@ -37,12 +32,6 @@ auto Construct_Camera(float[3] pos, float[3] dir, int[2] dim) {
   return Camera(
     To_CLFloat3(pos), To_CLFloat3(dir), dimensions
   );
-}
-
-auto To_CLFloat3(float[3] a) {
-  cl_float3 vec;
-  vec.x = a[0]; vec.y = a[1]; vec.z = a[2];
-  return vec;
 }
 
 void Print_Material(ref inout(Material) m) {
@@ -91,6 +80,7 @@ immutable(Scene) Create_Scene(string scene_name) {
       writeln("----------");
     }
   }
+  CLVoxel[] voxels;
   { // --- create model from JSON ---
     static import std.file;
     import functional;
@@ -101,44 +91,18 @@ immutable(Scene) Create_Scene(string scene_name) {
       auto data = read(fname).to!string.split("\n") // split to array
                   .filter!(n => n.length > 2).array; // remove blank lines
 
-      auto RIndex() {
-        auto res = data.filter!(n => n.length > 6)
-                       .filter!(n => n[0..6] == "index ").array;
-        if ( res.length > 0 ) return res[0][6..$].to!int;
-        return 1;
-      }
-      int index = RIndex();
-      writeln("Index: ", index);
-      string name = data.filter!(n => n[0..2] == "n ").array[0][2..$];
-      writeln("READING DATA FOR: ", name);
-      float[3][] vertices;
-      size_t[4][] faces;
-      data.filter!(n => n[0..2] == "v ")
-          .map!(n => n[2..$]
-            .split(" ")
-            .filter!(n => n.length > 0)
-            .map!(n => n.to!float))
-          .each!(n => vertices ~= [n.array[0 .. 3]]);
-      data.filter!(n => n[0..2] == "f ")
-          .map!(n => n[2..$].split(" ")
-          .filter!(n => n.chomp.length > 0)
-          .map!(n => n.to!size_t - index))
-          .each!(n => faces ~= [n.array[0 .. 4]]);
+      voxels = data
+          .filter!(n => n[0 .. 2] == "v ") // grab voxels
+          .map!(n => n[2 .. $] // remove the beginning v
+            .split(" ") // split into array of num strings
+            .filter!(n => n.length > 0) // remove balanks
+            .map!(n => n.to!float).array) // make array of floats
+          .map!(n => New_CLVoxel(n[0..3])).array; // make array of voxels
       string[] materials = data.filter!(n => n[0..2] == "m ")
                                .map!(n => n[2..$]).array;
-      writeln("NAME: ", name);
-      writeln("VERTICES: \n", vertices.length, "\n----");
-      writeln("FACES: \n", faces.length, "\n----");
+      writeln("NAME: ", fname);
+      writeln("VOXELS: \n", voxels.length, "\n----");
       writeln("MATERIALS: \n", materials, "\n----");
-      writeln("-------------");
-      foreach ( face; faces ) {
-        scene.vertices ~= Triangle(
-          To_CLFloat3(vertices[face[0]]), To_CLFloat3(vertices[face[1]]),
-          To_CLFloat3(vertices[face[2]]),
-          cast(uint)material_indices[materials[face[3]]]
-        );
-      }
-      writeln(scene.vertices);
     }
   }
   return cast(immutable)scene;

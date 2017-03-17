@@ -415,3 +415,20 @@ struct CLImage {
     buffer = _buffer;
   }
 }
+
+
+/** conversion helpers */
+
+/** */
+auto To_CLFloat3(float[3] a) {
+  cl_float3 vec;
+  vec.x = a[0]; vec.y = a[1]; vec.z = a[2];
+  return vec;
+}
+
+auto To_CLInt8(int[8] a) {
+  cl_int8 vec;
+  foreach ( i; 0 .. 8 )
+    vec[i] = a[i];
+  return vec;
+}
