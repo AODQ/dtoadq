@@ -332,37 +332,15 @@ unittest {
 
 struct Ray {
   float[3] origin, dir, invdir;
-  /*
-    Contains information on slope, ei: slope X-Y is slope[0][1],
-      contains nothing for X-X, Y-Y and Z-Z
-  */
-  float[3][3] slope, clope;
-  int classification;
+  int[3] sign;
 }
 
 auto Construct_Ray ( float[3] origin_, float[3] dir_ ) {
   import functional;
   Ray ray = {
     origin: origin_, dir: dir_,
-    invdir: dir_.array.map!"a == 0.0f? 1.0f/a : 0.0f".array.to!(float[3]),
+    invdir: dir_.array.map!"1.0f/a".array.to!(float[3])
   };
-  with ( ray ) {
-    auto dX  = dir    [0], dY  = dir    [1], dZ  = dir    [2];
-    auto idX = invdir [0], idY = invdir [1], idZ = invdir [2];
-    slope = [
-      [float.nan, idX*dY,    idX*dZ   ],
-      [idY*dX,    float.nan, idY*dZ   ],
-      [idZ*dX,    idZ*dY,    float.nan],
-    ];
-    auto ox  = origin [0], oy  = origin [1], oz  = origin [2];
-    immutable auto X = 0, Y = 1, Z = 2;
-    clope = [
-      [float.nan,           oy - slope[X][Y]*ox, oz - slope[X][Z]*ox],
-      [ox - slope[Y][X]*oy, float.nan,           oz - slope[Y][Z]*oy],
-      [ox - slope[Z][X]*oz, oy - slope[Z][Y]*oz, float.nan]
-    ];
-    classification = Classify(dir);
-  }
   return ray;
 }
 
@@ -390,16 +368,30 @@ int Ray_Intersection (inout OctreeData data, inout Ray ray,
         if ( results > 0.0f && results < node_dist ) {
           node_dist = results;
           node_mask = i;
-          writeln("New mask: ", node_mask);
         }
       }
+      writeln("Results: ", node_dist, ", ", node_mask);
       if ( node_mask < 50 ) node = data.RNode(node.child_id[node_mask]);
       else                  break;
-      writeln("New node: ", node);
     }
   }
   return -1;
 }
 
-float Ray_Intersection(inout float[3] min, inout float[3] max, inout Ray ray) {
+float Ray_Intersection(inout float[3] bmin, inout float[3] bmax, inout Ray ray) {
+  float tmin = -float.infinity, tmax = float.infinity;
+  import std.algorithm : swap, max, min;
+
+  foreach ( i; 0 .. 3 ) {
+    float imin = (bmin[i] - ray.origin[i])*ray.invdir[i],
+          imax = (bmax[i] - ray.origin[i])*ray.invdir[i];
+    if ( imin > imax ) swap(imax, imin);
+    tmin = max(tmin, imin);
+    tmax = min(tmax, imax);
+  }
+  if ( tmax > max(0.0f, tmin) ) {
+    // writeln("dist? ", tmax, " : ", tmin, " ( ", tmax - tmin);
+    return tmax - tmin;
+  }
+  return -1.0f;
 }
