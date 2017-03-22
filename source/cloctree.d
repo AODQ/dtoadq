@@ -129,6 +129,13 @@ bool Is_Leaf ( inout CLOctreeNode node ) {
 }
 
 /**
+  Returns true if node is empty (has no children nor data)
+*/
+bool Is_Empty (inout CLOctreeNode node) {
+  return node.Is_Leaf && node.voxel_id == -1;
+}
+
+/**
   Inserts the node into the tree, given the voxel exists already
 */
 void Insert ( ref OctreeData data, int voxel_id, int node_id = 0 ) in {
@@ -368,7 +375,7 @@ int Ray_Intersection (inout OctreeData data, inout Ray ray,
       float[3] min, max;
       writeln("Checking collision on: ", node_id);
       for ( ubyte i = 0; i != 8; ++ i ) {
-        if ( node.child_id[i] == -1 ) continue;
+        if ( data.RNode(node.child_id[i]).Is_Empty ) continue;
         RBounds(data, node.child_id[i], min, max);
         writeln("Child: ", node.child_id[i], ": ", min, " - ", max);
         float results = Ray_Intersection(min, max, ray);
