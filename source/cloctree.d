@@ -405,21 +405,12 @@ float Ray_Intersection(inout float[3] bmin, inout float[3] bmax, inout Ray ray){
         ymax = (bounds[1 - ray.sign[1]][1] - ray.origin[1]) * ray.invdir[1],
         zmin = (bounds[    ray.sign[2]][2] - ray.origin[2]) * ray.invdir[2],
         zmax = (bounds[1 - ray.sign[2]][2] - ray.origin[2]) * ray.invdir[2];
-  import std.algorithm : swap, max, min;
+  import std.algorithm : max, min;
 
-  if ((tmin > ymax) || (ymin > tmax)) return -1.0f;
-  if ( ymin > tmin ) tmin = ymin;
-  if ( ymax < tmax ) tmax = ymax;
-  if ((tmin > zmax) || (zmin > tmax)) return -1.0f;
-  if ( zmin > tmin ) tmin = zmin;
-  if ( zmax < tmax ) tmax = zmax;
+  tmin = max(max(tmin, ymin), zmin);
+  tmax = min(min(tmax, ymax), zmax);
 
-  writeln("T: ", tmin, ", ", tmax, " Y: ", ymin, ", ", ymax,
-          "Z: ", zmin, ", ", zmax);
-
-  if ( tmin < 0.0f ) {
-    if ( tmax < 0.0f ) return -1.0f;
-    return tmax;
-  }
+  if ( tmin > tmax ) return 1.0f;
+  writeln("Dist: ", tmax, " - ", tmin);
   return tmin;
 }
