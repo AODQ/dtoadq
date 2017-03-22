@@ -317,9 +317,9 @@ unittest {
   }
 
   {
-    static immutable auto Amt = 1000;
+    static immutable auto Amt = 1;
     writeln("Performing ", Amt, " ray-AABB intersections");
-    float[3] origin = [0.0f, 0.0f, 0.0f],
+    float[3] origin = [10.0f, 0.0f, 0.0f],
             dir    = [-1.0f, 0.0f, 0.0f];
     auto ray = Construct_Ray ( origin, dir );
     import functional;
@@ -339,15 +339,16 @@ auto Construct_Ray ( float[3] origin_, float[3] dir_ ) {
   import functional;
   Ray ray = {
     origin: origin_, dir: dir_,
-    invdir: dir_.array.map!"1.0f/a".array.to!(float[3]),
+    invdir: dir_[].map!"1.0f/a".array.to!(float[3]),
   };
-  ray.sign = ray.sign.map!"a < 0".to!(float[3]);
+  ray.sign[] = ray.invdir[].map!"cast(int)(a < 0)".array;
   return ray;
 }
 
 int Ray_Intersection (inout OctreeData data, inout Ray ray,
                               int node_id = 0) {
   auto node = data.RNode(node_id);
+  writeln("RAY: ", ray);
   foreach ( depth; 0 .. 64 ) {
     if ( node.Is_Leaf ) {
       if ( node.voxel_id != -1 ) {
@@ -355,26 +356,43 @@ int Ray_Intersection (inout OctreeData data, inout Ray ray,
         node.RBounds(min, max);
         if ( Ray_Intersection(min, max, ray) > 0.0f ) {
           writeln("Got node: ", node.voxel_id);
+          writeln("Voxel: ", data.RVoxel(node.voxel_id));
           return node.voxel_id;
         }
       }
+      writeln("WHAT?! ", node);
       break;
     } else {
       float node_dist = 999999999.0f;
       ubyte node_mask = 50;
       float[3] min, max;
+      writeln("Checking collision on: ", node_id);
       for ( ubyte i = 0; i != 8; ++ i ) {
-        node.RBounds(min, max);
+        if ( node.child_id[i] == -1 ) continue;
+        RBounds(data, node.child_id[i], min, max);
+        writeln("Child: ", node.child_id[i], ": ", min, " - ", max);
         float results = Ray_Intersection(min, max, ray);
+        writeln("Results; ", results);
         if ( results > 0.0f && results < node_dist ) {
           node_dist = results;
           node_mask = i;
+          writeln("Got child: ", node.child_id[i]);
         }
       }
-      writeln("Results: ", node_dist, ", ", node_mask);
-      if ( node_mask < 50 ) node = data.RNode(node.child_id[node_mask]);
-      else                  break;
+      if ( node_mask != 50 ) {
+        writeln("Results: ", node_dist, " : ", data.RNode(node.child_id[node_mask]));
+      }
+      if ( node_mask < 50 ) {
+        node_id = node.child_id[node_mask];
+        node = data.RNode(node_id);
+        writeln("New node: ", node_id);
+        writeln(node);
+      } else {
+        writeln("Failed on: ", node_id, " : ", node);
+        break;
+      }
     }
+    writeln(depth);
   }
   return -1;
 }
@@ -389,12 +407,15 @@ float Ray_Intersection(inout float[3] bmin, inout float[3] bmax, inout Ray ray){
         zmax = (bounds[1 - ray.sign[2]][2] - ray.origin[2]) * ray.invdir[2];
   import std.algorithm : swap, max, min;
 
-  if ((tmin > ymax) || (ymin > tmax)) return false;
+  if ((tmin > ymax) || (ymin > tmax)) return -1.0f;
   if ( ymin > tmin ) tmin = ymin;
   if ( ymax < tmax ) tmax = ymax;
-  if ((tmin > zmax) || (zmin > tmax)) return false;
+  if ((tmin > zmax) || (zmin > tmax)) return -1.0f;
   if ( zmin > tmin ) tmin = zmin;
   if ( zmax < tmax ) tmax = zmax;
+
+  writeln("T: ", tmin, ", ", tmax, " Y: ", ymin, ", ", ymax,
+          "Z: ", zmin, ", ", zmax);
 
   if ( tmin < 0.0f ) {
     if ( tmax < 0.0f ) return -1.0f;
