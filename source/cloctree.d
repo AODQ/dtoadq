@@ -339,8 +339,9 @@ auto Construct_Ray ( float[3] origin_, float[3] dir_ ) {
   import functional;
   Ray ray = {
     origin: origin_, dir: dir_,
-    invdir: dir_.array.map!"1.0f/a".array.to!(float[3])
+    invdir: dir_.array.map!"1.0f/a".array.to!(float[3]),
   };
+  ray.sign = ray.sign.map!"a < 0".to!(float[3]);
   return ray;
 }
 
@@ -378,20 +379,26 @@ int Ray_Intersection (inout OctreeData data, inout Ray ray,
   return -1;
 }
 
-float Ray_Intersection(inout float[3] bmin, inout float[3] bmax, inout Ray ray) {
-  float tmin = -float.infinity, tmax = float.infinity;
+float Ray_Intersection(inout float[3] bmin, inout float[3] bmax, inout Ray ray){
+  auto bounds = [bmin, bmax];
+  float tmin = (bounds[    ray.sign[0]][0] - ray.origin[0]) * ray.invdir[0],
+        tmax = (bounds[1 - ray.sign[0]][0] - ray.origin[0]) * ray.invdir[0],
+        ymin = (bounds[    ray.sign[1]][1] - ray.origin[1]) * ray.invdir[1],
+        ymax = (bounds[1 - ray.sign[1]][1] - ray.origin[1]) * ray.invdir[1],
+        zmin = (bounds[    ray.sign[2]][2] - ray.origin[2]) * ray.invdir[2],
+        zmax = (bounds[1 - ray.sign[2]][2] - ray.origin[2]) * ray.invdir[2];
   import std.algorithm : swap, max, min;
 
-  foreach ( i; 0 .. 3 ) {
-    float imin = (bmin[i] - ray.origin[i])*ray.invdir[i],
-          imax = (bmax[i] - ray.origin[i])*ray.invdir[i];
-    if ( imin > imax ) swap(imax, imin);
-    tmin = max(tmin, imin);
-    tmax = min(tmax, imax);
+  if ((tmin > ymax) || (ymin > tmax)) return false;
+  if ( ymin > tmin ) tmin = ymin;
+  if ( ymax < tmax ) tmax = ymax;
+  if ((tmin > zmax) || (zmin > tmax)) return false;
+  if ( zmin > tmin ) tmin = zmin;
+  if ( zmax < tmax ) tmax = zmax;
+
+  if ( tmin < 0.0f ) {
+    if ( tmax < 0.0f ) return -1.0f;
+    return tmax;
   }
-  if ( tmax > max(0.0f, tmin) ) {
-    // writeln("dist? ", tmax, " : ", tmin, " ( ", tmax - tmin);
-    return tmax - tmin;
-  }
-  return -1.0f;
+  return tmin;
 }
