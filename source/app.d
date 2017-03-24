@@ -17,19 +17,20 @@ void main() {
   scope ( exit ) {
     writeln("Successfully ended");
   }
-  // Init();
-  // Game_Init();
-  // import opencl : Initialize;
-  // import raycast;
-  // Initialize();
+  import cloctree;
+  writeln("SIZE OF VOXEL: ", CLVoxel.sizeof);
+  writeln("SIZE OF OCTND: ", CLOctreeNode.sizeof);
+  Init();
+  Game_Init();
+  import opencl : Initialize;
+  import raycast;
+  Initialize();
 
-  // auto raycaster = new Raycaster();
-  // AOD.Add(raycaster);
+  auto raycaster = new Raycaster();
+  AOD.Add(raycaster);
 
-  // AOD.Run();
-  // raycaster.Clean_Up();
-  // import std.c.stdlib;
-  // exit(0);
-
-  return;
+  AOD.Run();
+  raycaster.Clean_Up();
+  import std.c.stdlib;
+  exit(0);
 }

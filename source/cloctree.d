@@ -327,7 +327,7 @@ unittest {
     static immutable auto Amt = 1;
     writeln("Performing ", Amt, " ray-AABB intersections");
     float[3] origin = [10.0f, 0.0f, 0.0f],
-            dir    = [-1.0f, 0.0f, 0.0f];
+             dir    = [-1.0f, 0.0f, 0.0f];
     auto ray = Construct_Ray ( origin, dir );
     import functional;
     auto NTest ( ) {return tree.Ray_Intersection(ray);}
@@ -417,7 +417,7 @@ float Ray_Intersection(inout float[3] bmin, inout float[3] bmax, inout Ray ray){
   tmin = max(max(tmin, ymin), zmin);
   tmax = min(min(tmax, ymax), zmax);
 
-  if ( tmin > tmax ) return 1.0f;
+  if ( tmin > tmax ) return -1.0f;
   writeln("Dist: ", tmax, " - ", tmin);
   return tmin;
 }
