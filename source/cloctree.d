@@ -192,21 +192,68 @@ void Insert ( ref OctreeData data, int voxel_id, int node_id = 0 ) in {
   }
 }
 
-/** Calculate face */
-int Calculate_Face ( ref OctreeData data, int[] parents, ubyte face ) {
+/**
+
+
+  .------.
+  |\   7 |\
+  | '------'
+  |1|  5 |3|
+  '-|----' | // front face is 2
+   \|  6  \|
+    '------'
+
+        ID : 0 1 2 3 4 5 6 7
+  point > x: f f f f T T T T
+  point > y: f f T T f f T T
+  point > z: f T f T f T f T
+*/
+
+struct RopeInfo {
+  int id;
+  ubyte mask;
+}
+
+/** Calculate face
+
+  I calculate neighbouring nodes in the parent octree for trivial
+  cases:
+
+  .--.--.
+  | 2| 6|
+  [--+--]
+ 1| 0| 4|
+  '--'--'
+
+  thus for 0, at faces 7, 3, 5 I know the siblings 2, 4, 1 respectively
+
+  if it is not known, I go up a parent and calculate. I can't simply take
+  my neighbour as one might not exist; this is a sparse octree. So taking
+  my "uncle" is close enough, at least for now
+
+  if I run out of parents, then the node is an outside boundary node with
+  a face facing outwards
+*/
+int Calculate_Face ( ref OctreeData data, RopeInfo[] info, ubyte face, ubyte mask ) {
   import std.algorithm.mutation : reverse;
-  foreach ( p; parents.reverse ) {
-    auto node_id = // TODO GET SIBLING VOXEL SOMEHOW??//data.RNode(p).child_id[face];
-    if ( !data.RNode(node_id).Is_Empty ) {
-      return node_id;
-    }
+  if ( info.length == 1 ) return -1;
+  auto parent = parents[$-1];
+  switch ( mask ) {
+    case 0:
+      switch ( face ) {
+        case 7: return data.RNode(parent.id).child_id[2];
+        case 3: return data.RNode(parent.id).child_id[4];
+        case 5: return data.RNode(parent.id).child_id[1];
+        default: return data.Calculate_Face(info[1 .. $-1], 0);
+      }
+    break;
   }
   return -1;
 }
 
 /** Calculate rope */
-void Calculate_Ropes ( ref OctreeData data, int[] parents = [],
-                       int node_id = 0 ) {
+void Calculate_Ropes ( ref OctreeData data, RopeInfo[] info = [],
+                       int node_id = 0, ubyte node_mask = 0 ) {
   auto node = data.RNode(node_id);
   if ( node.Is_Leaf && node.voxel_id != -1 ) {
     foreach ( i; 0 .. 6 ) {
@@ -214,9 +261,9 @@ void Calculate_Ropes ( ref OctreeData data, int[] parents = [],
       data.RNode(node_id).child_id[i+1] = data.Calculate_Face(parents, ui);
     }
   } else {
-    parents ~= node_id;
+    info ~= RopeInfo(node_id, node_mask);
     foreach ( i; 0 .. 8 )
-      Calculate_Ropes(data, parents, node.child_id[i]);
+      Calculate_Ropes(data, parents, i, node.child_id[i]);
   }
 }
 
