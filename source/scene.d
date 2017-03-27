@@ -22,15 +22,18 @@ public:
 }
 
 struct Camera {
-  cl_float3 position, direction;
+  cl_float3 position, lookat, up;
   cl_int2 dimensions;
+  cl_float fov;
 }
 
 auto Construct_Camera(float[3] pos, float[3] dir, int[2] dim) {
   cl_int2 dimensions;
   dimensions.x = dim[0]; dimensions.y = dim[1];
   return Camera(
-    To_CLFloat3(pos), To_CLFloat3(dir), dimensions
+    To_CLFloat3(pos), To_CLFloat3(dir), To_CLFloat3([0.0f, 1.0f, 0.0]),
+    dimensions,
+    130.0f
   );
 }
 

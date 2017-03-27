@@ -16,17 +16,18 @@ import opencl;
 */
 struct CLOctreeNode {
   cl_int8 child_id;
-  cl_int voxel_id;
   cl_float3 origin;
   cl_float3 half_size;
+  cl_int voxel_id;
+  cl_ulong buffer, buffer2, buffer3;
 }
 
 /** */
 auto New_CLOctreeNode ( inout float[3] origin_, inout float[3] half_size_ ) {
   CLOctreeNode node = {
-    origin : To_CLFloat3(origin_),
+    origin    : To_CLFloat3(origin_),
     half_size : To_CLFloat3(half_size_),
-    child_id: To_CLInt8([-1, -1, -1, -1, -1, -1, -1, -1]), voxel_id : -1
+    child_id  : To_CLInt8([-1, -1, -1, -1, -1, -1, -1, -1]), voxel_id : -1,
   };
   return node;
 }
@@ -37,13 +38,16 @@ auto New_CLOctreeNode ( inout float[3] origin_, inout float[3] half_size_ ) {
 */
 struct CLVoxel {
   cl_float3 position;
-  cl_float    size;
+  cl_float3 colour;
 }
 
 /** */
 auto New_CLVoxel ( float[3] position_ ) {
+  import std.random;
   CLVoxel voxel = {
-    position : To_CLFloat3(position_)
+    position : To_CLFloat3(position_),
+    colour : To_CLFloat3([uniform(0.5f, 1.0f), uniform(0.0f, 1.0f),
+                          uniform(0.5f, 1.0f)])
   };
   return voxel;
 }
@@ -188,6 +192,42 @@ void Insert ( ref OctreeData data, int voxel_id, int node_id = 0 ) in {
   }
 }
 
+/** Calculate face */
+int Calculate_Face ( ref OctreeData data, int[] parents, ubyte face ) {
+  import std.algorithm.mutation : reverse;
+  foreach ( p; parents.reverse ) {
+    auto node_id = // TODO GET SIBLING VOXEL SOMEHOW??//data.RNode(p).child_id[face];
+    if ( !data.RNode(node_id).Is_Empty ) {
+      return node_id;
+    }
+  }
+  return -1;
+}
+
+/** Calculate segment */
+void Calculate_Rope_Segment ( ref OctreeData data, int[] parents, int node_id )
+in {
+  assert(data.RNode(node_id).Is_Leaf);
+} body {
+  foreach ( i; 0 .. 6 ) {
+    auto ui = cast(ubyte)i;
+    data.RNode(node_id).child_id[i+1] = data.Calculate_Face(parents, ui);
+  }
+}
+
+/** Calculate rope */
+void Calculate_Ropes ( ref OctreeData data, int[] parents = [],
+                       int node_id = 0 ) {
+  auto node = data.RNode(node_id);
+  if ( node.Is_Leaf && node.voxel_id != -1 ) {
+    Calculate_Rope_Segment(node);
+  } else {
+    parents ~= node_id;
+    foreach ( i; 0 .. 8 )
+      Calculate_Ropes(data, parents, node.child_id[i]);
+  }
+}
+
 
 /**
   Counts the amount of nodes in the tree, mostly to check for degeneracy.
@@ -322,102 +362,4 @@ unittest {
     writeln("Octree     time: ", tt_result, " milliseconds");
     assert(Bruteforce_Test == Octree_Test);
   }
-
-  {
-    static immutable auto Amt = 1;
-    writeln("Performing ", Amt, " ray-AABB intersections");
-    float[3] origin = [10.0f, 0.0f, 0.0f],
-             dir    = [-1.0f, 0.0f, 0.0f];
-    auto ray = Construct_Ray ( origin, dir );
-    import functional;
-    auto NTest ( ) {return tree.Ray_Intersection(ray);}
-    auto result = benchmark!(NTest)(Amt);
-    auto n_result = result[0].nsecs/Amt;
-    writeln("octree raycast time: ", n_result/1_000_000.0f, " milliseconds");
-  }
-}
-
-struct Ray {
-  float[3] origin, dir, invdir;
-  int[3] sign;
-}
-
-auto Construct_Ray ( float[3] origin_, float[3] dir_ ) {
-  import functional;
-  Ray ray = {
-    origin: origin_, dir: dir_,
-    invdir: dir_[].map!"1.0f/a".array.to!(float[3]),
-  };
-  ray.sign[] = ray.invdir[].map!"cast(int)(a < 0)".array;
-  return ray;
-}
-
-int Ray_Intersection (inout OctreeData data, inout Ray ray,
-                              int node_id = 0) {
-  auto node = data.RNode(node_id);
-  writeln("RAY: ", ray);
-  foreach ( depth; 0 .. 64 ) {
-    if ( node.Is_Leaf ) {
-      if ( node.voxel_id != -1 ) {
-        float[3] min, max;
-        node.RBounds(min, max);
-        if ( Ray_Intersection(min, max, ray) > 0.0f ) {
-          writeln("Got node: ", node.voxel_id);
-          writeln("Voxel: ", data.RVoxel(node.voxel_id));
-          return node.voxel_id;
-        }
-      }
-      writeln("WHAT?! ", node);
-      break;
-    } else {
-      float node_dist = 999999999.0f;
-      ubyte node_mask = 50;
-      float[3] min, max;
-      writeln("Checking collision on: ", node_id);
-      for ( ubyte i = 0; i != 8; ++ i ) {
-        if ( data.RNode(node.child_id[i]).Is_Empty ) continue;
-        RBounds(data, node.child_id[i], min, max);
-        writeln("Child: ", node.child_id[i], ": ", min, " - ", max);
-        float results = Ray_Intersection(min, max, ray);
-        writeln("Results; ", results);
-        if ( results > 0.0f && results < node_dist ) {
-          node_dist = results;
-          node_mask = i;
-          writeln("Got child: ", node.child_id[i]);
-        }
-      }
-      if ( node_mask != 50 ) {
-        writeln("Results: ", node_dist, " : ", data.RNode(node.child_id[node_mask]));
-      }
-      if ( node_mask < 50 ) {
-        node_id = node.child_id[node_mask];
-        node = data.RNode(node_id);
-        writeln("New node: ", node_id);
-        writeln(node);
-      } else {
-        writeln("Failed on: ", node_id, " : ", node);
-        break;
-      }
-    }
-    writeln(depth);
-  }
-  return -1;
-}
-
-float Ray_Intersection(inout float[3] bmin, inout float[3] bmax, inout Ray ray){
-  auto bounds = [bmin, bmax];
-  float tmin = (bounds[    ray.sign[0]][0] - ray.origin[0]) * ray.invdir[0],
-        tmax = (bounds[1 - ray.sign[0]][0] - ray.origin[0]) * ray.invdir[0],
-        ymin = (bounds[    ray.sign[1]][1] - ray.origin[1]) * ray.invdir[1],
-        ymax = (bounds[1 - ray.sign[1]][1] - ray.origin[1]) * ray.invdir[1],
-        zmin = (bounds[    ray.sign[2]][2] - ray.origin[2]) * ray.invdir[2],
-        zmax = (bounds[1 - ray.sign[2]][2] - ray.origin[2]) * ray.invdir[2];
-  import std.algorithm : max, min;
-
-  tmin = max(max(tmin, ymin), zmin);
-  tmax = min(min(tmax, ymax), zmax);
-
-  if ( tmin > tmax ) return -1.0f;
-  writeln("Dist: ", tmax, " - ", tmin);
-  return tmin;
 }

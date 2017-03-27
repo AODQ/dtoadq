@@ -18,8 +18,6 @@ void main() {
     writeln("Successfully ended");
   }
   import cloctree;
-  writeln("SIZE OF VOXEL: ", CLVoxel.sizeof);
-  writeln("SIZE OF OCTND: ", CLOctreeNode.sizeof);
   Init();
   Game_Init();
   import opencl : Initialize;

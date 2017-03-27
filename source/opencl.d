@@ -162,11 +162,14 @@ public:
     size_t[3] origin = [0, 0, 0];
     size_t[3] region = [image.width, image.height, 1];
     CLAssert(clEnqueueWriteImage(command_queue, image.cl_handle,
-                  CL_TRUE, origin.ptr, region.ptr, 0, 0, cast(void*)image.data.ptr,
-                  0, null, null),
+                  CL_TRUE, origin.ptr, region.ptr, 0, 0,
+                  cast(void*)image.data.ptr, 0, null, null),
              "clEnqueueWriteImage");
   }
-  void Write(T)(OpenCLSingleton!T singleton) {
+  void Write(T)(OpenCLSingleton!T singleton) in {
+    assert(singleton.data.length == 1,
+            "Length mismatch on singleton: " ~ singleton.data.length.to!string);
+  } body {
     CLAssert(clEnqueueWriteBuffer(command_queue, singleton.cl_handle,
                   CL_TRUE, 0, T.sizeof, &singleton.data[0],
                   0, null, null), "clEnqueueWriteBuffer singleton");
@@ -426,7 +429,7 @@ auto To_CLFloat3(float[3] a) {
   return vec;
 }
 
-auto To_CLInt8(int[8] a) {
+auto To_CLInt8(uint[8] a) {
   cl_int8 vec;
   foreach ( i; 0 .. 8 )
     vec[i] = a[i];

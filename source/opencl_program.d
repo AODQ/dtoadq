@@ -1,315 +1,343 @@
 module opencl_program; immutable(string) Test_raycast_string = q{
+    // --------------- MATERIAL/VOXEL/RAY --------------------------------------
+    typedef struct T_Material {
+      float3 colour;
+      float metallic, subsurface, specular, roughness, specular_tint,
+            anisotropic, sheen, sheen_tint, clearcoat, clearcoat_gloss,
+            emission;
+    } Material;
 
-   // --------------- MATERIAL/VOXEL/RAY ----------------------------------------
-   typedef struct T_Material {
-     float3 colour;
-     float metallic, subsurface, specular, roughness, specular_tint,
-           anisotropic, sheen, sheen_tint, clearcoat, clearcoat_gloss,
-           emission;
-   } Material;
+    typedef struct T_Ray {
+      float3 origin, dir, invdir;
+      int3 sign;
+    } Ray;
 
-   typedef struct T_Ray {
-     float3 origin, dir, invdir;
-     float3 slopex, slopey, slopez,
-            clopex, clopey, clopez;
-   } Ray;
+    typedef struct T_Voxel {
+      float3 position;
+      float3 colour;
+    } Voxel;
 
-   typedef struct T_Voxel {
-     float3 position;
-     float  size;
-   } Voxel;
+    Ray New_Ray ( float3 o, float3 d ) {
+      Ray ray;
+      float3 id = (float3)(1.0f/d.x, 1.0f/d.y, 1.0f/d.z);
+      ray.origin = o;
+      ray.dir    = d;
+      ray.invdir = id;
+      ray.sign   = (int3)(id.x < 0, id.y < 0, id.z < 0);
+      return ray;
+    }
 
-   Ray New_Ray ( float3 o, float3 d ) {
-     Ray ray;
-     float3 id = (float3)(1.0f/d.x, 1.0f/d.y, 1.0f/d.z);
-     ray.origin = o;
-     ray.dir    = d;
-     ray.invdir = id;
-     // ray.slopex = (float3)(0.0f, d.x*dir.dy, d.x*dir.dz);
-     // ray.slopey = (float3)(d.y*dir.dx, 0.0f, d.y*dir.dz);
-     // ray.slopez = (float3)(d.z*dir.dx, d.z*dir.dy, 0.0f);
-     // ray.clopex = (float3)(0.0f, o.y-ray.slopex.y*o.x, o.z-ray.slopex.z*o.x);
-     // ray.clopey = (float3)(o.x-ray.slopey.x*o.y, 0.0f, o.z-ray.slopey.z*o.y);
-     // ray.clopez = (float3)(o.x-ray.slopez.x*o.z, o.y-slopez.y*oz, 0.0f);
-     return ray;
+    // --------------- OCTREE --------------------------------------------------
+    typedef struct T_OctreeNode {
+      int8 child_id;
+      float3 origin;
+      float3 half_size;
+      int voxel_id;
+    } OctreeNode;
+
+    typedef struct T_OctreeData {
+      __global OctreeNode* node_pool;
+      __global Voxel*      voxel_pool;
+      int node_pool_size, voxel_pool_size;
+    } OctreeData;
+
+    unsigned char ROctant_Mask ( __global OctreeNode* node, float3 point ) {
+      unsigned char oct = 0;
+      if ( node->origin.x < point.x ) oct |= 4;
+      if ( node->origin.y < point.y ) oct |= 2;
+      if ( node->origin.z < point.z ) oct |= 1;
+      return oct;
+    }
+
+    bool Is_Leaf ( __global OctreeNode* node ){ return node->child_id[0] == -1;}
+    bool Is_Empty ( __global OctreeNode* node ) {
+      return Is_Leaf(node) && node->voxel_id == -1;
+    }
+
+    float3 RLowerBound ( __global OctreeNode* node ) {
+      return (float3)(node->origin[0] - node->half_size[0],
+                      node->origin[1] - node->half_size[1],
+                      node->origin[2] - node->half_size[2]);
+    }
+
+    float3 RHigherBound ( __global OctreeNode* node ) {
+      return (float3)(node->origin[0] + node->half_size[0],
+                      node->origin[1] + node->half_size[1],
+                      node->origin[2] + node->half_size[2]);
+    }
+
+    // --------------- RANDOM --------------------------------------------------
+    // --- random generation via xorshift1024star
+    typedef struct RNG {
+      ulong seed[16];
+      ulong p;
+    } RNG;
+
+    ulong RNG_Next(__global RNG* rng) {
+      const ulong s0 = (*rng).seed[(*rng).p];
+      ulong       s1 = (*rng).seed[(*rng).p = ((*rng).p + 1)&15];
+      s1 ^= s1 << 31; // a
+      (*rng).seed[(*rng).p] = s1 ^ s0 ^ (s1 >> 11) ^ (s0 >> 30); // b, c
+      return (*rng).seed[(*rng).p] * 1181783497276652981L *
+                  (get_global_id(0) + 250) * (get_global_id(1) + 250);
+    }
+
+    float Uniform(__global RNG* rng, const float min, const float max) {
+      return min + ((float)RNG_Next(rng) / (float)(ULONG_MAX/(max-min)));
+    }
+
+    float3 Uniform_Float3(__global RNG* rng, const float min, const float max) {
+      return (float3)(
+        Uniform(rng, min, max),
+        Uniform(rng, min, max),
+        Uniform(rng, min, max)
+      );
+    }
+
+    // https://pathtracing.wordpress.com/2011/03/03/cosine-weighted-hemisphere/
+    float3 Random_Hemisphere_Direction(float3 normal, __global RNG* rng) {
+      int abort = 0;
+      float3 origin = (float3)(0.5f, 0.5f, 0.5f);
+      while ( true ) {
+        float3 v = normalize(Uniform(rng, 0.0f, 1.0f)) - origin;
+
+        if ( dot(normal, v) > 0.0f ) return v;
+        ++ abort;
+        if ( abort > 500 )
+          return v; // couldn't find a normal :/
+      }
+    }
+
+    // --------------- INTERSECTION --------------------------------------------
+    float Ray_Intersection(float3 bmin, float3 bmax, Ray ray) {
+      float t1 = (bmin.x - ray.origin.x)*ray.invdir.x,
+            t2 = (bmax.x - ray.origin.x)*ray.invdir.x;
+      float tmin = min(t1, t2),
+            tmax = max(t1, t2);
+      for ( int i = 1; i < 3; ++ i ) {
+        t1 = (bmin[i] - ray.origin[i])*ray.invdir[i];
+        t2 = (bmax[i] - ray.origin[i])*ray.invdir[i];
+        tmin = max(tmin, min(t1, t2));
+        tmax = min(tmax, max(t1, t2));
+      }
+
+      if ( tmax < max(tmin, 0.0f) ) return -1.0f;
+      return tmin;
+    }
+
+    int RVoxel_Intersection ( OctreeData* data, Ray ray, float* dist ){
+      __global OctreeNode* curr_node = &data->node_pool[0];
+      float3 min, max;
+      for ( int depth = 0; depth != 5; ++ depth ) {
+        if ( Is_Leaf(curr_node) ) {
+          if ( curr_node->voxel_id != -1 ) {
+            min = RLowerBound(curr_node), max = RHigherBound(curr_node);
+            *dist = Ray_Intersection(min, max, ray);
+            if ( (*dist) > 0.0f ) {
+              return curr_node->voxel_id;
+            }
+          }
+        } else {
+          float node_dist = FLT_MAX;
+          unsigned char  node_mask = 50;
+          for ( unsigned char i = 0; i != 8; ++ i ) {
+            // get child info
+            int child_id = curr_node->child_id[i];
+            if ( child_id == -1 )
+              continue;
+            __global OctreeNode* child_node = &data->node_pool[child_id];
+            if ( Is_Empty(child_node) ) continue;
+
+            // get child bounding box and calculate its ray intersection
+            min = RLowerBound(child_node), max = RHigherBound(child_node);
+            float results = Ray_Intersection(min, max, ray);
+            if ( results > 0.0f && results < node_dist ) {
+              node_dist = results;
+              node_mask = i;
+            }
+          }
+          if ( node_mask == 50 ) {
+            return -1;
+          }
+          curr_node = &data->node_pool[curr_node->child_id[node_mask]];
+        }
+      }
+      return -1;
+    }
+
+    typedef struct T_IntersectionInfo {
+      bool intersection;
+      float3 position;
+      float distance;
+      Voxel voxel;
+      float3 normal, angle;
+      float3 colour;
+    } IntersectionInfo;
+
+    IntersectionInfo Raycast_Scene(
+                OctreeData* data,
+                Ray ray) {
+      IntersectionInfo info;
+      info.intersection = false;
+
+      // --- find closest voxel ---
+      float dist;
+      int voxel_id = RVoxel_Intersection(data, ray, &dist);
+
+      if ( voxel_id >= 0 ) {
+        info.intersection = true;
+        info.distance = dist;
+        info.position = ray.origin + ray.dir*dist;
+        info.colour = data->voxel_pool[voxel_id].colour;
+        // info.material = material_data[vertex_data[i].material_index];
+        // info.normal = cross(vertex_data[i].B - vertex_data[i].A,
+        //                     vertex_data[i].C - vertex_data[i].A);
+        // info.angle = dot(ray.d, info.normal);
+      }
+
+      return info;
+    }
+
+    // --------------- CAMERA --------------------------------------------------
+    typedef struct T_Camera {
+      float3 position, lookat, up;
+      int2 dimensions;
+      float fov;
+    } Camera;
+
+    Ray Camera_Ray(__global RNG* rng, __global Camera* camera) {
+      float2 dim   = (float2)(camera->dimensions.x/2.0f,
+                              camera->dimensions.y/2.0f);
+
+      float3 z_axis = normalize(camera->lookat - camera->position);
+      float3 x_axis = cross(z_axis, camera->up);
+      float3 y_axis = cross(x_axis, z_axis);
+
+      float fov_rad = camera->fov * 3.14159f/180.0f;
+      float focus_dist = 1.0f/tan(fov_rad/2.0f);
+
+      float aspect_ratio = dim.x/dim.y;
+
+      float2 pixel = (float2)((float)get_global_id(0), (float)get_global_id(1));
+
+      float x_proj = 2.0f * aspect_ratio * (pixel.x/dim.x - 0.5f),
+            y_proj = 2.0f * (0.5f - pixel.y/dim.y);
+      float3 direction = x_axis*x_proj + y_axis*y_proj + z_axis*focus_dist;
+      return New_Ray(camera->position, direction);
    }
 
-   // --------------- OCTREE ----------------------------------------------------
-   typedef struct T_OctreeNode {
-     cl_int8 child_id;
-     cl_int voxel_id;
-     cl_float3 origin;
-     cl_float3 half_size;
-   } OctreeNode;
 
-   typedef struct T_OctreeData {
-     OctreeNode* node_pool;
-     Voxel*      voxel_pool;
-   } OctreeData;
 
-   ubyte ROctant_Mask ( __global OctreeNode* node, float3 point ) {
-     ubyte oct = 0;
-     if ( node->origin.x < point.x ) oct |= 4;
-     if ( node->origin.y < point.y ) oct |= 2;
-     if ( node->origin.z < point.z ) oct |= 1;
-     return oct;
-   }
 
-   bool Is_Leaf ( __global OctreeNode* node ) { return node.child_id[0] == -1; }
 
-   void RBounds ( __global OctreeNode* node, float3* min, float3* max ) {
-     for ( int i = 0; i != 3; ++ i ) {
-       max[i] = node->origin[i] + node->half_size[i];
-       min[i] = node->origin[i] - node->half_size[i];
-     }
-   }
 
-   // --------------- RANDOM ----------------------------------------------------
-   // --- random generation via xorshift1024star
-   typedef struct RNG {
-     ulong seed[16];
-     ulong p;
-   } RNG;
 
-   ulong RNG_Next(__global RNG* rng) {
-     const ulong s0 = (*rng).seed[(*rng).p];
-     ulong       s1 = (*rng).seed[(*rng).p = ((*rng).p + 1)&15];
-     s1 ^= s1 << 31; // a
-     (*rng).seed[(*rng).p] = s1 ^ s0 ^ (s1 >> 11) ^ (s0 >> 30); // b, c
-     return (*rng).seed[(*rng).p] * 1181783497276652981L *
-                 (get_global_id(0) + 250) * (get_global_id(1) + 250);
-   }
+     // viewDir*= float3(0.9,1.0,1.0);
+     // Lpos = float3(0.85*cos(time*0.55),1.5, 0.85*sin(time*1.0));
+     // // Compute camera properties
+     // float  camDist = 10.0f;
+     // float3 camUp = float3(0,1.0f,0);
+     // float3 camTarget = float3(0,3.0,0);
+     // // And from them evaluted ray direction in world space
+     // float3 forward = normalize(camTarget - camPos);
+     // float3 left = normalize(cross(forward, camUp));
+     // float3 up = cross(left, forward);
+     // float3 worldDir = viewDir.x*left + viewDir.y*up + viewDir.z*forward;
+    // }
+    // --- BRDF ---
 
-   float Uniform(__global RNG* rng, const float min, const float max) {
-     return min + ((float)RNG_Next(rng) / (float)(ULONG_MAX/(max-min)));
-   }
+    float3 DisneyBRDF(float3 L, float3 V, float3 N, float3 X, float3 Y) {
+      float3 R = dot(L, N)*N - L;
+      float D = pow(max(0.0f, dot(R, N)), 1.02f);
+      D *= (2.0f+1.02f) / (2.0f*3.14159f);
+      return (float3)(D);
+      // tangent = normalize(cross(float3(0, 1, 0), normal))
+      // bitan   = normalize(cross(normal, tangent))
+    }
 
-   float3 Uniform_Float3(__global RNG* rng, const float min, const float max) {
-     return (float3)(
-       HashFloat(rng, min, max),
-       HashFloat(rng, min, max),
-       HashFloat(rng, min, max)
-     );
-   }
+    // --- kernel ---
 
-   float3 Random_Hemisphere_Direction(float3 normal, __global RNG* rng) {
-     // https://pathtracing.wordpress.com/2011/03/03/cosine-weighted-hemisphere/
-     int abort = 0;
-     while ( true ) {
-       float3 v = normalize(HashVec3(rng) - (float3)(0.5f, 0.5f, 0.5f));
+    #define DEPTH 16
 
-       if ( dot(normal, v) > 0.0f ) return v;
-       ++ abort;
-       if ( abort > 500 )
-         return v; // couldn't find a normal :/
-     }
-   }
+    __kernel void Kernel_Raycast(
+            __write_only image2d_t output_image,
+            __read_only  image2d_t input_image,
+            __global OctreeNode* node_pool,  __global uint* node_length,
+            __global Voxel*      voxel_pool, __global uint* voxel_length,
+            __global RNG* rng,
+            // __read_only  image2d_t environment_map,
+            __global Camera* camera
+            ) {
+      int2 out = (int2)(get_global_id(0), get_global_id(1));
+      bool isprint  = out.x%10 == 0 && out.y%2 == 0,
+           isprintg = out.x == 0 && out.y == 0;
 
-   // --------------- INTERSECTION ----------------------------------------------
-   float Ray_Intersection(float3 bmin, float3 bmax, Ray ray) {
-     float2 bx = (float2)(bmin.x, bmax.x);
-     float2 by = (float2)(bmin.y, bmax.y);
-     float2 bz = (float2)(bmin.z, bmax.z);
-     float tmin = (bx[    ray.sign.x] - ray.origin.x) * ray.invdir.x,
-           tmax = (bx[1 - ray.sign.x] - ray.origin.x) * ray.invdir.x,
-           ymin = (by[    ray.sign.y] - ray.origin.y) * ray.invdir.y,
-           ymax = (by[1 - ray.sign.y] - ray.origin.y) * ray.invdir.y,
-           zmin = (bz[    ray.sign.z] - ray.origin.z) * ray.invdir.z,
-           zmax = (bz[1 - ray.sign.z] - ray.origin.z) * ray.invdir.z;
+      Ray ray = Camera_Ray(rng, camera);
+      if ( isprintg ) {
+        printf("camera: position <%f, %f, %f> lookat <%f, %f, %f>, "
+               "up <%f, %f, %f>, fov %f\n",
+               camera->position.x, camera->position.y, camera->position.z,
+               camera->lookat.x, camera->lookat.y, camera->lookat.z,
+               camera->up.x, camera->up.y, camera->up.z,
+               camera->fov
+               );
+        printf("Ray: origin <%f, %f, %f> ; dir <%f, %f, %f> ; idir <%f, %f, %f>"
+                 ", sign <%d, %d, %d>\n",
+                 ray.origin.x, ray.origin.y, ray.origin.z,
+                 ray.dir.x, ray.dir.y, ray.dir.z,
+                 ray.invdir.x, ray.invdir.y, ray.invdir.z,
+                 ray.sign.x, ray.sign.y, ray.sign.z);
+      }
 
-     tmin = max(max(tmin, ymin), zmin);
-     tmax = max(max(tmax, ymax), zmax);
+      float3 colour = (float3)(0.0f, 0.0f, 0.0f);
+      float3 weight = (float3)(1.0f, 1.0f, 1.0f);
+      bool hit = false;
 
-     if ( tmin > tmax ) return -1.0f;
-     return tmin;
-   }
+      OctreeData data;
+      data.node_pool  = node_pool;
+      data.voxel_pool = voxel_pool;
+      data.node_pool_size = *node_length;
+      data.voxel_pool_size = *voxel_length;
 
-   int RVoxel_Intersection ( OctreeData* data, Ray ray, float* dist ){
-     OctreeNode* curr_node = data.node_pool[0];
-     float3 min, max;
-     for ( int depth = 0; depth != 12; ++ depth ) {
-       if ( Is_Leaf(curr_node) ) {
-         if ( curr_node->voxel_id != -1 ) {
-           RBounds(node, &min, &max);
-           *dist = Ray_Intersection(min, max, ray);
-           if ( (*dist) > 0.0f ) {
-             return curr_node->voxel_id;
-           }
-         }
-       } else {
-         float node_dist = FLT_MAX;
-         ubyte node_mask = 50;
-         for ( ubyte i = 0; i != 8; ++ i ) {
-           if ( node->child_id[i] == -1 ) continue;
-           RBounds(node->child_id[i], &min, &max);
-           float results = Ray_Intersection(min, max, ray);
-           if ( results > 0.0f && results < node_dist ) {
-             node_dist = results;
-             node_mask = i;
-           }
-         }
-         if ( node_mask == 50 ) {
-           return -1;
-         }
-         node_id = node->child_id[node_mask];
-         node    = data.node_pool[node_id];
-       }
-     }
-     return -1;
-   }
+      int depth = 0;
+      while ( true ) {
+        float depth_ratio = 1.0f - (1.0f / (DEPTH - depth)); // 
+        if ( Uniform(rng, 0.0f, 1.0f) >= depth_ratio ) break; // 
+        IntersectionInfo info = Raycast_Scene(&data, ray);
+        if ( !info.intersection ) {
+          colour = (float3)(0.0f, 0.0f, 0.0f);
+          hit = true;
+          break;
+        }
 
-   typedef struct T_Intersection_Info {
-     bool intersection;
-     float3 position;
-     float distance;
-     T_Voxel voxel;
-     float3 normal, angle;
-   } Intersection_Info;
+        colour = info.colour;
+        hit = true;
+        // hit = true;
+        // if ( info.material.emission > FLT_EPSILON ) {
+        //   float emittance = (info.material.emission/depth_ratio);
+        //   colour = weight * info.material.base_colour * emittance;
+        //   hit = true;
+        //   break;
+        // }
 
-   Intersection_Info Raycast_Scene(
-               OctreeData* data,
-               Ray ray) {
-     Intersection_Info info;
-     info.intersection = false;
-     info.colour = (float3)(1.0f, 1.0f, 1.0f);
+        // float3 brdf = DisneyBRDF(info.position, info.angle, info.normal,
+        //                        (float3)(0.0f), (float3)(0.0f));
+        // weight *= info.material.base_colour;
+        // info.normal = info.normal * -sign(info.angle);
+        // float3 new_dir = Random_Hemisphere_Direction(info.normal, rng);
+        // ray.o = info.position;
+        // ray.d = new_dir;
+        // colour = weight * info.material.base_colour + info.normal;
+        // hit = true;
+        break;
+      }
 
-     // --- find closest voxel ---
-     float dist;
-     int voxel_id = RVoxel_Intersection(data, ray, &dist);
-     if ( get_global_id(0) == 100 && get_global_id(1) == 100 )
-       printf("%f\n", voxel_id);
-
-     if ( voxel_id >= 0 ) {
-       if ( result > FLT_EPSILON && closest_dist >= result ) {
-         info.intersection = true;
-         info.distance = dist;
-         info.position = ray.o + ray.d*dist;
-         // info.material = material_data[vertex_data[i].material_index];
-         // info.normal = cross(vertex_data[i].B - vertex_data[i].A,
-         //                     vertex_data[i].C - vertex_data[i].A);
-         // info.angle = dot(ray.d, info.normal);
-       }
-     }
-
-     return info;
-   }
-
-   // --------------- CAMERA ----------------------------------------------------
-   typedef struct T_Camera {
-     float3 position, direction;
-     int2 dimensions;
-   } Camera;
-
-   // --- camera shit ---
-
-   /*
-
-     | ------- |
-     | o       | o = (0 0) - (128 128)/2 = -64 -64
-     |    x    | x = 1000 10 2000
-     |         | angle = 0 1.0 0
-     | ------- |
-
-     real o = (1000 10 2000) + (-64 0 -64) = (936 10 1936)
-     pixel pos = real o + angle*10.0f = (936 20 1936)
-
-   */
-
-   Ray Camera_Ray(__global RNG* rng, __global Camera* camera) {
-     int2 dim = (*camera).dimensions/2;
-     float2 o_pos = (float2)(get_global_id(0), get_global_id(1))*(*camera).position.y*-3.0f -
-                    (float2)(dim.x, dim.y);
-     float3 camera_pos = (*camera).position + (float3)(o_pos.x, 0.0f, o_pos.y);
-     float3 pixel_pos = camera_pos + (*camera).direction*100.0f;
-     // // lol antialiasing
-     // float range = 0.01f;
-     // float2 antialias  = (float2)(
-     //   HashFloat(rng, -range, range),
-     //   HashFloat(rng, -range, range));
-     // camera_pos += (float3)(antialias, 0.0f);
-     Ray result;
-     result.o = camera_pos;
-     result.d = normalize(pixel_pos - camera_pos);
-     return result;
-   }
-
-   // --- BRDF ---
-
-   float3 DisneyBRDF(float3 L, float3 V, float3 N, float3 X, float3 Y) {
-     float3 R = dot(L, N)*N - L;
-     float D = pow(max(0.0f, dot(R, N)), 1.02f);
-     D *= (2.0f+1.02f) / (2.0f*3.14159f);
-     return (float3)(D);
-     // tangent = normalize(cross(float3(0, 1, 0), normal))
-     // bitan   = normalize(cross(normal, tangent))
-   }
-
-   // --- kernel ---
-
-   #define DEPTH 16
-
-   __kernel void Kernel_Raycast(
-           __write_only image2d_t output_image,
-           __read_only  image2d_t input_image,
-           __global OctreeNode* node_pool,
-           __global Voxel*      voxel_pool,
-           __global RNG* rng,
-           // __read_only  image2d_t environment_map,
-           __global Camera* camera
-           ) {
-     int2 out = (int2)(get_global_id(0), get_global_id(1));
-     bool isprint  = out.x%10 == 0 && out.y%2 == 0,
-          isprintg = out.x == 0 && out.y == 0;
-     if ( isprintg ) {
-       printf("SIZE NODE POOL: ", sizeof(OctreeNode));
-       printf("VOXEL     POOL: ", sizeof(Voxel));
-     }
-
-     Ray ray = Camera_Ray(rng, camera);
-
-     float3 colour = (float3)(0.0f, 0.0f, 0.0f);
-     float3 weight = (float3)(1.0f, 1.0f, 1.0f);
-     bool hit = false;
-
-     int depth = 0;
-     while ( true ) {
-       float depth_ratio = 1.0f - (1.0f / (DEPTH - depth));
-       if ( HashFloat(rng, 0.0f, 1.0f) >= depth_ratio ) break;
-       Intersection_Info info = Raycast_Scene(vertex_data, vertex_length,
-                                     material_data, material_length, ray);
-       if ( !info.intersection ) {
-         // colour = weight * info.material.base_colour;
-         // hit = true;
-         break;
-       }
-
-       colour = (float3)(info.dist, info.dist/100.0f, info.dist/1000.0f);
-       hit = true;
-       // if ( info.material.emission > FLT_EPSILON ) {
-       //   float emittance = (info.material.emission/depth_ratio);
-       //   colour = weight * info.material.base_colour * emittance;
-       //   hit = true;
-       //   break;
-       // }
-
-       // float3 brdf = DisneyBRDF(info.position, info.angle, info.normal,
-       //                        (float3)(0.0f), (float3)(0.0f));
-       // weight *= info.material.base_colour;
-       // info.normal = info.normal * -sign(info.angle);
-       // float3 new_dir = Random_Hemisphere_Direction(info.normal, rng);
-       // ray.o = info.position;
-       // ray.d = new_dir;
-       // colour = weight * info.material.base_colour + info.normal;
-       // hit = true;
-       // break;
-     }
-
-     if ( hit ) {
-       float3 old_colour = read_imagef(input_image, out).xyz;
-       float3 rcolour = mix(colour, old_colour, 0.2f);
-       rcolour = fmax(0.0f, fmin(1.0f, rcolour));
-       // rcolour = pow(rcolour, (float3)(1.0f / 0.5f));
-       write_imagef(output_image, out, (float4)(rcolour, 1.0));
-     }
-   }
+      if ( hit ) {
+        float3 old_colour = read_imagef(input_image, out).xyz;
+        float3 rcolour = mix(colour, old_colour, 0.2f);
+        rcolour = fmax(0.0f, fmin(1.0f, rcolour));
+        // rcolour = pow(rcolour, (float3)(1.0f / 0.5f));
+        write_imagef(output_image, out, (float4)(rcolour, 1.0));
+      }
+    }
 };

@@ -27,7 +27,7 @@ OctreeData RNew_Octree ( ) {
     return uniform(-1.0f, 1.0f);
   }
 
-  immutable size_t Amt_pts = 25;
+  immutable size_t Amt_pts = 20;
   CLVoxel[] voxels;
   foreach ( i; 0 .. Amt_pts ) {
     voxels ~= New_CLVoxel([Rand(), Rand(), Rand()]);
@@ -44,7 +44,6 @@ class Raycaster : AOD.Entity {
   OpenCLImage img_buffer_write, img_buffer_read, img_buffer_env;
   OpenCLBuffer!CLVoxel voxel_buffer;
   OpenCLBuffer!CLOctreeNode octree_node_buffer;
-  OpenCLSingleton!float timer;
   OpenCLSingleton!RNG rng_buffer;
   OpenCLSingleton!Camera camera_buffer;
   Camera camera;
@@ -62,14 +61,14 @@ public:
     img_buffer_write = program.Set_Image_Buffer(WO, Img_dim);
     img_buffer_read  = program.Set_Image_Buffer(RO, Img_dim);
     auto tree = RNew_Octree();
-    voxel_buffer = program.Set_Buffer!CLVoxel(RO, tree.voxel_pool);
     octree_node_buffer = program.Set_Buffer!CLOctreeNode(RO, tree.node_pool);
+    voxel_buffer = program.Set_Buffer!CLVoxel(RO, tree.voxel_pool);
     auto rng = Generate_New_RNG();
     rng_buffer      = program.Set_Singleton!RNG(RO, rng);
     // img_buffer_env  = program.Set_Image_Buffer(RO, Img_dim);
     // import image;
     // img_buffer_env.data = Read_Image("testenv.tga");
-    camera = Construct_Camera([10.0f, 0.0f, 0.0f], [-1.0f, 0.0f, 0.0f],
+    camera = Construct_Camera([1.0f, 0.0f, -1.0f], [-1.0f, 0.0f, 0.0f],
                                                   [Img_dim, Img_dim]);
     camera_buffer = program.Set_Singleton!Camera(RO, camera);
     // program.Write(img_buffer_env);
@@ -102,27 +101,27 @@ public:
     if ( AOD.RKeystate( SDL_SCANCODE_LSHIFT ) ) {
       cx *= 5.0f; cy *= 5.0f; cz *= 5.0f; rx *= 5.0f;
     }
-    camera.position[0] += cx;
-    camera.position[1] += cy*0.01f;
-    camera.position[2] += cz;
+    camera.position[0] += cx*0.1f;
+    camera.position[1] += cy*0.1f;
+    camera.position[2] += cz*0.1f;
     static float lmx, lmy;
     import std.math : abs;
     if ( AOD.R_Mouse_Left || abs(rx) >= 0.01 ) {
       reset_camera = true;
       float cmx = AOD.R_Mouse_X(0) - lmx,
             cmy = AOD.R_Mouse_Y(0) - lmy;
-      camera.direction[0] += cmx * 0.005f;
-      camera.direction[1] += rx;
-      camera.direction[2] -= cmy * 0.005f;
+      camera.lookat[0] += cmx * 0.5f;
+      camera.lookat[1] += rx * 0.1f;
+      camera.lookat[2] -= cmy * 0.5f;
       // normalize
       import std.math : sqrt;
-      float mag = sqrt((camera.direction[0]*camera.direction[0]) +
-                       (camera.direction[1]*camera.direction[1]) +
-                       (camera.direction[2]*camera.direction[2]));
+      float mag = sqrt((camera.lookat[0]*camera.lookat[0]) +
+                       (camera.lookat[1]*camera.lookat[1]) +
+                       (camera.lookat[2]*camera.lookat[2]));
       if ( mag ) {
-        camera.direction[0] /= mag;
-        camera.direction[1] /= mag;
-        camera.direction[2] /= mag;
+        camera.lookat[0] /= mag;
+        camera.lookat[1] /= mag;
+        camera.lookat[2] /= mag;
       }
     }
     lmx = AOD.R_Mouse_X(0);
@@ -130,8 +129,6 @@ public:
   }
 
   CLImage Run_CL() {
-    // auto duration = (MonoTime.currTime - timer_start).total!"msecs";
-    // timer.data[0] = duration/1000.0f;
     if ( reset_camera ) {
       import functional;
       float[] buffer;
@@ -145,7 +142,6 @@ public:
     }
     camera_buffer.data[0] = camera;
 
-    program.Write(timer);
     program.Write(camera_buffer);
     program.Write(img_buffer_read);
     program.Run([Img_dim, Img_dim, 1], [1, 1, 1]);
@@ -171,6 +167,8 @@ public:
 
   override void Render ( ) @trusted {
     writeln("FPS: ", AOD.R_FPS());
+    // writeln("SIZE OF VOXEL: ", CLVoxel.sizeof);
+    writeln("SIZE OF OCTND: ", CLOctreeNode.sizeof);
     Set_Sprite(CLImage_To_Image(Run_CL()));
     Set_Size(AOD.Vector(512.0f, 512.0f), true);
     super.Render();
