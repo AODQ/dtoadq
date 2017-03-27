@@ -204,23 +204,15 @@ int Calculate_Face ( ref OctreeData data, int[] parents, ubyte face ) {
   return -1;
 }
 
-/** Calculate segment */
-void Calculate_Rope_Segment ( ref OctreeData data, int[] parents, int node_id )
-in {
-  assert(data.RNode(node_id).Is_Leaf);
-} body {
-  foreach ( i; 0 .. 6 ) {
-    auto ui = cast(ubyte)i;
-    data.RNode(node_id).child_id[i+1] = data.Calculate_Face(parents, ui);
-  }
-}
-
 /** Calculate rope */
 void Calculate_Ropes ( ref OctreeData data, int[] parents = [],
                        int node_id = 0 ) {
   auto node = data.RNode(node_id);
   if ( node.Is_Leaf && node.voxel_id != -1 ) {
-    Calculate_Rope_Segment(node);
+    foreach ( i; 0 .. 6 ) {
+      auto ui = cast(ubyte)i;
+      data.RNode(node_id).child_id[i+1] = data.Calculate_Face(parents, ui);
+    }
   } else {
     parents ~= node_id;
     foreach ( i; 0 .. 8 )
