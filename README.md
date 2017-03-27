@@ -1,7 +1,7 @@
-# raycaster
-A bidirectional metropolis light transport raycaster currently being written in D. Planned features:
+# raytracer
+A metropolis light transport voxel raytracer currently being written in D. Planned features:
   - GPU accelerated via OpenCL1.2
-  - KD-tree accelerated
+  - octree-accelerated
   - Renders an entire scene in real-time with a moveable camera
   
-The purpose is to allow me to play around with different/new ideas when it comes to MLT raycasting.
+The purpose is to allow me to play around with different/new ideas when it comes to MLT raytracing. My next goal after this is procedurally generated voxel models and voxel cone tracing.
