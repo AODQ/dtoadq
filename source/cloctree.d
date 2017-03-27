@@ -105,6 +105,7 @@ auto Construct_CLOctree ( float[3] origin, float[3] half_size,
     voxel_pool : data.dup
   };
   foreach ( i; 0 .. data.length ) octree_data.Insert(cast(int)i);
+  octree_data.Calculate_Ropes;
   return octree_data;
 }
 
@@ -196,11 +197,11 @@ void Insert ( ref OctreeData data, int voxel_id, int node_id = 0 ) in {
 
 
   .------.
-  |\   7 |\
+  |\   6 |\
   | '------'
-  |1|  5 |3|
+  |1|  4 |3|
   '-|----' | // front face is 2
-   \|  6  \|
+   \|  5  \|
     '------'
 
         ID : 0 1 2 3 4 5 6 7
@@ -211,7 +212,7 @@ void Insert ( ref OctreeData data, int voxel_id, int node_id = 0 ) in {
 
 struct RopeInfo {
   int id;
-  ubyte mask;
+  ubyte oct;
 }
 
 /** Calculate face
@@ -219,10 +220,20 @@ struct RopeInfo {
   I calculate neighbouring nodes in the parent octree for trivial
   cases:
 
+   3   7
   .--.--.
   | 2| 6|
   [--+--]
- 1| 0| 4|
+ 1| 0| 4|5
+  '--'--'
+
+  other side
+
+   2   6
+  .--.--.
+  | 3| 7|
+  [--+--]
+ 0| 1| 5|4
   '--'--'
 
   thus for 0, at faces 7, 3, 5 I know the siblings 2, 4, 1 respectively
@@ -234,36 +245,53 @@ struct RopeInfo {
   if I run out of parents, then the node is an outside boundary node with
   a face facing outwards
 */
-int Calculate_Face ( ref OctreeData data, RopeInfo[] info, ubyte face, ubyte mask ) {
-  import std.algorithm.mutation : reverse;
+int Calculate_Face ( ref OctreeData data, RopeInfo[] info,
+                                     ubyte face, ubyte oct ) in {
+  assert(face > 0 && face <= 6, "Face out-of-bounds: " ~ oct.to!string);
+  assert(oct < 8, "Oct out-of-bounds: " ~ face.to!string);
+  assert(info.length != 0, "Info length empty");
+}  body  {
   if ( info.length == 1 ) return -1;
-  auto parent = parents[$-1];
-  switch ( mask ) {
-    case 0:
-      switch ( face ) {
-        case 7: return data.RNode(parent.id).child_id[2];
-        case 3: return data.RNode(parent.id).child_id[4];
-        case 5: return data.RNode(parent.id).child_id[1];
-        default: return data.Calculate_Face(info[1 .. $-1], 0);
-      }
-    break;
+  auto parent = info[$-1];
+  /*
+    [oct, face] -> child id
+  */
+  immutable static Left = 1, Front = 2, Right = 3, Back = 4, Bot = 5, Top = 6;
+  size_t[ubyte[]] To_child_id = [
+    // left side
+    [0, Right] : 4, [0, Top] : 2, [0, Back ] : 1,
+    [1, Right] : 5, [1, Top] : 3, [1, Front] : 0,
+    [2, Right] : 6, [2, Bot] : 0, [2, Back ] : 3,
+    [3, Right] : 7, [3, Bot] : 1, [3, Front] : 2,
+    // right side
+    [4, Left ] : 0, [4, Top] : 6, [4, Back ] : 5,
+    [5, Left ] : 1, [5, Top] : 7, [5, Front] : 4,
+    [6, Left ] : 2, [6, Bot] : 4, [6, Back ] : 7,
+    [7, Left ] : 3, [7, Bot] : 5, [7, Front] : 6,
+  ];
+  auto result = [oct, face] in To_child_id;
+  if ( result !is null ) {
+    size_t id = *result;
+    return data.RNode(parent.id).child_id[id];
   }
-  return -1;
+  return data.Calculate_Face(info[0 .. $-1], face, parent.oct);
 }
 
 /** Calculate rope */
 void Calculate_Ropes ( ref OctreeData data, RopeInfo[] info = [],
-                       int node_id = 0, ubyte node_mask = 0 ) {
+                       int node_id = 0, ubyte oct = 0 ) {
   auto node = data.RNode(node_id);
-  if ( node.Is_Leaf && node.voxel_id != -1 ) {
-    foreach ( i; 0 .. 6 ) {
-      auto ui = cast(ubyte)i;
-      data.RNode(node_id).child_id[i+1] = data.Calculate_Face(parents, ui);
+  if ( node.Is_Leaf ) {
+    if ( node.voxel_id != -1 ) return;
+    foreach ( i; 1 .. 7 ) {
+      auto result = data.Calculate_Face(info, cast(ubyte)(i), oct);
+      data.node_pool[node_id].child_id[i] = result;
     }
+    writeln("SET ID: ", data.RNode(node_id).child_id);
   } else {
-    info ~= RopeInfo(node_id, node_mask);
+    info ~= RopeInfo(cast(ubyte)node_id, oct);
     foreach ( i; 0 .. 8 )
-      Calculate_Ropes(data, parents, i, node.child_id[i]);
+      Calculate_Ropes(data, info, node.child_id[i], cast(ubyte)i);
   }
 }
 

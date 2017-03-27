@@ -61,6 +61,13 @@ public:
     img_buffer_write = program.Set_Image_Buffer(WO, Img_dim);
     img_buffer_read  = program.Set_Image_Buffer(RO, Img_dim);
     auto tree = RNew_Octree();
+    writeln("------ tree ------");
+    foreach ( i; 0 .. tree.node_pool.length ) {
+      auto node = tree.node_pool[i];
+      if ( node.Is_Leaf && node.voxel_id == -1 ) {
+        writeln("LEAF ROPE: ", node);
+      }
+    }
     octree_node_buffer = program.Set_Buffer!CLOctreeNode(RO, tree.node_pool);
     voxel_buffer = program.Set_Buffer!CLVoxel(RO, tree.voxel_pool);
     auto rng = Generate_New_RNG();
@@ -166,9 +173,11 @@ public:
   }
 
   override void Render ( ) @trusted {
-    writeln("FPS: ", AOD.R_FPS());
-    // writeln("SIZE OF VOXEL: ", CLVoxel.sizeof);
-    writeln("SIZE OF OCTND: ", CLOctreeNode.sizeof);
+    static int counter = 0;
+    if ( ++counter > 60 ) {
+      writeln("FPS: ", AOD.R_FPS());
+      counter = 0;
+    }
     Set_Sprite(CLImage_To_Image(Run_CL()));
     Set_Size(AOD.Vector(512.0f, 512.0f), true);
     super.Render();

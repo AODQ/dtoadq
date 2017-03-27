@@ -131,11 +131,14 @@ module opencl_program; immutable(string) Test_raycast_string = q{
       for ( int depth = 0; depth != 5; ++ depth ) {
         if ( Is_Leaf(curr_node) ) {
           if ( curr_node->voxel_id != -1 ) {
-            min = RLowerBound(curr_node), max = RHigherBound(curr_node);
-            *dist = Ray_Intersection(min, max, ray);
-            if ( (*dist) > 0.0f ) {
-              return curr_node->voxel_id;
-            }
+            return curr_node->voxel_id;
+          } else {
+            // -- get face that intersects --
+            int face = `;
+
+            int node_id = curr_node->child_id[face];
+            if ( node == -1 ) return -1;
+            curr_node = curr_node->node_pool[node_id];
           }
         } else {
           float node_dist = FLT_MAX;
@@ -224,26 +227,7 @@ module opencl_program; immutable(string) Test_raycast_string = q{
             y_proj = 2.0f * (0.5f - pixel.y/dim.y);
       float3 direction = x_axis*x_proj + y_axis*y_proj + z_axis*focus_dist;
       return New_Ray(camera->position, direction);
-   }
-
-
-
-
-
-
-
-     // viewDir*= float3(0.9,1.0,1.0);
-     // Lpos = float3(0.85*cos(time*0.55),1.5, 0.85*sin(time*1.0));
-     // // Compute camera properties
-     // float  camDist = 10.0f;
-     // float3 camUp = float3(0,1.0f,0);
-     // float3 camTarget = float3(0,3.0,0);
-     // // And from them evaluted ray direction in world space
-     // float3 forward = normalize(camTarget - camPos);
-     // float3 left = normalize(cross(forward, camUp));
-     // float3 up = cross(left, forward);
-     // float3 worldDir = viewDir.x*left + viewDir.y*up + viewDir.z*forward;
-    // }
+    }
     // --- BRDF ---
 
     float3 DisneyBRDF(float3 L, float3 V, float3 N, float3 X, float3 Y) {
@@ -274,19 +258,19 @@ module opencl_program; immutable(string) Test_raycast_string = q{
 
       Ray ray = Camera_Ray(rng, camera);
       if ( isprintg ) {
-        printf("camera: position <%f, %f, %f> lookat <%f, %f, %f>, "
-               "up <%f, %f, %f>, fov %f\n",
-               camera->position.x, camera->position.y, camera->position.z,
-               camera->lookat.x, camera->lookat.y, camera->lookat.z,
-               camera->up.x, camera->up.y, camera->up.z,
-               camera->fov
-               );
-        printf("Ray: origin <%f, %f, %f> ; dir <%f, %f, %f> ; idir <%f, %f, %f>"
-                 ", sign <%d, %d, %d>\n",
-                 ray.origin.x, ray.origin.y, ray.origin.z,
-                 ray.dir.x, ray.dir.y, ray.dir.z,
-                 ray.invdir.x, ray.invdir.y, ray.invdir.z,
-                 ray.sign.x, ray.sign.y, ray.sign.z);
+        // printf("camera: position <%f, %f, %f> lookat <%f, %f, %f>, "
+        //        "up <%f, %f, %f>, fov %f\n",
+        //        camera->position.x, camera->position.y, camera->position.z,
+        //        camera->lookat.x, camera->lookat.y, camera->lookat.z,
+        //        camera->up.x, camera->up.y, camera->up.z,
+        //        camera->fov
+        //        );
+        // printf("Ray: origin <%f, %f, %f> ; dir <%f, %f, %f> ; idir <%f, %f, %f>"
+        //          ", sign <%d, %d, %d>\n",
+        //          ray.origin.x, ray.origin.y, ray.origin.z,
+        //          ray.dir.x, ray.dir.y, ray.dir.z,
+        //          ray.invdir.x, ray.invdir.y, ray.invdir.z,
+        //          ray.sign.x, ray.sign.y, ray.sign.z);
       }
 
       float3 colour = (float3)(0.0f, 0.0f, 0.0f);
