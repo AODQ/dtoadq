@@ -24,17 +24,17 @@ import cloctree;
 OctreeData RNew_Octree ( ) {
   float Rand() {
     import std.random;
-    return uniform(-1.0f, 1.0f);
+    return uniform(-10.0f, 10.0f);
   }
 
-  immutable size_t Amt_pts = 1_000;
+  immutable size_t Amt_pts = 100;
   CLVoxel[] voxels;
   foreach ( i; 0 .. Amt_pts ) {
     voxels ~= New_CLVoxel([Rand(), Rand(), Rand()]);
   }
 
   float[3] origin   = [0.0f, 0.0f, 0.0f],
-           half_siz = [1.0f, 1.0f, 1.0f];
+           half_siz = [10.0f, 10.0f, 10.0f];
   return Construct_CLOctree(origin, half_siz, voxels);
 }
 

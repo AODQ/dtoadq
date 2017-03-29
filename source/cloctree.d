@@ -271,7 +271,7 @@ int Calculate_Face ( ref OctreeData data, RopeInfo[] info,
     size_t id = *result;
     return data.RNode(parent_info.id).child_id[id];
   }
-  if ( info.length < 2 ) return -1;
+  if ( info.length == 1 ) return -1;
   return data.Calculate_Face(info[0 .. $-1], face, parent_info.oct);
 }
 
@@ -280,7 +280,7 @@ void Calculate_Ropes ( ref OctreeData data, RopeInfo[] info = [],
                        int node_id = 0, ubyte oct = 0 ) {
   auto node = data.RNode(node_id);
   if ( node.Is_Leaf ) {
-    if ( node.voxel_id != -1 || info.length == 0 ) return;
+    // if ( node.voxel_id != -1 || info.length == 0 ) return;
     foreach ( i; 1 .. 7 ) {
       auto result = data.Calculate_Face(info, cast(ubyte)(i), oct);
       data.node_pool[node_id].child_id[i] = result;

@@ -336,7 +336,7 @@ module opencl_program; immutable(string) Test_raycast_string = q{
 
         float dist = info.distance;
         weight *= info.colour;
-        colour = weight - (float3)(dist/2.0f);
+        colour = weight;
         // info.normal = info.normal * -sign(info.angle);
         // float3 new_dir = Random_Hemisphere_Direction(info.normal, rng);
         // ray.origin = info.position;
