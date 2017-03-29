@@ -27,19 +27,19 @@ OctreeData RNew_Octree ( ) {
     return uniform(-1.0f, 1.0f);
   }
 
-  immutable size_t Amt_pts = 20;
+  immutable size_t Amt_pts = 1_000;
   CLVoxel[] voxels;
   foreach ( i; 0 .. Amt_pts ) {
     voxels ~= New_CLVoxel([Rand(), Rand(), Rand()]);
   }
 
-  float[3] origin = [0.0f, 0.0f, 0.0f],
+  float[3] origin   = [0.0f, 0.0f, 0.0f],
            half_siz = [1.0f, 1.0f, 1.0f];
   return Construct_CLOctree(origin, half_siz, voxels);
 }
 
 class Raycaster : AOD.Entity {
-  immutable(int) Img_dim = 256;
+  immutable(int) Img_dim = 512;
   OpenCLProgram program;
   OpenCLImage img_buffer_write, img_buffer_read, img_buffer_env;
   OpenCLBuffer!CLVoxel voxel_buffer;
@@ -61,13 +61,8 @@ public:
     img_buffer_write = program.Set_Image_Buffer(WO, Img_dim);
     img_buffer_read  = program.Set_Image_Buffer(RO, Img_dim);
     auto tree = RNew_Octree();
-    writeln("------ tree ------");
-    foreach ( i; 0 .. tree.node_pool.length ) {
-      auto node = tree.node_pool[i];
-      if ( node.Is_Leaf && node.voxel_id == -1 ) {
-        writeln("LEAF ROPE: ", node);
-      }
-    }
+    writeln("node  count: ", tree.Count_Nodes);
+    writeln("voxel count: ", tree.Count_Voxels);
     octree_node_buffer = program.Set_Buffer!CLOctreeNode(RO, tree.node_pool);
     voxel_buffer = program.Set_Buffer!CLVoxel(RO, tree.voxel_pool);
     auto rng = Generate_New_RNG();
@@ -179,7 +174,7 @@ public:
       counter = 0;
     }
     Set_Sprite(CLImage_To_Image(Run_CL()));
-    Set_Size(AOD.Vector(512.0f, 512.0f), true);
+    Set_Size(AOD.Vector(512, 512), true);
     super.Render();
   }
 }

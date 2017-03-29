@@ -178,10 +178,8 @@ void Insert ( ref OctreeData data, int voxel_id, int node_id = 0 ) in {
       // the above for loop; only the first element persists in the node pool
       node.child_id = child_id.dup;
 
-      auto old_index = (*node).ROctant_Mask(data.RVoxel(old_voxel_id).position),
-           new_index = (*node).ROctant_Mask(data.RVoxel(    voxel_id).position);
-      Insert(data, old_voxel_id, node.child_id[old_index]);
-      Insert(data,     voxel_id, node.child_id[new_index]);
+      Insert(data, old_voxel_id, node_id);
+      Insert(data,     voxel_id, node_id);
     }
   } else {
     // Just recursively insert the node into the corresponding child
@@ -246,35 +244,35 @@ struct RopeInfo {
   a face facing outwards
 */
 int Calculate_Face ( ref OctreeData data, RopeInfo[] info,
-                                     ubyte face, ubyte oct ) in {
+                                   ubyte face, ubyte oct ) in {
   assert(face > 0 && face <= 6, "Face out-of-bounds: " ~ oct.to!string);
   assert(oct < 8, "Oct out-of-bounds: " ~ face.to!string);
   assert(info.length != 0, "Info length empty");
 }  body  {
-  if ( info.length == 1 ) return -1;
-  auto parent = info[$-1];
+  auto parent_info = info[$-1];
+  immutable static Left = 1, Right = 2, Bot = 3, Top = 4, Back = 5, Front = 6;
   /*
     [oct, face] -> child id
   */
-  immutable static Left = 1, Front = 2, Right = 3, Back = 4, Bot = 5, Top = 6;
   size_t[ubyte[]] To_child_id = [
     // left side
-    [0, Right] : 4, [0, Top] : 2, [0, Back ] : 1,
-    [1, Right] : 5, [1, Top] : 3, [1, Front] : 0,
-    [2, Right] : 6, [2, Bot] : 0, [2, Back ] : 3,
-    [3, Right] : 7, [3, Bot] : 1, [3, Front] : 2,
+    [0, Right] : 4, [0, Top] : 2, [0, Front] : 1,
+    [1, Right] : 5, [1, Top] : 3, [1, Back ] : 0,
+    [2, Right] : 6, [2, Bot] : 0, [2, Front] : 3,
+    [3, Right] : 7, [3, Bot] : 1, [3, Back ] : 2,
     // right side
-    [4, Left ] : 0, [4, Top] : 6, [4, Back ] : 5,
-    [5, Left ] : 1, [5, Top] : 7, [5, Front] : 4,
-    [6, Left ] : 2, [6, Bot] : 4, [6, Back ] : 7,
-    [7, Left ] : 3, [7, Bot] : 5, [7, Front] : 6,
+    [4, Left ] : 0, [4, Top] : 6, [4, Front] : 5,
+    [5, Left ] : 1, [5, Top] : 7, [5, Back ] : 4,
+    [6, Left ] : 2, [6, Bot] : 4, [6, Front] : 7,
+    [7, Left ] : 3, [7, Bot] : 5, [7, Back ] : 6,
   ];
   auto result = [oct, face] in To_child_id;
   if ( result !is null ) {
     size_t id = *result;
-    return data.RNode(parent.id).child_id[id];
+    return data.RNode(parent_info.id).child_id[id];
   }
-  return data.Calculate_Face(info[0 .. $-1], face, parent.oct);
+  if ( info.length < 2 ) return -1;
+  return data.Calculate_Face(info[0 .. $-1], face, parent_info.oct);
 }
 
 /** Calculate rope */
@@ -282,12 +280,12 @@ void Calculate_Ropes ( ref OctreeData data, RopeInfo[] info = [],
                        int node_id = 0, ubyte oct = 0 ) {
   auto node = data.RNode(node_id);
   if ( node.Is_Leaf ) {
-    if ( node.voxel_id != -1 ) return;
+    if ( node.voxel_id != -1 || info.length == 0 ) return;
     foreach ( i; 1 .. 7 ) {
       auto result = data.Calculate_Face(info, cast(ubyte)(i), oct);
       data.node_pool[node_id].child_id[i] = result;
     }
-    writeln("SET ID: ", data.RNode(node_id).child_id);
+    // writeln("SET ID: ", data.RNode(node_id).child_id);
   } else {
     info ~= RopeInfo(cast(ubyte)node_id, oct);
     foreach ( i; 0 .. 8 )
@@ -297,19 +295,39 @@ void Calculate_Ropes ( ref OctreeData data, RopeInfo[] info = [],
 
 
 /**
-  Counts the amount of nodes in the tree, mostly to check for degeneracy.
-  It's much faster to just use data.node_pool.length
+  Counts the amount of voxel nodes in the tree, mostly to check for degeneracy.
+  It's much faster to just use data.voxel_pool.length
 */
-int Count_Nodes ( inout OctreeData data, int node_id = 0 ) {
+int Count_Voxels ( inout OctreeData data, int node_id = 0 ) {
   auto node = data.RNode(node_id);
   if ( node.Is_Leaf ) {
     return cast(int)(node.voxel_id != -1);
   } else {
     int 서 = 0;
     foreach ( i; 0 .. 8 )
-      서 += Count_Nodes(data, node.child_id[i]);
+      서 += Count_Voxels(data, node.child_id[i]);
     return 서;
   }
+}
+
+private int Count_Nodes_Minus ( inout OctreeData data, int node_id = 0 ) {
+  auto node = data.RNode(node_id);
+  if ( node.Is_Leaf ) {
+    return 1;
+  } else {
+    int 서 = 0;
+    foreach ( i; 0 .. 8 )
+      서 += Count_Nodes_Minus(data, node.child_id[i]);
+    return 서;
+  }
+}
+
+/**
+  Counts the amount of nodes in the tree, mostly to check for degeneracy.
+  It's much faster to just use data.node_pool.length
+*/
+int Count_Nodes ( inout OctreeData data ) {
+  return data.Count_Nodes_Minus + 1;
 }
 
 /**

@@ -60,7 +60,7 @@ module opencl_program; immutable(string) Test_raycast_string = q{
                       node->origin[2] - node->half_size[2]);
     }
 
-    float3 RHigherBound ( __global OctreeNode* node ) {
+    float3 RUpper_Bound ( __global OctreeNode* node ) {
       return (float3)(node->origin[0] + node->half_size[0],
                       node->origin[1] + node->half_size[1],
                       node->origin[2] + node->half_size[2]);
@@ -121,38 +121,68 @@ module opencl_program; immutable(string) Test_raycast_string = q{
         tmax = min(tmax, max(t1, t2));
       }
 
-      if ( tmax < max(tmin, 0.0f) ) return -1.0f;
+      if ( tmin > max(tmax, 0.0f) ) return -1.0f;
       return tmin;
+    }
+
+    int Ray_Exit_Face(float3 bmin, float3 bmax, Ray ray) {
+      // calculate intersection
+      float t1 = (bmin.x - ray.origin.x)*ray.invdir.x,
+            t2 = (bmax.x - ray.origin.x)*ray.invdir.x;
+      float tmin = min(t1, t2),
+            tmax = max(t1, t2);
+      for ( int i = 1; i < 3; ++ i ) {
+        t1 = (bmin[i] - ray.origin[i])*ray.invdir[i];
+        t2 = (bmax[i] - ray.origin[i])*ray.invdir[i];
+        tmin = max(tmin, min(t1, t2));
+        tmax = min(tmax, max(t1, t2));
+      }
+
+      // if ( tmax < max(tmin, 0.0f) ) return 0;
+
+      // calculate face
+      float3 point = ray.origin + ray.dir*tmax;
+      float min = fabs(bmin.x - point.x);
+      int face = 1;
+      float temp;
+      temp = fabs(bmax.x - point.x); if ( temp < min ) { min = temp; face = 2; }
+      temp = fabs(bmin.y - point.y); if ( temp < min ) { min = temp; face = 3; }
+      temp = fabs(bmax.y - point.y); if ( temp < min ) { min = temp; face = 4; }
+      temp = fabs(bmin.z - point.z); if ( temp < min ) { min = temp; face = 5; }
+      temp = fabs(bmax.z - point.z); if ( temp < min ) { min = temp; face = 6; }
+      return face;
     }
 
     int RVoxel_Intersection ( OctreeData* data, Ray ray, float* dist ){
       __global OctreeNode* curr_node = &data->node_pool[0];
       float3 min, max;
-      for ( int depth = 0; depth != 5; ++ depth ) {
+      // check it hits the octree
+      min = RLowerBound(curr_node); max = RUpper_Bound(curr_node);
+      if ( Ray_Intersection(min, max, ray) < 0.0f ) return -1;
+      // iterate the octree for intersections with nodes
+      for ( int depth = 0; depth != 25; ++ depth ) {
         if ( Is_Leaf(curr_node) ) {
           if ( curr_node->voxel_id != -1 ) {
             return curr_node->voxel_id;
           } else {
             // -- get face that intersects --
-            int face = `;
-
+            min = RLowerBound(curr_node), max = RUpper_Bound(curr_node);
+            int face = Ray_Exit_Face(min, max, ray);
             int node_id = curr_node->child_id[face];
-            if ( node == -1 ) return -1;
-            curr_node = curr_node->node_pool[node_id];
+            // printf("FACE: %d\n", face);
+            if ( node_id == -1 ) return -1;
+            curr_node = &data->node_pool[node_id];
           }
         } else {
           float node_dist = FLT_MAX;
-          unsigned char  node_mask = 50;
+          unsigned char node_mask = 50;
           for ( unsigned char i = 0; i != 8; ++ i ) {
             // get child info
             int child_id = curr_node->child_id[i];
-            if ( child_id == -1 )
-              continue;
             __global OctreeNode* child_node = &data->node_pool[child_id];
-            if ( Is_Empty(child_node) ) continue;
 
             // get child bounding box and calculate its ray intersection
-            min = RLowerBound(child_node), max = RHigherBound(child_node);
+            min = RLowerBound(child_node), max = RUpper_Bound(child_node);
             float results = Ray_Intersection(min, max, ray);
             if ( results > 0.0f && results < node_dist ) {
               node_dist = results;
@@ -163,6 +193,7 @@ module opencl_program; immutable(string) Test_raycast_string = q{
             return -1;
           }
           curr_node = &data->node_pool[curr_node->child_id[node_mask]];
+          *dist = node_dist;
         }
       }
       return -1;
@@ -212,9 +243,11 @@ module opencl_program; immutable(string) Test_raycast_string = q{
       float2 dim   = (float2)(camera->dimensions.x/2.0f,
                               camera->dimensions.y/2.0f);
 
-      float3 z_axis = normalize(camera->lookat - camera->position);
-      float3 x_axis = cross(z_axis, camera->up);
-      float3 y_axis = cross(x_axis, z_axis);
+      float aa = 0.0001f;
+      float3 z_axis = normalize(camera->lookat - camera->position)
+                                                + Uniform(rng, -aa, aa);
+      float3 x_axis = cross(z_axis, camera->up) + Uniform(rng, -aa, aa);
+      float3 y_axis = cross(x_axis, z_axis)     + Uniform(rng, -aa, aa);
 
       float fov_rad = camera->fov * 3.14159f/180.0f;
       float focus_dist = 1.0f/tan(fov_rad/2.0f);
@@ -241,7 +274,7 @@ module opencl_program; immutable(string) Test_raycast_string = q{
 
     // --- kernel ---
 
-    #define DEPTH 16
+    #define DEPTH 4
 
     __kernel void Kernel_Raycast(
             __write_only image2d_t output_image,
@@ -285,25 +318,31 @@ module opencl_program; immutable(string) Test_raycast_string = q{
 
       int depth = 0;
       while ( true ) {
-        float depth_ratio = 1.0f - (1.0f / (DEPTH - depth)); // 
-        if ( Uniform(rng, 0.0f, 1.0f) >= depth_ratio ) break; // 
+        float depth_ratio = 1.0f - (1.0f / (DEPTH - depth));
+        if ( Uniform(rng, 0.0f, 1.0f) >= depth_ratio ) break;
         IntersectionInfo info = Raycast_Scene(&data, ray);
         if ( !info.intersection ) {
-          colour = (float3)(0.0f, 0.0f, 0.0f);
+          // colour = (float3)(0.0f, 0.0f, 0.0f);
           hit = true;
           break;
         }
 
-        colour = info.colour;
         hit = true;
-        // hit = true;
-        // if ( info.material.emission > FLT_EPSILON ) {
-        //   float emittance = (info.material.emission/depth_ratio);
-        //   colour = weight * info.material.base_colour * emittance;
-        //   hit = true;
+        // if ( info.colour.x > 0.9f ) {
+        //   float emittance = (info.colour.x/depth_ratio);
+        //   colour = weight * info.colour * emittance;
         //   break;
         // }
 
+        float dist = info.distance;
+        weight *= info.colour;
+        colour = weight - (float3)(dist/2.0f);
+        // info.normal = info.normal * -sign(info.angle);
+        // float3 new_dir = Random_Hemisphere_Direction(info.normal, rng);
+        // ray.origin = info.position;
+        // ray.dir    = new_dir;
+        break;
+        // colour = weight + info.normal;
         // float3 brdf = DisneyBRDF(info.position, info.angle, info.normal,
         //                        (float3)(0.0f), (float3)(0.0f));
         // weight *= info.material.base_colour;
@@ -313,7 +352,6 @@ module opencl_program; immutable(string) Test_raycast_string = q{
         // ray.d = new_dir;
         // colour = weight * info.material.base_colour + info.normal;
         // hit = true;
-        break;
       }
 
       if ( hit ) {
