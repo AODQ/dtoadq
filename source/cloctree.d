@@ -134,13 +134,6 @@ bool Is_Leaf ( inout CLOctreeNode node ) {
 }
 
 /**
-  Returns true if node is empty (has no children nor data)
-*/
-bool Is_Empty (inout CLOctreeNode node) {
-  return node.Is_Leaf && node.voxel_id == -1;
-}
-
-/**
   Inserts the node into the tree, given the voxel exists already
 */
 void Insert ( ref OctreeData data, int voxel_id, int node_id = 0 ) in {
@@ -280,7 +273,6 @@ void Calculate_Ropes ( ref OctreeData data, RopeInfo[] info = [],
                        int node_id = 0, ubyte oct = 0 ) {
   auto node = data.RNode(node_id);
   if ( node.Is_Leaf ) {
-    // if ( node.voxel_id != -1 || info.length == 0 ) return;
     foreach ( i; 1 .. 7 ) {
       auto result = data.Calculate_Face(info, cast(ubyte)(i), oct);
       data.node_pool[node_id].child_id[i] = result;

@@ -27,7 +27,7 @@ OctreeData RNew_Octree ( ) {
     return uniform(-10.0f, 10.0f);
   }
 
-  immutable size_t Amt_pts = 100;
+  immutable size_t Amt_pts = 75;
   CLVoxel[] voxels;
   foreach ( i; 0 .. Amt_pts ) {
     voxels ~= New_CLVoxel([Rand(), Rand(), Rand()]);
@@ -39,7 +39,7 @@ OctreeData RNew_Octree ( ) {
 }
 
 class Raycaster : AOD.Entity {
-  immutable(int) Img_dim = 512;
+  immutable(int) Img_dim = 256;
   OpenCLProgram program;
   OpenCLImage img_buffer_write, img_buffer_read, img_buffer_env;
   OpenCLBuffer!CLVoxel voxel_buffer;
