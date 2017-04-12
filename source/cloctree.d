@@ -162,7 +162,7 @@ void Insert ( ref OctreeData data, int voxel_id, int node_id = 0 ) in {
              new_dim    = node.half_size.array.map!"a*0.5f".array[0..3]
                               .to!(float[3]);
         foreach ( p; 0 .. 3 )
-          new_origin[p] += node.half_size[p]* (i&(4/(1+p)) ? 0.5f : -0.5f);
+          new_origin[p] += node.half_size[p]*(i&(4/(1+p)) ? 0.5f : -0.5f);
         child_id[i] = cast(int)data.node_pool.length;
         data.node_pool ~= New_CLOctreeNode(new_origin, new_dim);
       }
@@ -172,7 +172,6 @@ void Insert ( ref OctreeData data, int voxel_id, int node_id = 0 ) in {
       node.child_id = child_id.dup;
 
       Insert(data, old_voxel_id, node_id);
-      Insert(data,     voxel_id, node_id);
     }
   } else {
     // Just recursively insert the node into the corresponding child

@@ -380,3 +380,4 @@ __kernel void Kernel_Raycast(
     write_imagef(output_image, out, (float4)(rcolour, 1.0));
   }
 }};
+

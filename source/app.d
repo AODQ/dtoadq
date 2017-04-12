@@ -8,9 +8,6 @@ void Init ( ) {
   AOD.Set_BG_Colour(0.0, 0.0, 0.0);
 }
 
-void Game_Init ( ) {
-}
-
 import opencl : CLImage;
 
 void main() {
@@ -19,16 +16,20 @@ void main() {
   }
   import cloctree;
   Init();
-  Game_Init();
-  import opencl : Initialize;
-  import raycast;
-  Initialize();
+  // import opencl : Initialize;
+  // import raycast;
+  // Initialize();
 
-  auto raycaster = new Raycaster();
-  AOD.Add(raycaster);
+  // auto raycaster = new Raycaster();
+  // AOD.Add(raycaster);
+
+  import softwarerenderer.raytracer;
+
+  AOD.Add(new Raytracer());
+
 
   AOD.Run();
-  raycaster.Clean_Up();
+  // raycaster.Clean_Up();
   import std.c.stdlib;
   exit(0);
 }

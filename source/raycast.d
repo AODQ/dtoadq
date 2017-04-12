@@ -27,7 +27,7 @@ OctreeData RNew_Octree ( ) {
     return uniform(-10.0f, 10.0f);
   }
 
-  immutable size_t Amt_pts = 75;
+  immutable size_t Amt_pts = 174;
   CLVoxel[] voxels;
   foreach ( i; 0 .. Amt_pts ) {
     voxels ~= New_CLVoxel([Rand(), Rand(), Rand()]);
