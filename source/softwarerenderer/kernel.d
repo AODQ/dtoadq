@@ -14,12 +14,12 @@ private struct IntersectionInfo {
   gln.vec3 normal, angle, colour;
 }
 
-private auto Raycast_Scene ( OctreeNode node, Ray ray )  {
+private auto Raytrace_Scene ( inout OctreeNode node, inout Ray ray )  {
   IntersectionInfo info;
   info.intersection = false;
 
   float dist;
-  Primitive primitive = node.Ray_Intersection(ray);
+  immutable(Primitive) primitive = node.Ray_Intersection(ray);
 
   if ( primitive ) {
     info.intersection = true;
@@ -29,8 +29,13 @@ private auto Raycast_Scene ( OctreeNode node, Ray ray )  {
   return info;
 }
 
-void Kernel_Raycast ( ref Image image, OctreeNode node,
-                      Camera camera, int x, int y ) {
+struct PixelInfo {
+  bool hit;
+  gln.vec3 pixel;
+}
+
+auto Kernel_Raytrace ( inout OctreeNode node,
+                       inout Camera camera, size_t x, size_t y ) {
   Ray ray = camera.Generate_Ray(x, y);
 
   gln.vec3 colour = gln.vec3(0.0f, 0.0f, 0.0f),
@@ -38,7 +43,7 @@ void Kernel_Raycast ( ref Image image, OctreeNode node,
   bool hit = false;
 
   while ( true ) {
-    auto info = Raycast_Scene(node, ray);
+    auto info = Raytrace_Scene(node, ray);
     if ( !info.intersection ) {
       hit = true; break;
     }
@@ -49,7 +54,42 @@ void Kernel_Raycast ( ref Image image, OctreeNode node,
     break;
   }
 
-  if ( hit ) {
-    image.Apply(x, y, colour);
+  return PixelInfo(hit, colour);
+}
+
+
+import std.concurrency;
+void Raytrace_Thread_Manager ( Tid parent_id,
+                              inout OctreeNode node,
+                              inout Camera base_camera,
+                              size_t lx, size_t ly, size_t hx, size_t hy ) {
+  Camera camera = new Camera(base_camera);
+  import core.thread, core.time, std.variant : Variant;
+  size_t img_id;
+  while ( true ) {
+    foreach ( x; lx .. hx ) {
+      foreach ( y; ly .. hy ) {
+        auto result = Kernel_Raytrace(node, camera, x, y);
+        send(parent_id, x, y, result, img_id);
+        // -- check camera --
+        bool exit;
+        receiveTimeout(dur!("nsecs")(1),
+          (immutable(Camera) camera_) {
+            ++ img_id;
+            camera = new Camera(camera_);
+            exit = true;
+          },
+          (Variant variant) {
+            "Parameter mismatch!".writeln;
+            assert(false, "Parameter mismatch");
+          }
+        );
+
+        if ( exit ) goto END_PIXEL_CALC;
+      }
+    }
+
+    END_PIXEL_CALC:
+    Thread.sleep(dur!("msecs")(25));
   }
 }

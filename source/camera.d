@@ -2,20 +2,28 @@ module camera;
 import globals, ray;
 
 class Camera {
+public:
   gln.vec3 position, lookat, up;
-  int[2] dimensions;
+  size_t[2] dimensions;
   float fov;
 
-  this ( gln.vec3 position_, gln.vec3 lookat_, int x, int y ) {
-    dimensions[0] = x;
-    dimensions[1] = y;
+  this ( gln.vec3 position_, gln.vec3 lookat_, size_t[2] dimensions_ ) {
+    dimensions = dimensions_.dup;
     position      = position_;
     lookat        = lookat_;
     up            = gln.vec3(0.0f, 1.0f, 0.0f);
-    fov           = 60.0f;
+    fov           = 100.0f;
   }
 
-  Ray Generate_Ray ( int x, int y ) {
+  this ( gln.vec3 position_, gln.vec3 lookat_, size_t x, size_t y ) {
+    this ( position_, lookat_, [x, y] );
+  }
+
+  this ( inout(Camera) cam ) {
+    this ( cam.position, cam.lookat, cam.dimensions );
+  }
+
+  Ray Generate_Ray ( size_t x, size_t y ) inout {
     float[2] dim = [ dimensions[0]/2.0f, dimensions[1]/2.0f ];
     import std.random : uniform;
     import std.math : tan;

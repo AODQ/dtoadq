@@ -27,7 +27,7 @@ OctreeData RNew_Octree ( ) {
     return uniform(-10.0f, 10.0f);
   }
 
-  immutable size_t Amt_pts = 174;
+  immutable size_t Amt_pts = 275;
   CLVoxel[] voxels;
   foreach ( i; 0 .. Amt_pts ) {
     voxels ~= New_CLVoxel([Rand(), Rand(), Rand()]);
@@ -70,7 +70,7 @@ public:
     // img_buffer_env  = program.Set_Image_Buffer(RO, Img_dim);
     // import image;
     // img_buffer_env.data = Read_Image("testenv.tga");
-    camera = Construct_Camera([1.0f, 0.0f, -1.0f], [-1.0f, 0.0f, 0.0f],
+    camera = Construct_Camera([1.0f, 0.0f, -1.0f], [-100.0f, 0.0f, 0.0f],
                                                   [Img_dim, Img_dim]);
     camera_buffer = program.Set_Singleton!Camera(RO, camera);
     // program.Write(img_buffer_env);

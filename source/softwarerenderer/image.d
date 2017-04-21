@@ -10,8 +10,7 @@ public:
   this ( size_t width_, size_t height_ ) {
     width = width_; height = height_;
     pixels.length = height*height*3;
-    import std.random;
-    foreach ( ref p; pixels ) p = uniform(0.0f, 1.0f);
+    foreach ( ref p; pixels ) p = 0.0f;
     glGenTextures(1, &texture);
   }
 
@@ -19,6 +18,11 @@ public:
     pixels[(y*width + x)*3 + 0] = pixel.r;
     pixels[(y*width + x)*3 + 1] = pixel.g;
     pixels[(y*width + x)*3 + 2] = pixel.b;
+  }
+
+  void Clear ( ) {
+    import functional;
+    foreach ( ref n; pixels ) n = 0.0f;
   }
 
   AOD.SheetContainer To_OGL_Sprite ( ) {
@@ -30,7 +34,6 @@ public:
         GL_RGB, GL_FLOAT, cast(void*)pixels.ptr
     );
     glBindTexture(GL_TEXTURE_2D, 0);
-    texture.writeln;
     return AOD.SheetContainer(texture, cast(int)width, cast(int)height);
   }
 }

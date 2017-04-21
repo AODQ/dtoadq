@@ -1,10 +1,11 @@
 module softwarerenderer.raytracer;
 import softwarerenderer.kernel, softwarerenderer.image;
-import structure.octree;
+import structure.grid;
 import camera, globals;
+import std.concurrency : Tid;
 
 
-OctreeNode RNew_Octree ( ) {
+Grid RRandom_Grid ( ) {
   gln.vec3 Rand ( ) {
     float RFl ( ) {
       import std.random : uniform;
@@ -13,10 +14,18 @@ OctreeNode RNew_Octree ( ) {
     return gln.vec3(RFl, RFl, RFl);
   }
 
-  immutable size_t Amt_pts = 100;
+  gln.vec3 Colour_Rand ( ) {
+    float RFl ( ) {
+      import std.random : uniform;
+      return uniform(0.5f, 1.0);
+    }
+    return gln.vec3(RFl, RFl, RFl);
+  }
+
+  immutable size_t Amt_pts = 2;
   Primitive[] primitives;
   foreach ( i; 0 .. Amt_pts ) {
-    primitives ~= new Primitive(Rand, Rand/10.0f, Rand);
+    primitives ~= new Primitive(Rand*10.0f, Rand/1000.0f, Colour_Rand);
   }
 
   gln.vec3 origin = gln.vec3(0.0f, 0.0f, 0.0f),
@@ -30,21 +39,115 @@ class Raytracer : AOD.Entity {
   Camera camera;
   Image image;
   OctreeNode octree;
+  Tid[16] threads;
 public:
   this ( ) {
     super();
     Set_Position(AOD.R_Window_Width/2.0f, AOD.R_Window_Height/2.0f);
     Set_Size(AOD.Vector(Img_dim, Img_dim), true);
     octree = RNew_Octree();
-    camera = new Camera(gln.vec3(1.0f, 1.0f, -1.0f),
+    camera = new Camera(gln.vec3( 1.0f, 1.0f, -1.0f),
                         gln.vec3(-1.0f, 0.0f, 0.0f), Img_dim, Img_dim);
     image = new Image(Img_dim, Img_dim);
+
+
+    immutable(OctreeNode) node = cast(immutable)octree;
+    immutable(Camera)     cam  = cast(immutable)camera;
+    shared(Image)         img  = cast(shared)image;
+    foreach ( i; 0 .. 16 ) {
+      size_t dim = Img_dim/4;
+      size_t ix = i%4, iy = i/4;
+      size_t lx = dim*ix, hx = dim*ix + dim,
+             ly = dim*iy, hy = dim*iy + dim;
+      import std.concurrency;
+      threads[i] = spawn(&Raytrace_Thread_Manager, thisTid, node, cam,
+                                                      lx, ly, hx, hy);
+    }
   }
 
-  void Run ( ) {
-    // foreach ( i; 0 .. Img_dim )
-    //   foreach ( j; 0 .. Img_dim )
-    //     Kernel_Raycast(image, octree, camera, i, j);
+  bool Update_Control ( ) {
+    import derelict.sdl2.sdl;
+    auto left     = AOD.RKeystate( SDL_SCANCODE_A ),
+         right    = AOD.RKeystate( SDL_SCANCODE_D ),
+         forward  = AOD.RKeystate( SDL_SCANCODE_W ),
+         backward = AOD.RKeystate( SDL_SCANCODE_S ),
+         up       = AOD.RKeystate( SDL_SCANCODE_E ),
+         down     = AOD.RKeystate( SDL_SCANCODE_Q ),
+         rotleft  = AOD.RKeystate( SDL_SCANCODE_Z ),
+         rotright = AOD.RKeystate( SDL_SCANCODE_C );
+    bool rc = left || right || forward || backward || up || down
+                   || rotleft || rotright;
+    float cx = cast(int)(right)   - cast(int)(left),
+          cy = cast(int)(up)      - cast(int)(down),
+          cz = cast(int)(forward) - cast(int)(backward),
+          rx = cast(int)(rotleft) - cast(int)(rotright)*0.00001;
+    if ( AOD.RKeystate( SDL_SCANCODE_LSHIFT ) ) {
+      cx *= 5.0f; cy *= 5.0f; cz *= 5.0f; rx *= 5.0f;
+    }
+    camera.position.vector[0] += cx*0.1f;
+    camera.position.vector[1] += cy*0.1f;
+    camera.position.vector[2] += cz*0.1f;
+    static float lmx, lmy;
+    import std.math : abs;
+    if ( AOD.R_Mouse_Left || abs(rx) >= 0.01 ) {
+      rc = true;
+      float cmx = AOD.R_Mouse_X(0) - lmx,
+            cmy = AOD.R_Mouse_Y(0) - lmy;
+      camera.lookat.vector[0] += cmx * 0.5f;
+      camera.lookat.vector[1] += rx  * 0.1f;
+      camera.lookat.vector[2] -= cmy * 0.5f;
+      // normalize
+      import std.math : sqrt;
+      float mag = sqrt((camera.lookat.vector[0]*camera.lookat.vector[0]) +
+                       (camera.lookat.vector[1]*camera.lookat.vector[1]) +
+                       (camera.lookat.vector[2]*camera.lookat.vector[2]));
+      if ( mag ) {
+        camera.lookat.vector[0] /= mag;
+        camera.lookat.vector[1] /= mag;
+        camera.lookat.vector[2] /= mag;
+      }
+    }
+    lmx = AOD.R_Mouse_X(0);
+    lmy = AOD.R_Mouse_Y(0);
+    return rc;
+  }
+
+  void Update_Thread_Manager ( bool update_camera ) {
+    import std.concurrency;
+    import core.time;
+    import std.variant;
+    static size_t img_id;
+    size_t counter = 100;
+    if ( update_camera ) {
+      // writeln("Clearing image");
+      ++ img_id;
+      foreach ( t; threads ) {
+        send(t, cast(immutable)camera);
+      }
+      image.Clear();
+    }
+    while (
+      receiveTimeout(1.usecs,
+        (size_t x, size_t y, PixelInfo info, size_t id) {
+          if ( info.hit && img_id == id )
+            image.Apply(x, y, info.pixel);
+        },
+        (Variant variant) {
+          assert(false, "Parameter mismatch");
+        }
+      )
+    ) {
+      if ( -- counter < 0 )
+        break;
+    }
+  }
+
+  override void Update ( ) @trusted {
+    static bool reset_camera;
+    bool rupdate = Update_Control;
+    writeln("RES: ", reset_camera, " RUPDATE: ", rupdate);
+    Update_Thread_Manager(reset_camera && !rupdate);
+    reset_camera = rupdate;
   }
 
   override void Render ( ) @trusted {
@@ -53,7 +156,8 @@ public:
       writeln("FPS: ", AOD.R_FPS());
       counter = 0;
     }
-    Run();
     Set_Sprite(image.To_OGL_Sprite());
+    Set_Size(AOD.Vector(AOD.R_Window_Height, AOD.R_Window_Height), true);
+    super.Render();
   }
 }
