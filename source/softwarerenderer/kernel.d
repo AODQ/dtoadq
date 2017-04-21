@@ -1,6 +1,5 @@
 module softwarerenderer.kernel;
-import softwarerenderer.image;
-import structure.octree;
+import softwarerenderer.image, softwarerenderer.scene;
 import camera;
 import globals;
 import ray;
@@ -11,20 +10,19 @@ private struct IntersectionInfo {
   gln.vec3 position;
   float distance;
   Primitive primitive;
-  gln.vec3 normal, angle, colour;
 }
 
-private auto Raytrace_Scene ( inout OctreeNode node, inout Ray ray )  {
+private auto Raytrace_Scene ( inout Scene scene, inout Ray ray )  {
   IntersectionInfo info;
   info.intersection = false;
 
-  float dist;
-  immutable(Primitive) primitive = node.Ray_Intersection(ray);
+  // float dist;
+  // immutable(Primitive) primitive = node.Ray_Intersection(ray);
 
-  if ( primitive ) {
-    info.intersection = true;
-    info.colour = primitive.colour;
-  }
+  // if ( primitive ) {
+  //   info.intersection = true;
+  //   info.colour = primitive.colour;
+  // }
 
   return info;
 }
@@ -34,7 +32,7 @@ struct PixelInfo {
   gln.vec3 pixel;
 }
 
-auto Kernel_Raytrace ( inout OctreeNode node,
+auto Kernel_Raytrace ( inout Scene scene,
                        inout Camera camera, size_t x, size_t y ) {
   Ray ray = camera.Generate_Ray(x, y);
 
@@ -43,14 +41,14 @@ auto Kernel_Raytrace ( inout OctreeNode node,
   bool hit = false;
 
   while ( true ) {
-    auto info = Raytrace_Scene(node, ray);
+    auto info = Raytrace_Scene(scene, ray);
     if ( !info.intersection ) {
       hit = true; break;
     }
 
     hit = true;
 
-    colour = info.colour;
+    // colour = info.colour;
     break;
   }
 
@@ -60,7 +58,7 @@ auto Kernel_Raytrace ( inout OctreeNode node,
 
 import std.concurrency;
 void Raytrace_Thread_Manager ( Tid parent_id,
-                              inout OctreeNode node,
+                              inout Scene scene,
                               inout Camera base_camera,
                               size_t lx, size_t ly, size_t hx, size_t hy ) {
   Camera camera = new Camera(base_camera);
@@ -69,7 +67,7 @@ void Raytrace_Thread_Manager ( Tid parent_id,
   while ( true ) {
     foreach ( x; lx .. hx ) {
       foreach ( y; ly .. hy ) {
-        auto result = Kernel_Raytrace(node, camera, x, y);
+        auto result = Kernel_Raytrace(scene, camera, x, y);
         send(parent_id, x, y, result, img_id);
         // -- check camera --
         bool exit;

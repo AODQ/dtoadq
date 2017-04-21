@@ -23,22 +23,26 @@ void main() {
   // auto raycaster = new Raycaster();
   // AOD.Add(raycaster);
 
-  // import softwarerenderer.raytracer;
-  // AOD.Add(new Raytracer());
+  import softwarerenderer.raytracer;
+  AOD.Add(new Raytracer(q{
+    (set ~length (lambda (array) {
+      (set ~lhelp (lambda (array t) {
+        (writeln (empty array))
+        (if (empty array)
+          (t)
+          (lhelp (cdr array) (+ t (car array))))
+      }))
+      (lhelp array 0.0f)
+    }))
+
+    (set ~Map (lambda (point) {
+      (- (length point) 4.0f)
+    }))
+  }));
   {
     static import aodheme;
     aodheme.Initialize();
   }
-
-  import structure.grid;
-
-  Grid grid = new Grid ( 200, 16 );
-
-  grid.Insert(new Voxel(gln.vec3(0.0f), gln.vec3(0.0f)));
-  grid.Insert(new Voxel(gln.vec3(1.0f, 0.0f, 0.0f), gln.vec3(0.0f)));
-  grid.Insert(new Voxel(gln.vec3(1.0f, 1.0f, 1.0f), gln.vec3(0.0f)));
-
-  grid.writeln;
 
   AOD.Run();
   // raycaster.Clean_Up();
