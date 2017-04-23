@@ -20,7 +20,7 @@ RNG Generate_New_RNG() {
 }
 
 class Raycaster : AOD.Entity {
-  immutable(int) Img_dim = 512;
+  immutable(int) Img_dim = 256;
   OpenCLProgram program;
   OpenCLImage img_buffer_write, img_buffer_read, img_buffer_env;
   OpenCLSingleton!RNG rng_buffer;

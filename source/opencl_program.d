@@ -55,6 +55,9 @@ float3 refract(float3 V, float3 N, float refraction) {
 float length2(float2 p, int n) {
   return pow(pown(p.x, n) + pown(p.y, n), 1.0f/n);
 }
+float length3(float3 p, int n) {
+  return pow(pown(p.x, n) + pown(p.y, n), 1.0f/n);
+}
 // --------------- MATERIAL/VOXEL/RAY ------------------------------------------
 // typedef struct T_Material {
 //   float3 colour;
@@ -150,7 +153,7 @@ float PrimitiveA ( float3 point ) {
 
 
 float PrimitiveB ( float3 point ) {
-  float2 q = (float2)(length(point.xy) - 1.5f, point.z);
+  float2 q = (float2)(length(point.xy) - 1.5f, point.z + cos(point.x));
   return length(q) - 0.9f;
 }
 
@@ -173,7 +176,15 @@ float Boundary ( float3 p ) {
 }
 
 float Sun ( float3 p ) {
-  return length(p - (float3)(1.0f, 5.0f, 0.0f)) - 1.0f;
+  float c = 2.0f;
+  p.z = fmod(p.z, c) - 0.5f*c;
+  p -= (float3)(1.0f, 3.0f, 0.0f);
+  float d = length(p) - 1.0f;
+  float3 q = fabs(p);
+  float prism = fmax(q.z - 0.5f,
+                     fmax(q.z*0.866025f + q.y*0.5f, q.y)
+                     - 0.5f);
+  return fmax(d, prism);
 }
 
 float smin ( float a, float b ) {
@@ -207,44 +218,121 @@ float3 Normal ( float3 p ) {
 }
 
 
-float3 Phong_Contribution ( float3 diffuse, float3 specular, float shininess,
-                            float3 pos, float3 cam, float3 lpos, float3 lint ) {
-  float3 N = Normal(pos);
-  float3 L = normalize(lpos - pos);
-  float3 V = normalize(cam - pos);
-  float3 R = normalize(reflect(-L, N));
+float sqr ( float t ) { return t*t; }
 
-  float dotLN = dot(L, N);
-  float dotRV = dot(R, V);
-
-  // check if light is visible
-  if ( dotLN < 0.0f ) return (float3)(0.0f);
-
-  if ( dotRV < 0.0f ) { // reflection is opposite direction, apply only diffuse
-    return lint * (diffuse * dotLN);
-  }
-
-  return lint * (diffuse*dotLN + specular * pow(dotRV, shininess));
+float smithG_GGX_aniso ( float NdotV, float VdotX, float VdotY, float ax, float ay ) {
+  return 1.0f / (NdotV + sqrt(sqr(VdotX*ax) + sqr(VdotY*ay) + sqr(NdotV) ));
 }
 
-float3 Phong ( float3 ambient, float3 diffuse, float3 specular,
-               float shininess, float3 pos, float3 cam, float timer ) {
-  float3 ambient_light = 0.5f * (float3)(1.0f, 1.0f, 1.0f);
-  float3 colour = 0.5f * (float3)(1.0f, 1.0f, 1.0f) * ambient;
+float Schlick_Fresnel ( float u ) {
+  float m = clamp(1.0f - u, 0.0f, 1.0f);
+  float m2 = m*m;
+  return m2*m2*m; // pow(m, 5)
+}
 
-  float3 light_pos = (float3)(4.0f, 2.0f, 4.0f + sin(timer)*-8.0f);
-  float3 light_intensity = (float3)(0.4f, 0.2f, 0.4f);
 
-  colour += Phong_Contribution(diffuse, specular, shininess, pos, cam,
-                               light_pos, light_intensity);
+float GTR2_Aniso ( float NdotH, float HdotX, float HdotY, float ax, float ay ) {
+  return 1.0f / ( 3.141579 * ax * ay * sqr(sqr(HdotX/ax) + sqr(HdotY/ay) + NdotH*NdotH));
+}
 
-  light_pos = (float3)(4.0f, 2.0f - sin(timer*0.25f)*0.5f, 4.0f + cos(timer)*-8.0f);
-  light_intensity = (float3)(0.0f, 0.1f, 0.0f);
+float GTR1 ( float NdotH, float a ) {
+  if ( a >= 1.0f ) return 1/(3.14159);
+  float a2 = a * a;
+  float t = 1.0f + (a2 - 1.0f)*NdotH*NdotH;
+  return (a2 - 1.0f)/(3.14159*log(a2)*t);
+}
 
-  colour += Phong_Contribution(diffuse, specular, shininess, pos, cam,
-                               light_pos, light_intensity);
+float smithG_GGX ( float NdotV, float alphaG ) {
+  float a = alphaG*alphaG;
+  float b = NdotV*NdotV;
+  return 1.0f / (NdotV + sqrt(a + b - a*b));
+}
 
-  return colour;
+float3 disney_brdf ( float3  L, float3 V, float3 N, float3 X, float3 Y,
+                     float3 base_colour,
+                     float specular_tint,
+                     float specular,
+                     float metallic,
+                     float sheen_tint,
+                     float sheen,
+                     float roughness,
+                     float anisotropic,
+                     float clearcoat,
+                     float clearcoat_gloss,
+                     float subsurface
+
+) {
+  float NdotL = dot(N, L),
+        NdotV = dot(N, V);
+  float3 H = normalize(L+V);
+
+  float NdotH = dot(N, H),
+        LdotH = dot(L, H);
+
+  float3 Cdlin = (float3)(pow(base_colour.x, 2.2f), pow(base_colour.y, 2.2f),
+                          pow(base_colour.z, 2.2f));
+  float Cdlum = 0.3f*Cdlin.x + 0.6f*Cdlin.y + 0.1f*Cdlin.z; // luminance approx
+  // normalize lum to isolate hue+sat
+  float3 Ctint = Cdlum > 0.0f ? Cdlin/Cdlum : (float3)(1.0f);
+  float3 Cspec0 = mix(specular*0.08f*mix((float3)(1.0f), Ctint, specular_tint),
+                      Cdlin, metallic);
+  float3 Csheen = mix((float3)(1.0f), Ctint, sheen_tint);
+
+
+  // Diffuse fresnel - 1 at normal incidence to 0.5 at grazing, mix in diffuse
+  // retro reflection based on rougness
+  float FL = Schlick_Fresnel(NdotL), FV = Schlick_Fresnel(NdotV);
+  float Fd90 = 0.5f + 2.0f*LdotH*LdotH*roughness;
+  float Fd = mix(1.0f, Fd90, FL) * mix(1.0f, Fd90, FV);
+
+  // based on hanrahan krueger brdf approximation of isotropic bssrdf
+  // 1.25 scale is to preserve albedo
+  // fss90 used to flatten retroreflection based on roughness
+  float Fss90 = LdotH*LdotH*roughness;
+  float Fss = mix(1.0f, Fss90, FL) * mix(1.0f, Fss90, FV);
+  float ss = 1.25f * (Fss * (1.0f / (NdotL + NdotV) - 0.5f) + 0.5f);
+
+  // specular
+  float aspect = sqrt(1.0f - anisotropic*0.9f);
+  float ax = fmax(.001f, (roughness*roughness)/aspect);
+  float ay = fmax(.001f, (roughness*roughness)*aspect);
+  float Ds = GTR2_Aniso(NdotH, dot(H, X), dot(H, Y), ax, ay);
+  float FH = Schlick_Fresnel(LdotH);
+  float3 Fs = mix(Cspec0, (float3)(1.0f), FH);
+  float Gs  = smithG_GGX_aniso(NdotL, dot(L, X), dot(L, Y), ax, ay);
+        Gs *= smithG_GGX_aniso(NdotL, dot(V, X), dot(V, Y), ax, ay);
+
+  // sheen
+  float3 Fsheen = FH*sheen*Csheen;
+
+  // clearcoat (ior = 1.5f -> F0 = 0.05)
+  float Dr = GTR1(NdotH, mix(0.1f, 0.001f, clearcoat_gloss));
+  float Fr = mix(0.04f, 1.0f, FH);
+  float Gr = smithG_GGX(NdotL, 0.25f) * smithG_GGX(NdotV, 0.25f);
+
+  return ((1.0f/3.14157f) * mix(Fd, ss, subsurface)*Cdlin + Fsheen) *
+         (1.0f-metallic) + Gs*Fs*Ds + 0.25f*clearcoat*Gr*Fr*Dr;
+}
+
+float3 BRDF ( float3 pos, float3 cam, float3 lpos ) {
+  float3 N = normalize(Normal(pos)),
+         L = normalize(lpos - pos),
+         V = normalize(cam - pos),
+         tangent = normalize(cross((float3)(1.0f, 0.0f, 0.0f), N)),
+         bitangent = normalize(cross(N, tangent));
+  return disney_brdf(L, V, N, tangent, bitangent,
+              (float3)(0.6f, 0.0f, 1.0f), // base material
+              0.2f, // specular_tint
+              0.2f, // specular
+              0.0f, // metallic
+              0.9f, // sheen tint
+              0.9f, // sheen
+              0.2f,  // roughness
+              0.8f,  // anisotrpoic
+              0.2f,  // clearcoat
+              0.2f,  // clearcoat_gloss
+              0.8f  // subsurface
+  );
 }
 
 float March ( Ray ray ) {
@@ -275,22 +363,14 @@ typedef struct T_Camera {
   float fov;
 } Camera;
 
-
-
-float3 rayDirection(float fieldOfView, float2 size, float2 fragCoord) {
-  float2 xy = fragCoord - size / 2.0f;
-  float z = size.y / tan(radians(fieldOfView) / 2.0f);
-  return normalize((float3)(xy, -z));
-}
-
 Ray Camera_Ray(__global RNG* rng, __global Camera* cam, float time) {
   int2 out = (int2)(get_global_id(0), get_global_id(1));
   float2 outf = (float2)((float)out.x, (float)out.y);
   float2 dim = (float2)((float)cam->dimensions.x, (float)cam->dimensions.y);
   float2 uv = ((2.0f * outf) - dim)/fmin(dim.x, dim.y);
 
-  mat3 rotatey = rotate_y(sin(time)),
-       rotatex = rotate_x(sin(time*0.9f)*0.2);
+  mat3 rotatey = rotate_y(sin(time*0.52f)*0.81f),
+       rotatex = rotate_x(sin(time*0.59f)*0.81f);
 
   float3 eye_pos = mat3_mul(rotatex,
                    mat3_mul(rotatey, (float3)(0.0f, 0.0f, -4.0f)));
@@ -329,48 +409,15 @@ __kernel void Kernel_Raycast(
   if ( dist > 0.0f ) {
     float3 point = ray.origin + ray.dir*dist;
 
-    float3 colour = Phong(
-      (float3)(0.7f, 0.2f, 0.0f),
-      (float3)(0.5f, 0.1f, 0.0f),
-      (float3)(0.5f, 0.5f, 0.4f),
-       1.0f,
+    float3 colour = BRDF(
       point,
       ray.origin,
-      *time
+      (float3)(40.0f, 20.0f, 200.0f + cos(*time)*2.0f)
     );
 
     write_imagef(output_image, out, (float4)(colour, 1.0f));
   } else {
     write_imagef(output_image, out, (float4)(0.0f, 0.0f, 0.0f, 1.0f));
   }
-
-  // float3 colour = (float3)(0.0f, 0.0f, 0.0f);
-  // float3 weight = (float3)(1.0f, 1.0f, 1.0f);
-  // bool hit = false;
-
-  // int depth = 0;
-  // while ( true ) {
-  //   float depth_ratio = 1.0f - (1.0f / (4 - depth));
-  //   if ( Uniform(rng, 0.0f, 1.0f) >= depth_ratio ) break;
-  //   IntersectionInfo info = Raycast_Scene(ray);
-  //   if ( !info.intersection ) {
-  //     hit = false;
-  //     break;
-  //   }
-
-  //   hit = true;
-  //   float dist = info.distance;
-  //   weight *= info.colour;
-  //   colour = weight;
-  //   break;
-  // }
-
-  // if ( hit ) {
-  //   float3 old_colour = read_imagef(input_image, out).xyz;
-  //   float3 rcolour = mix(colour, old_colour, 0.6f);
-  //   // rcolour = fmax(0.0f, fmin(1.0f, rcolour));
-  //   // rcolour = pow(rcolour, (float3)(1.0f / 0.5f));
-  //   write_imagef(output_image, out, (float4)(rcolour, 1.0));
-  // }
 }};
 
