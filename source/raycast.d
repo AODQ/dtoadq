@@ -19,33 +19,14 @@ RNG Generate_New_RNG() {
   return rng;
 }
 
-import cloctree;
-
-OctreeData RNew_Octree ( ) {
-  float Rand() {
-    import std.random;
-    return uniform(-10.0f, 10.0f);
-  }
-
-  immutable size_t Amt_pts = 275;
-  CLVoxel[] voxels;
-  foreach ( i; 0 .. Amt_pts ) {
-    voxels ~= New_CLVoxel([Rand(), Rand(), Rand()]);
-  }
-
-  float[3] origin   = [0.0f, 0.0f, 0.0f],
-           half_siz = [10.0f, 10.0f, 10.0f];
-  return Construct_CLOctree(origin, half_siz, voxels);
-}
-
 class Raycaster : AOD.Entity {
-  immutable(int) Img_dim = 256;
+  immutable(int) Img_dim = 512;
   OpenCLProgram program;
   OpenCLImage img_buffer_write, img_buffer_read, img_buffer_env;
-  OpenCLBuffer!CLVoxel voxel_buffer;
-  OpenCLBuffer!CLOctreeNode octree_node_buffer;
   OpenCLSingleton!RNG rng_buffer;
   OpenCLSingleton!Camera camera_buffer;
+  OpenCLSingleton!float timer_buffer;
+  float timer;
   Camera camera;
   MonoTime timer_start;
   bool reset_camera;
@@ -60,19 +41,13 @@ public:
          WO = BufferType.write_only;
     img_buffer_write = program.Set_Image_Buffer(WO, Img_dim);
     img_buffer_read  = program.Set_Image_Buffer(RO, Img_dim);
-    auto tree = RNew_Octree();
-    writeln("node  count: ", tree.Count_Nodes);
-    writeln("voxel count: ", tree.Count_Voxels);
-    octree_node_buffer = program.Set_Buffer!CLOctreeNode(RO, tree.node_pool);
-    voxel_buffer = program.Set_Buffer!CLVoxel(RO, tree.voxel_pool);
     auto rng = Generate_New_RNG();
     rng_buffer      = program.Set_Singleton!RNG(RO, rng);
-    // img_buffer_env  = program.Set_Image_Buffer(RO, Img_dim);
-    // import image;
-    // img_buffer_env.data = Read_Image("testenv.tga");
-    camera = Construct_Camera([1.0f, 0.0f, -1.0f], [-100.0f, 0.0f, 0.0f],
+    camera = Construct_Camera([8.0f, 5.0f,  7.0f], [   0.0f, 0.0f, 0.0f],
                                                   [Img_dim, Img_dim]);
     camera_buffer = program.Set_Singleton!Camera(RO, camera);
+    timer = 0.0f;
+    timer_buffer = program.Set_Singleton!float(RO, timer);
     // program.Write(img_buffer_env);
     // timer_start = MonoTime.currTime;
   }
@@ -128,6 +103,12 @@ public:
     }
     lmx = AOD.R_Mouse_X(0);
     lmy = AOD.R_Mouse_Y(0);
+    timer += AOD.R_MS()/1000.0f;
+    if ( timer > 20.0f ) {
+      import std.c.stdlib;
+      void Quit ( ) @trusted { exit(0); }
+      Quit();
+    }
   }
 
   CLImage Run_CL() {
@@ -143,7 +124,9 @@ public:
       img_buffer_read.data = img_buffer_write.data;
     }
     camera_buffer.data[0] = camera;
+    timer_buffer.data[0] = timer;
 
+    program.Write(timer_buffer);
     program.Write(camera_buffer);
     program.Write(img_buffer_read);
     program.Run([Img_dim, Img_dim, 1], [1, 1, 1]);
@@ -174,7 +157,7 @@ public:
       counter = 0;
     }
     Set_Sprite(CLImage_To_Image(Run_CL()));
-    Set_Size(AOD.Vector(512, 512), true);
+    Set_Size(AOD.Vector(1080, 1080), true);
     super.Render();
   }
 }
