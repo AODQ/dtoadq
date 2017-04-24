@@ -108,13 +108,15 @@ public:
     program = clCreateProgramWithSource(context, 1, &e, null, &err);
     CLAssert(err, "Create program with source");
     if ( clBuildProgram(program, 0, null, null, null, null) != CL_SUCCESS ) {
+      writeln("Error building program");
       size_t len;
       clGetProgramBuildInfo(program, device.device_id, CL_PROGRAM_BUILD_LOG, 0,
                             null, &len);
       char[] log; log.length = len;
       clGetProgramBuildInfo(program, device.device_id, CL_PROGRAM_BUILD_LOG,
                             len, log.ptr, null);
-      assert(false, "Error building program:\n" ~ log);
+      writeln("LOG: ", log);
+      assert(false);
     }
   }
   ~this() {
@@ -136,12 +138,26 @@ public:
     mem_objects ~= image.cl_handle;
     CLAssert(err, "Creating image ");
     image.data.length = width*height*4;
-    foreach ( ref i; image.data )
-      i = 0.0f;
     CLAssert(clSetKernelArg(kernel, param_count, CLMem.sizeof,&image.cl_handle),
              "clSetKernelArg");
+    image.index = param_count;
     ++param_count;
     return image;
+  }
+
+  void Modify_Image_Size ( ref OpenCLImage image, int width, int height ) {
+    clReleaseMemObject(image.cl_handle);
+    image.width = width;
+    image.height = height;
+    image.description = cl_image_desc(CL_MEM_OBJECT_IMAGE2D, width, height, 1,
+                                      0, 0, 0, 0, 0, null);
+    image.cl_handle = clCreateImage(context, image.type, &image.format,
+                                    &image.description, null, &err);
+    CLAssert(err, "Modifying image size ");
+    image.data.length = width*height*4;
+
+    CLAssert(clSetKernelArg(kernel, image.index, CLMem.sizeof,&image.cl_handle),
+            "clSetKernelArg");
   }
 
   OpenCLSingleton!T Set_Singleton(T)(BufferType type, inout(T) data) {
@@ -165,6 +181,11 @@ public:
                   CL_TRUE, origin.ptr, region.ptr, 0, 0,
                   cast(void*)image.data.ptr, 0, null, null),
              "clEnqueueWriteImage");
+  }
+  void Write(T)(OpenCLBuffer!T buffer) {
+    CLAssert(clEnqueueWriteBuffer(command_queue, buffer.cl_handle,
+              CL_TRUE, 0, T.sizeof*buffer.length, &buffer.data[0],
+              0, null, null), "clEnqueueWriteBuffer");
   }
   void Write(T)(OpenCLSingleton!T singleton) in {
     assert(singleton.data.length == 1,

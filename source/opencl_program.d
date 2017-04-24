@@ -42,9 +42,13 @@ mat3 rotate_x ( float fi ) {
   );
 }
 // --------------- BASIC GRAPHIC FUNCTIONS -------------------------------------
+
 float3 reflect ( float3 V, float3 N ) {
   return V - 2.0f*dot(V, N)*N;
 }
+
+__constant float PI = 3.1415926535f;
+float sqr ( float t ) { return t*t; }
 
 float3 refract(float3 V, float3 N, float refraction) {
   float cosI = -dot(N, V);
@@ -59,12 +63,6 @@ float length3(float3 p, int n) {
   return pow(pown(p.x, n) + pown(p.y, n), 1.0f/n);
 }
 // --------------- MATERIAL/VOXEL/RAY ------------------------------------------
-// typedef struct T_Material {
-//   float3 colour;
-//   float metallic, subsurface, specular, roughness, specular_tint,
-//         anisotropic, sheen, sheen_tint, clearcoat, clearcoat_gloss,
-//         emission;
-// } Material;
 
 typedef struct T_Ray {
   float3 origin, dir, invdir;
@@ -147,19 +145,26 @@ float noise ( float2 n ) {
 //   }
 // }
 
-float PrimitiveA ( float3 point ) {
-  return length(max(fabs(point) - (float3)(0.9f), 0.0f));
+float smin ( float a, float b ) {
+  float k = -0.1f;
+  float h = clamp(0.5f + 0.5f*(b - a)/k, 0.0f, 1.0f);
+  return mix(b, a, h) - k*h*(1.0f - h);
 }
 
-
-float PrimitiveB ( float3 point ) {
-  float2 q = (float2)(length(point.xy) - 1.5f, point.z + cos(point.x));
-  return length(q) - 0.9f;
+float PrimitiveA ( float3 point ) {
+  return length(max(fabs(point) - (float3)(2.9f), 0.0f));
 }
 
 float Terrain ( float3 pos ) {
   return length(pos) - 2.0f;
 }
+
+float PrimitiveB ( float3 p ) {
+  // float2 q = (float2)(length(point.xy) - 1.5f, point.z + cos(point.x));
+  float r = smin(r, PrimitiveA(p));
+  return smin(r, length(p + (float3)(0.0f, 0.0f,  1.0f)) - 1.0f);
+}
+
 
 float Boundary2 ( float3 p, float3 wal, float dist ) {
   return dot(p, wal) + dist;
@@ -175,71 +180,95 @@ float Boundary ( float3 p ) {
     Boundary2(p, (float3)(0.0f, 0.0f, -1.0f), 5.0f));
 }
 
-float Sun ( float3 p ) {
-  float c = 2.0f;
-  p.z = fmod(p.z, c) - 0.5f*c;
-  p -= (float3)(1.0f, 3.0f, 0.0f);
-  float d = length(p) - 1.0f;
-  float3 q = fabs(p);
-  float prism = fmax(q.z - 0.5f,
-                     fmax(q.z*0.866025f + q.y*0.5f, q.y)
-                     - 0.5f);
-  return fmax(d, prism);
+float Sun ( float3 p, float time ) {
+  float c =  2.2325f + time*0.08f;
+  float orig = p.z;
+  p.y = fmod(p.y, c) - 0.5f*c;
+  p.x = fmod(p.x, c) - 0.5f*c;
+  return length(p + (float3)(sin(time)*0.02f,
+                             cos(sqrt(time*2.5f))*0.51f,
+                            -8.0f + cos(time*orig)*0.05f)) - 0.5f;
 }
 
-float smin ( float a, float b ) {
-  float k = -0.1f;
-  float h = clamp(0.5f + 0.5f*(b - a)/k, 0.0f, 1.0f);
-  return mix(b, a, h) - k*h*(1.0f - h);
-}
 
 // --------------- INTERSECTION ------------------------------------------------
-float Map ( float3 p ) {
-  float r = PrimitiveB(p);
-  r = smin(r, PrimitiveA(p));
-  r = smin(r, Terrain(p + (float3)(0.0f, 1.2f, 0.0f)));
-  r = fmin(r, Boundary(p));
-  r = fmin(r, Sun(p));
-  return r;
+typedef struct T_IntersectionInfo {
+  float dist;
+  int material_index;
+} IntersectionInfo;
+
+void Set_Map ( IntersectionInfo* pinfo, float dist, int mindex ) {
+  if ( pinfo->dist > dist ) {
+    pinfo->dist = dist;
+    pinfo->material_index = mindex;
+  }
 }
 
-float3 Normal ( float3 p ) {
-  const float Delta = 0.01f;
+IntersectionInfo Map ( float3 p, float time ) {
+  IntersectionInfo info;
+  info.dist = FLT_MAX;
+  Set_Map(&info, PrimitiveB(p), 0);
 
-  float3 X = (float3)(Delta, 0.0f, 0.0f),
-         Y = (float3)(0.0f, Delta, 0.0f),
-         Z = (float3)(0.0f, 0.0f, Delta);
-
-  return normalize((float3)(
-    Map(p + X) - Map(p - X),
-    Map(p + Y) - Map(p - Y),
-    Map(p + Z) - Map(p - Z)
-  ));
+  Set_Map(&info, Sun(p, time), 1);
+  return info;
 }
 
+IntersectionInfo Empty_IntersectionInfo ( ) {
+  IntersectionInfo info;
+  info.dist = 0.0f;
+  info.material_index = -1;
+  return info;
+}
 
-float sqr ( float t ) { return t*t; }
+IntersectionInfo March ( Ray ray, float time ) {
+  const float max_dist = 64.0f;
+  float distance = 0.0f;
+  IntersectionInfo t_info;
+  for ( int i = 0; i < 64; ++ i ) {
+    t_info = Map(ray.origin + ray.dir*distance, time);
+    if ( t_info.dist < 0.05f || t_info.dist > max_dist ) break;
+    distance += t_info.dist;
+  }
+  if ( t_info.dist > max_dist ) return Empty_IntersectionInfo();
+  t_info.dist = distance;
+  return t_info;
+}
 
-float smithG_GGX_aniso ( float NdotV, float VdotX, float VdotY, float ax, float ay ) {
-  return 1.0f / (NdotV + sqrt(sqr(VdotX*ax) + sqr(VdotY*ay) + sqr(NdotV) ));
+float3 Normal ( float3 p, float time ) {
+  const float Delta  = 0.001f,
+              Delta2 = Delta*2.0f;
+
+  const float3 X = (float3)(Delta, 0.0f, 0.0f),
+               Y = (float3)(0.0f, Delta, 0.0f),
+               Z = (float3)(0.0f, 0.0f, Delta);
+
+  return (float3)(
+    (Map(p + X, time).dist - Map(p - X, time).dist)/Delta2,
+    (Map(p + Y, time).dist - Map(p - Y, time).dist)/Delta2,
+    (Map(p + Z, time).dist - Map(p - Z, time).dist)/Delta2
+  );
 }
 
 float Schlick_Fresnel ( float u ) {
-  float m = clamp(1.0f - u, 0.0f, 1.0f);
-  float m2 = m*m;
-  return m2*m2*m; // pow(m, 5)
-}
-
-
-float GTR2_Aniso ( float NdotH, float HdotX, float HdotY, float ax, float ay ) {
-  return 1.0f / ( 3.141579 * ax * ay * sqr(sqr(HdotX/ax) + sqr(HdotY/ay) + NdotH*NdotH));
+  return pown(clamp(1.0f - u, 0.0f, 1.0f), 5);
 }
 
 float GTR1 ( float NdotH, float a ) {
-  if ( a >= 1.0f ) return 1/(3.14159);
+  if ( a >= 1.0f ) return 1.0f/PI;
   float a2 = a * a;
   float t = 1.0f + (a2 - 1.0f)*NdotH*NdotH;
-  return (a2 - 1.0f)/(3.14159*log(a2)*t);
+  return (a2 - 1.0f)/(PI*log(a2)*t);
+}
+
+float GTR2 ( float NdotH, float a ) {
+  float a2 = a*a;
+  float t = 1.0f + (a2 - 1.0f)*NdotH*NdotH;
+  return a2/(PI*t*t);
+}
+
+float GTR2_Aniso ( float NdotH, float HdotX, float HdotY, float ax, float ay ) {
+  return 1.0f / ( PI * ax * ay * sqr(sqr(HdotX/ax) + sqr(HdotY/ay)
+                                     + NdotH*NdotH));
 }
 
 float smithG_GGX ( float NdotV, float alphaG ) {
@@ -248,29 +277,40 @@ float smithG_GGX ( float NdotV, float alphaG ) {
   return 1.0f / (NdotV + sqrt(a + b - a*b));
 }
 
+float smithG_GGX_aniso ( float NdotV, float VdotX, float VdotY,
+                         float ax, float ay ) {
+  return 1.0f / (NdotV + sqrt(sqr(VdotX*ax) + sqr(VdotY*ay) + sqr(NdotV) ));
+}
+
+
+float3 mon2lin ( float3 v ) {
+  return pow(v, 2.2f);
+}
+
+
 float3 disney_brdf ( float3  L, float3 V, float3 N, float3 X, float3 Y,
                      float3 base_colour,
-                     float specular_tint,
-                     float specular,
                      float metallic,
-                     float sheen_tint,
-                     float sheen,
+                     float subsurface,
+                     float specular,
+                     float specular_tint,
                      float roughness,
                      float anisotropic,
+                     float sheen,
+                     float sheen_tint,
                      float clearcoat,
-                     float clearcoat_gloss,
-                     float subsurface
-
+                     float clearcoat_gloss
 ) {
   float NdotL = dot(N, L),
         NdotV = dot(N, V);
-  float3 H = normalize(L+V);
+  if ( NdotL < 0.0f || NdotV < 0.0f ) return (float3)(0.0f);
 
+
+  float3 H = normalize(L+V);
   float NdotH = dot(N, H),
         LdotH = dot(L, H);
 
-  float3 Cdlin = (float3)(pow(base_colour.x, 2.2f), pow(base_colour.y, 2.2f),
-                          pow(base_colour.z, 2.2f));
+  float3 Cdlin = mon2lin(base_colour);
   float Cdlum = 0.3f*Cdlin.x + 0.6f*Cdlin.y + 0.1f*Cdlin.z; // luminance approx
   // normalize lum to isolate hue+sat
   float3 Ctint = Cdlum > 0.0f ? Cdlin/Cdlum : (float3)(1.0f);
@@ -294,8 +334,8 @@ float3 disney_brdf ( float3  L, float3 V, float3 N, float3 X, float3 Y,
 
   // specular
   float aspect = sqrt(1.0f - anisotropic*0.9f);
-  float ax = fmax(.001f, (roughness*roughness)/aspect);
-  float ay = fmax(.001f, (roughness*roughness)*aspect);
+  float ax = fmax(.001f, sqr(roughness)/aspect);
+  float ay = fmax(.001f, sqr(roughness)*aspect);
   float Ds = GTR2_Aniso(NdotH, dot(H, X), dot(H, Y), ax, ay);
   float FH = Schlick_Fresnel(LdotH);
   float3 Fs = mix(Cspec0, (float3)(1.0f), FH);
@@ -310,51 +350,21 @@ float3 disney_brdf ( float3  L, float3 V, float3 N, float3 X, float3 Y,
   float Fr = mix(0.04f, 1.0f, FH);
   float Gr = smithG_GGX(NdotL, 0.25f) * smithG_GGX(NdotV, 0.25f);
 
-  return ((1.0f/3.14157f) * mix(Fd, ss, subsurface)*Cdlin + Fsheen) *
+  return ((1.0f/PI) * mix(Fd, ss, subsurface)*Cdlin + Fsheen) *
          (1.0f-metallic) + Gs*Fs*Ds + 0.25f*clearcoat*Gr*Fr*Dr;
 }
 
-float3 BRDF ( float3 pos, float3 cam, float3 lpos ) {
-  float3 N = normalize(Normal(pos)),
-         L = normalize(lpos - pos),
-         V = normalize(cam - pos),
-         tangent = normalize(cross((float3)(1.0f, 0.0f, 0.0f), N)),
-         bitangent = normalize(cross(N, tangent));
-  return disney_brdf(L, V, N, tangent, bitangent,
-              (float3)(0.6f, 0.0f, 1.0f), // base material
-              0.2f, // specular_tint
-              0.2f, // specular
-              0.0f, // metallic
-              0.9f, // sheen tint
-              0.9f, // sheen
-              0.2f,  // roughness
-              0.8f,  // anisotrpoic
-              0.2f,  // clearcoat
-              0.2f,  // clearcoat_gloss
-              0.8f  // subsurface
-  );
+float3 RGB_To_Float ( int r, int g, int b ) {
+  return (float3)(r/255.0f, g/255.0f, b/255.0f);
 }
 
-float March ( Ray ray ) {
-  const float max_dist = 8.0f;
-  float distance = 0.0f;
-  float interval;
-  for ( int i = 0; i < 32; ++ i ) {
-    interval = Map(ray.origin + ray.dir*distance);
-    if ( interval < 0.00001f || interval > max_dist ) break;
-    distance += interval;
-  }
-  if ( interval > max_dist ) return 0.0f;
-  return distance;
-}
 
-typedef struct T_IntersectionInfo {
-  bool intersection;
-  float3 position;
-  float distance;
-  float3 normal, angle;
+typedef struct T_Material {
   float3 colour;
-} IntersectionInfo;
+  float metallic, subsurface, specular, roughness, specular_tint,
+        anisotropic, sheen, sheen_tint, clearcoat, clearcoat_gloss;
+} Material;
+
 
 // --------------- CAMERA ------------------------------------------------------
 typedef struct T_Camera {
@@ -368,19 +378,42 @@ Ray Camera_Ray(__global RNG* rng, __global Camera* cam, float time) {
   float2 outf = (float2)((float)out.x, (float)out.y);
   float2 dim = (float2)((float)cam->dimensions.x, (float)cam->dimensions.y);
   float2 uv = ((2.0f * outf) - dim)/fmin(dim.x, dim.y);
+  // uv.x += Uniform(rng, -0.001f, 0.001f);
+  // uv.y += Uniform(rng, -0.001f, 0.001f);
 
-  mat3 rotatey = rotate_y(sin(time*0.52f)*0.81f),
-       rotatex = rotate_x(sin(time*0.59f)*0.81f);
-
-  float3 eye_pos = mat3_mul(rotatex,
-                   mat3_mul(rotatey, (float3)(0.0f, 0.0f, -4.0f)));
+  float3 eye_pos = (float3)(5.0f, 4.6f,  4.0f);
   float3 up = (float3)(0.0f, 1.0f, 0.0f);
-  float3 forward = mat3_mul(rotatey, (float3)(0.0f, 0.0f, 1.0f));
+  float3 forward = (float3)(0.0f, 0.1f, 1.0f);
   float3 right = cross(up, forward);
 
   return New_Ray(eye_pos,
                  normalize(up * uv.y + right * uv.x + forward)
   );
+}
+
+
+float3 BRDF ( float3 pos, float3 cam, float3 lpos, Material material, float time ) {
+  float3 N = normalize(Normal(pos, time)),
+         L = normalize(lpos - pos),
+         V = normalize(cam - pos),
+         tangent = normalize(cross((float3)(0.0f, 1.0f, 0.0f), N)),
+         bitangent = normalize(cross(N, tangent));
+  float3 result = disney_brdf(L, V, N, tangent, bitangent,
+      material.colour,
+      material.metallic,
+      material.subsurface,
+      material.specular,
+      material.specular_tint,
+      material.roughness,
+      material.anisotropic,
+      material.sheen,
+      material.sheen_tint,
+      material.clearcoat,
+      material.clearcoat_gloss
+  );
+
+  result *= dot(N, L);
+  return result;
 }
 
 // ------- kernel ---
@@ -390,34 +423,44 @@ __kernel void Kernel_Raycast(
         __read_only  image2d_t input_image,
         __global RNG* rng,
         __global Camera* camera,
-        __global float* time
+        __global float* time_ptr,
+        __global Material* material, __global int* material_size
       ) {
+  float time = *time_ptr;
   int2 out = (int2)(get_global_id(0), get_global_id(1));
-  Ray ray = Camera_Ray(rng, camera, *time);
+  Ray ray = Camera_Ray(rng, camera, time);
 
+  IntersectionInfo info = March(ray, time);
 
-  // ray = Camera_Ray(rng, cam, ray.dir);
+  if ( info.dist > 0.0f ) {
+    float3 point = ray.origin + ray.dir*info.dist;
+    float3 colour;
 
-  if ( Is_Debug_Print() ) {
-    printf("ORIGIN: <%f, %f, %f> DIR: <%f, %f, %f>\n",
-              ray.origin.x, ray.origin.y, ray.origin.z,
-              ray.dir.x, ray.dir.y, ray.dir.z);
-  }
-
-  float dist = March(ray);
-
-  if ( dist > 0.0f ) {
-    float3 point = ray.origin + ray.dir*dist;
-
-    float3 colour = BRDF(
+    mat3 rotatey = rotate_y(sin(time*0.52f)*0.11f);
+    colour = BRDF(
       point,
       ray.origin,
-      (float3)(40.0f, 20.0f, 200.0f + cos(*time)*2.0f)
+      mat3_mul(rotatey,
+        (float3)(cos(time), -0.0f + sin(time)*2.0f, -2.0f)),
+      material[info.material_index],
+      time
     );
 
+    colour += BRDF(
+      point,
+      ray.origin,
+      mat3_mul(rotatey,
+        (float3)(sin(time) - cos(time)*0.25, -1.0f + sin(time*0.25)*1.0f,
+                 sin(time)+-2.0f)),
+      material[info.material_index],
+      time
+    );
+
+    float gamma = 2.2f;
+    colour = pow(colour, (float3)(2.0f/gamma));
     write_imagef(output_image, out, (float4)(colour, 1.0f));
   } else {
-    write_imagef(output_image, out, (float4)(0.0f, 0.0f, 0.0f, 1.0f));
+    write_imagef(output_image, out, (float4)(0.0f, 0.0f, 0.0f, 0.0f));
   }
 }};
 

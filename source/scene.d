@@ -4,11 +4,30 @@ import globals;
 
 struct Material {
   cl_float3 base_colour;
-  cl_float odd_buffer;
-  cl_float metallic, subsurface, specular, roughness, specular_tint,
-           anisotropic, sheen, sheen_tint, clearcoat, clearcoat_gloss,
-           emission;
+  float metallic, subsurface, specular, roughness, specular_tint,
+        anisotropic, sheen, sheen_tint, clearcoat, clearcoat_gloss;
+  float padding, padding2;
 }
+
+
+import std.random : uniform;
+auto Default_Material ( ) {
+  return Material(
+    To_CLFloat3([uniform(0.0f, 1.0f), uniform(0.0f, 1.0f),
+                 uniform(0.0f, 1.0f)]),
+    uniform(0.0f, 1.0f),
+    uniform(0.0f, 1.0f),
+    uniform(0.0f, 1.0f),
+    uniform(0.0f, 1.0f),
+    uniform(0.0f, 1.0f),
+    uniform(0.0f, 1.0f),
+    uniform(0.0f, 1.0f),
+    uniform(0.0f, 1.0f),
+    uniform(0.0f, 1.0f),
+    uniform(0.0f, 1.0f)
+  );
+}
+
 
 
 struct Camera {
@@ -25,19 +44,4 @@ auto Construct_Camera(float[3] pos, float[3] dir, int[2] dim) {
     dimensions,
     60.0f
   );
-}
-
-void Print_Material(ref inout(Material) m) {
-  writeln("Base Colour: ",     m.base_colour     );
-  writeln("Metallic   : ",     m.metallic        );
-  writeln("Subsurface: ",      m.subsurface      );
-  writeln("Specular: ",        m.specular        );
-  writeln("Roughness: ",       m.roughness       );
-  writeln("Specular_tint: ",   m.specular_tint   );
-  writeln("Anisotropic: ",     m.anisotropic     );
-  writeln("Sheen: ",           m.sheen           );
-  writeln("Sheen_tint: ",      m.sheen_tint      );
-  writeln("Clearcoat: ",       m.clearcoat       );
-  writeln("Clearcoat_gloss: ", m.clearcoat_gloss );
-  writeln("Emission: ",        m.emission        );
 }
