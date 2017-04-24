@@ -30,6 +30,11 @@ GLFWwindow* Init ( ) {
   igImplGlfwGL3_Init(window, true);
   raytracer.Initialize();
 
+  import input;
+  glfwSetCursorPosCallback(window, &Cursor_Position_Callback);
+  glfwSetMouseButtonCallback(window, &Cursor_Button_Callback);
+  glfwSetKeyCallback(window, &Key_Input_Callback);
+
   return window;
 }
 
@@ -40,6 +45,7 @@ void Update ( ref float[3] clear_colour ) {
   igImplGlfwGL3_NewFrame();
 
   // -- base imgui window --
+  import gui;
   igColorEdit3("background colour", clear_colour);
   igText("FPS: %.3f ms/frame (%.1f FPS)", 1000.0f / igGetIO().Framerate,
                                                     igGetIO().Framerate);
@@ -50,13 +56,6 @@ void Update ( ref float[3] clear_colour ) {
 }
 
 bool running = true;
-
-void key_callback ( GLFWwindow* window, int key, int scancode,
-                                        int action, int mods ) {
-  if ( key == GLFW_KEY_LEFT_BRACKET && action == GLFW_PRESS )
-    running = false;
-}
-
 
 import opencl : CLImage;
 
@@ -71,7 +70,6 @@ void main() {
 
   float[3] clear_colour = [0.1f, 0.1f, 0.1f];
 
-
   while ( !glfwWindowShouldClose(window) && running ) {
     glClearColor(clear_colour[0], clear_colour[1], clear_colour[2], 0);
     glClear(GL_COLOR_BUFFER_BIT);
@@ -79,5 +77,8 @@ void main() {
     // -- draw debug --
     igRender();
     glfwSwapBuffers(window);
+    // -- close ? --
+    import input;
+    if ( RKey_Input(96) ) running = false;
   }
 }

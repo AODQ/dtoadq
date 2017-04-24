@@ -5,8 +5,9 @@ import globals;
 struct Material {
   cl_float3 base_colour;
   float metallic, subsurface, specular, roughness, specular_tint,
-        anisotropic, sheen, sheen_tint, clearcoat, clearcoat_gloss;
-  float padding, padding2;
+        anisotropic, sheen, sheen_tint, clearcoat, clearcoat_gloss,
+        emission;
+  float padding;
 }
 
 
@@ -24,11 +25,10 @@ auto Default_Material ( ) {
     uniform(0.0f, 1.0f),
     uniform(0.0f, 1.0f),
     uniform(0.0f, 1.0f),
-    uniform(0.0f, 1.0f)
+    uniform(0.0f, 1.0f),
+    0.0f
   );
 }
-
-
 
 struct Camera {
   cl_float3 position, lookat, up;

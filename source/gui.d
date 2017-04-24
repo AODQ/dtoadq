@@ -4,7 +4,7 @@ import derelict.imgui.imgui;
 import scene;
 
 
-bool Imgui_Render ( ref Material[] materials ) @trusted {
+bool Imgui_Render ( ref Material[] materials, ref Camera camera ) @trusted {
   bool change;
   bool close;
   igBegin("Material Properties", &close);
@@ -23,7 +23,14 @@ bool Imgui_Render ( ref Material[] materials ) @trusted {
     change |= gdSliderNorm("Sheen_tint",      istr, m.sheen_tint);
     change |= gdSliderNorm("Clearcoat",       istr, m.clearcoat);
     change |= gdSliderNorm("Clearcoat_gloss", istr, m.clearcoat_gloss);
+    change |= gdSliderNorm("Emission",        istr, m.emission);
   }
+  igEnd();
+  bool closecam;
+  import functional;
+  igBegin("Camera", &closecam);
+  gdText("Position ", camera.position[0..3]);
+  gdText("Angle    ", camera.lookat[0..3].map!(n => cast(int)(n*1000.0f)/1000.0f).array);
   igEnd();
   return change;
 }
