@@ -184,7 +184,7 @@ public:
   }
   void Write(T)(OpenCLBuffer!T buffer) {
     CLAssert(clEnqueueWriteBuffer(command_queue, buffer.cl_handle,
-              CL_TRUE, 0, T.sizeof*buffer.length, &buffer.data[0],
+              CL_TRUE, 0, T.sizeof*buffer.data.length, &buffer.data[0],
               0, null, null), "clEnqueueWriteBuffer");
   }
   void Write(T)(OpenCLSingleton!T singleton) in {

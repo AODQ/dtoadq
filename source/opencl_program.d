@@ -2,7 +2,8 @@ module opencl_program; immutable(string) Test_raycast_string = q{
 // -----------------------------------------------------------------------------
 // --------------- DEBUG -------------------------------------------------------
 bool Is_Debug_Print ( ) {
-  return get_global_id(0) == 1 && get_global_id(1) == 1;
+  return get_global_id(get_work_dim()/2) == 1 &&
+         get_global_id(get_work_dim()/2) == 1;
 }
 // -----------------------------------------------------------------------------
 // --------------- GPU-CPU STRUCTS ---------------------------------------------
@@ -309,6 +310,10 @@ float3 Normal ( float3 p, float time ) {
   );
 }
 
+/**
+  FIXME !!
+  Doesn't work! need to find hwo to properly get tangent!!
+*/
 float3 Tangent ( float3 normal ) {
   float3 t1 = cross(normal, (float3)(0.0f, 0.0f, 1.0f)),
          t2 = cross(normal, (float3)(0.0f, 1.0f, 0.0f));
@@ -348,35 +353,51 @@ IntersectionInfo March ( Ray ray, float time ) {
   return t_info;
 }
 
+// uses cosine weight random hemisphere directions
 float3 Hemisphere_Direction ( float3 normal, __global RNG* rng ) {
-  int abort = 0;
-  float3 origin = (float3)(0.5f);
-  while ( true ) {
-    float3 v = normalize(Uniform(rng, 0.0f, 1.0f)) - origin;
+  float u1 = Uniform(rng,  0.0f, 1.0f),
+        u2 = Uniform(rng,  0.0f, 1.0f);
+  float theta = acos(sqrt(1.0f - u1));
+  float phi   = 2.0f*PI*u2;
 
-    if ( dot(normal, v) > 0.0f ) return v;
-    ++ abort;
-    if ( abort > 500 ) {
-      printf("FAILURE\n");
-      return v;
-    }
-  }
+  float x = sin(theta)*cos(phi),
+        y = cos(theta),
+        z = sin(theta)*sin(phi);
+
+  float3 yvec = normal,
+         xvec = normal,
+         zvec;
+
+  if (fabs(xvec.x)<=fabs(xvec.y) && fabs(xvec.x)<=fabs(xvec.z))
+      xvec.x = 1.0f;
+  else if (fabs(xvec.y)<=fabs(xvec.x) && fabs(xvec.y)<=fabs(xvec.z))
+      xvec.y = 1.0f;
+  else
+      xvec.z = 1.0f;
+  xvec = normalize(cross(xvec, y));
+  zvec = normalize(cross(xvec, y));
+  float3 dir = x*xvec + y*normal + z*zvec;
+  return dir;
 }
 
 float3 Raytrace ( Ray ray, __global Material* material, __global RNG* rng,
                   float time ) {
-  float3 colour = (float3)(0.0f), weight = (float3)(weight);
+  float3 colour = (float3)(0.0f), weight = (float3)(1.0f);
   int depth = 0;
   bool hit = false, material_hit = false;
   Material prev_material;
   float3 prev_pos;
+  float3 cam_pos = ray.origin;
   while ( ++ depth ) {
-    float depth_ratio = 1.0f / (1.0f/(float)(5 - depth));
-    if ( Uniform(rng, 0.0f, 1.0f) >= depth_ratio ) break;
+    float depth_ratio = 1.0f-(1.0f/(float)(5 - depth));
+    if ( Uniform(rng, 0.0f, 1.0f) >= depth_ratio ) {
+      break;
+    }
     IntersectionInfo info = March(ray, time);
     if ( info.dist < 0.0f ) {
       colour = (float3)(0.0f);
       hit = false;
+      printf("MISSED?!\n");
       break;
     }
 
@@ -393,7 +414,6 @@ float3 Raytrace ( Ray ray, __global Material* material, __global RNG* rng,
           &prev_material, time
         )
       ;
-      printf("a little birdy\n");
       }
       hit = true;
       break;
@@ -403,24 +423,15 @@ float3 Raytrace ( Ray ray, __global Material* material, __global RNG* rng,
     prev_pos = ray.origin + ray.dir*info.dist;
     prev_material = m;
     weight *= m.base_colour;
-
-    colour =
-        BRDF(
-          prev_pos, ray.origin, (float3)(3.0f, 2.0f, 1.0f),
-          &prev_material, time
-        )
-      ;
-
     ray.origin = prev_pos;
-    ray.dir = normalize(Uniform_Float3(rng, -1.0f, 1.0f));
-    hit = true;
-    break;
+    ray.dir = Hemisphere_Direction(Normal(prev_pos, time), rng);
+    ray.origin += ray.dir*0.2f;
   }
 
   if ( hit ) {
     return colour;
   }
-  return (float3)(0.0f);
+  return (float3)(-1.0f);
 }
 // -----------------------------------------------------------------------------
 // --------------- CAMERA ------------------------------------------------------
@@ -453,6 +464,7 @@ __kernel void Kernel_Raycast(
         __global RNG* rng,
         __global Camera* camera,
         __global float* time_ptr,
+        __global ushort* converges, __global ushort* converges_size,
         __global Material* material, __global int* material_size
       ) {
   float time = *time_ptr;
@@ -462,7 +474,18 @@ __kernel void Kernel_Raycast(
   float3 colour = Raytrace(ray, material, rng, time);
 
   // -- post effects --[B
-  float gamma = 2.2f;
-  colour = pow(colour, (float3)(2.0f/gamma));
-  write_imagef(output_image, out, (float4)(colour, 1.0f));
+  if ( colour.x > 0.0f ) {
+    float gamma = 2.2f;
+    colour = pow(colour, (float3)(2.0f/gamma));
+    float4 old_colour = read_imagef(input_image, out) + (float4)(0.5f);
+    ushort c = converges[out.y*camera->dim.x + out.x];
+    if ( c < 5 ) {
+      colour = mix(old_colour.xyz, colour, 1.0f/(float)(c));
+      converges[out.y*camera->dim.x + out.x] += 1;
+      if ( Is_Debug_Print() ) {
+        printf("c: %f\n", 1.0f/(float)(c));
+      }
+      write_imagef(output_image, out, (float4)(colour, 1.0f));
+    }
+  }
 }};

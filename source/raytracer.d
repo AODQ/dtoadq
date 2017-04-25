@@ -24,6 +24,7 @@ private OpenCLImage img_buffer_write, img_buffer_read;
 private OpenCLSingleton!RNG rng_buffer;
 private OpenCLSingleton!Camera camera_buffer;
 private OpenCLSingleton!float timer_buffer;
+private OpenCLBuffer!ushort converge_buffer;
 private OpenCLBuffer!Material material_buffer;
 private Material[] material;
 private MonoTime timer_start;
@@ -38,6 +39,11 @@ void Initialize ( ){
   material = [ Default_Material(), Default_Material() ];
   auto camera = Construct_Camera([1.0f, 0.0f,  0.0f], [ 0.0f, 0.0f, -1.0f],
                                                 [Img_dim, Img_dim]);
+  ushort[] converges;
+  converges.length = Img_dim*Img_dim;
+  {import functional;
+    converges = converges.map!(n => cast(ushort)1).array;
+  }
   // --- kernel init ---
   program = Compile(Test_raycast_string);
   program.Set_Kernel("Kernel_Raycast");
@@ -49,6 +55,7 @@ void Initialize ( ){
   rng_buffer       = program.Set_Singleton!RNG(RO, rng);
   camera_buffer    = program.Set_Singleton!Camera(RO, camera);
   timer_buffer     = program.Set_Singleton!float(RO, 0.0f);
+  converge_buffer  = program.Set_Buffer!ushort(WO, converges);
   material_buffer  = program.Set_Buffer!Material(RO, material);
 
   // --- opengl ---
@@ -131,9 +138,13 @@ void Update ( float timer ) {
 
   if ( previous_img_dim != Img_dim && previous_img_dim != 0 ) {
     program.Modify_Image_Size(img_buffer_write, Img_dim, Img_dim);
-    // program.Write(img_buffer_write);
+    program.Modify_Image_Size(img_buffer_read, Img_dim, Img_dim);
     camera_buffer.data[0].dimensions = [Img_dim, Img_dim];
     program.Write(camera_buffer);
+    ushort[] converges;
+    converges.length = Img_dim*Img_dim;
+    converge_buffer.data = converges;
+    program.Write(converge_buffer);
   }
   previous_img_dim = Img_dim;
   timer_buffer.data[0] = timer;
@@ -142,8 +153,18 @@ void Update ( float timer ) {
     program.Write(material_buffer);
   }
   if ( Update_Camera() ) {
+    import functional;
     program.Write(camera_buffer);
+    float[] buffer;
+    buffer.length = 4*Img_dim*Img_dim;
+    buffer = buffer.map!(n => 0.0f).array;
+    img_buffer_read.data = img_buffer_write.data = buffer;
+    program.Write(img_buffer_write);
+    converge_buffer.data.each!((ref n) => n = 1);
+    program.Write(converge_buffer);
   }
+  img_buffer_read.data = img_buffer_write.data;
+  program.Write(img_buffer_read);
   program.Write(timer_buffer);
   program.Run([Img_dim, Img_dim, 1], [1, 1, 1]);
   updated_last_frame = true;
