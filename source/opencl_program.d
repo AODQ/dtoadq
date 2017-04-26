@@ -376,8 +376,12 @@ float3 Hemisphere_Direction ( float3 normal, __global RNG* rng ) {
       xvec.z = 1.0f;
   xvec = normalize(cross(xvec, y));
   zvec = normalize(cross(xvec, y));
-  float3 dir = x*xvec + y*normal + z*zvec;
-  return dir;
+  float3 dir = x*xvec + y*normal + z*zvec; // linear projection
+  return normalize(dir);
+}
+
+float3 Orient_Normal ( float3 normal, float3 direction ) {
+  return normal * (dot(normal, direction) < 0.0f ? -1.0f : 1.0f);
 }
 
 float3 Raytrace ( Ray ray, __global Material* material, __global RNG* rng,
@@ -396,36 +400,52 @@ float3 Raytrace ( Ray ray, __global Material* material, __global RNG* rng,
     IntersectionInfo info = March(ray, time);
     if ( info.dist < 0.0f ) {
       colour = (float3)(0.0f);
-      hit = false;
       printf("MISSED?!\n");
       break;
     }
 
-    Material m = *(material + info.material_index);
 
-    if ( m.emission > FLT_MIN ) { // EMISSIVE
-      float emittance = (m.emission/depth_ratio);
-      if ( !material_hit )
-        colour = (float3)(1.0f);
-      else {
-      colour = emittance *
-        BRDF(
-          prev_pos, ray.origin, ray.origin + ray.dir*info.dist,
-          &prev_material, time
-        )
-      ;
-      }
+
+    // if ( m.emission > FLT_MIN ) { // EMISSIVE
+    //   float emittance = (m.emission/depth_ratio);
+    //   if ( !material_hit )
+    //     colour = (float3)(2.0f);
+    //   else {
+    //     colour = emittance * prev_material.base_colour;
+    //   // colour = emittance *
+    //   //   BRDF(
+    //   //     prev_pos, ray.origin, ray.origin + ray.dir*info.dist,
+    //   //     &prev_material, time
+    //   //   )
+    //   // ;
+    //   }
+    //   hit = true;
+    //   break;
+    // }
+
+    Material m = *(material + info.material_index);
+    float3 pos = ray.origin + ray.dir*info.dist;
+    float3 normal = Normal(pos, time);
+    float3 ro = ray.dir*-1.0f;
+    float3 onorm = Orient_Normal(normal, ro);
+    ray.origin = pos;
+    ray.dir = Hemisphere_Direction(normal, rng);
+    ray.origin += ray.dir*0.02f;
+
+    colour = m.base_colour;
+
+    if ( m.emission > FLT_MIN ) {
       hit = true;
       break;
     }
 
-    material_hit = true;
-    prev_pos = ray.origin + ray.dir*info.dist;
-    prev_material = m;
-    weight *= m.base_colour;
-    ray.origin = prev_pos;
-    ray.dir = Hemisphere_Direction(Normal(prev_pos, time), rng);
-    ray.origin += ray.dir*0.2f;
+    // material_hit = true;
+    // prev_pos = ray.origin + ray.dir*info.dist;
+    // prev_material = m;
+    // weight *= m.base_colour;
+    // ray.origin = prev_pos;
+    // ray.dir = Hemisphere_Direction(Normal(prev_pos, time), rng);
+    // ray.origin += ray.dir*0.2f;
   }
 
   if ( hit ) {
@@ -441,7 +461,9 @@ Ray Camera_Ray(__global RNG* rng, __global Camera* camera, float time) {
 
   float2 mouse_pos = camera->lookat.xy;
 
-  float2 puv = -1.0f + 2.0f * (coord/resolution);
+  float2 puv = (float2)(Uniform(rng, -0.5f, 0.5f),
+                        Uniform(rng, -0.5f, 0.5f));
+  puv = -1.0f + 2.0f * ((coord + puv)/resolution);
 
   float input_angle = PI - 2.0f*PI*mouse_pos.x;
   float3 cam_pos = camera->position;
@@ -458,34 +480,42 @@ Ray Camera_Ray(__global RNG* rng, __global Camera* camera, float time) {
 }
 // -----------------------------------------------------------------------------
 // --------------- KERNEL ------------------------------------------------------
+__constant int SPP = 64;
 __kernel void Kernel_Raycast(
         __write_only image2d_t output_image,
         __read_only  image2d_t input_image,
         __global RNG* rng,
         __global Camera* camera,
         __global float* time_ptr,
-        __global ushort* converges, __global ushort* converges_size,
         __global Material* material, __global int* material_size
       ) {
-  float time = *time_ptr;
   int2 out = (int2)(get_global_id(0), get_global_id(1));
-  Ray ray = Camera_Ray(rng, camera, time);
-
-  float3 colour = Raytrace(ray, material, rng, time);
-
+  // -- get old pixel, check if there are samples to be done
+  //    (counter is stored in alpha channel)
+  float4 old_pixel = read_imagef(input_image, out);
+  uchar c = (uchar)old_pixel.w;
+  if ( c >= SPP ) return;
+  // -- set up camera and trace ray
+  Ray ray = Camera_Ray(rng, camera, *time_ptr);
+  float3 colour = Raytrace(ray, material, rng, *time_ptr);
   // -- post effects --[B
   if ( colour.x > 0.0f ) {
     float gamma = 2.2f;
     colour = pow(colour, (float3)(2.0f/gamma));
-    float4 old_colour = read_imagef(input_image, out) + (float4)(0.5f);
-    ushort c = converges[out.y*camera->dim.x + out.x];
-    if ( c < 5 ) {
-      colour = mix(old_colour.xyz, colour, 1.0f/(float)(c));
-      converges[out.y*camera->dim.x + out.x] += 1;
-      if ( Is_Debug_Print() ) {
-        printf("c: %f\n", 1.0f/(float)(c));
-      }
-      write_imagef(output_image, out, (float4)(colour, 1.0f));
-    }
+    // colour = mix(colour, old_colour.xyz, 1.0f/c);
+    // (old*counter + new)/(1+counter)
+    colour = colour/(float)SPP;
+    // if ( c != 0 )
+    //   colour = (old_colour.xyz*c + colour)/(c + 1);
+    write_imagef(output_image, out, (float4)(colour, (float)(c+1)));
   }
+
+
+  // -- SUN GLARE :-) --
+  // ray.dir += Uniform_Float3(rng, -2.5f, 2.5f);
+  // float3 glare = Raytrace(ray, material, rng, time);
+  // if ( glare.x > 1.5f ) {
+  //   colour = glare/(float)SPP;
+  //   write_imagef(output_image, out, (float4)(colour, 1.0f));
+  // }
 }};

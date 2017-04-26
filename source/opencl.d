@@ -183,9 +183,13 @@ public:
              "clEnqueueWriteImage");
   }
   void Write(T)(OpenCLBuffer!T buffer) {
+    int len = cast(int)buffer.data.length;
     CLAssert(clEnqueueWriteBuffer(command_queue, buffer.cl_handle,
-              CL_TRUE, 0, T.sizeof*buffer.data.length, &buffer.data[0],
+              CL_TRUE, 0, T.sizeof*len, &buffer.data[0],
               0, null, null), "clEnqueueWriteBuffer");
+    CLAssert(clEnqueueWriteBuffer(command_queue, buffer.cl_length_handle,
+              CL_TRUE, 0, int.sizeof, &len,
+              0, null, null), "clEnqueueWriteBuffer length");
   }
   void Write(T)(OpenCLSingleton!T singleton) in {
     assert(singleton.data.length == 1,
@@ -204,9 +208,10 @@ public:
     auto flags = type | (data is null? 0 : CL_MEM_COPY_HOST_PTR);
     buffer.cl_handle = clCreateBuffer(context, flags, data.length*T.sizeof,
                                       buffer.data.ptr, &err);
+    int temp = cast(int)data.length;
     buffer.cl_length_handle = clCreateBuffer(context,
                              CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
-                             buffer.length.sizeof, &buffer.length, &err);
+                             int.sizeof, &temp, &err);
     mem_objects ~= buffer.cl_handle;
     mem_objects ~= buffer.cl_length_handle;
     CLAssert(err, "clCreateBufferl");

@@ -3,9 +3,9 @@ import opencl;
 import std.conv : to;
 
 auto RDevice_Info(cl_device_info info, CLDeviceID device_id) {
-  size_t dv_size = 50;
-  void[] dv;
-  dv.length = 50;
+  size_t dv_size = 5000;
+  char[] dv;
+  dv.length = 5000;
   clGetPlatformInfo(device_id, info, dv_size, dv.ptr, &dv_size);
   dv.length = dv_size;
   return dv.to!string;

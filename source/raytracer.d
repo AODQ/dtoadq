@@ -24,7 +24,6 @@ private OpenCLImage img_buffer_write, img_buffer_read;
 private OpenCLSingleton!RNG rng_buffer;
 private OpenCLSingleton!Camera camera_buffer;
 private OpenCLSingleton!float timer_buffer;
-private OpenCLBuffer!ushort converge_buffer;
 private OpenCLBuffer!Material material_buffer;
 private Material[] material;
 private MonoTime timer_start;
@@ -39,11 +38,6 @@ void Initialize ( ){
   material = [ Default_Material(), Default_Material() ];
   auto camera = Construct_Camera([1.0f, 0.0f,  0.0f], [ 0.0f, 0.0f, -1.0f],
                                                 [Img_dim, Img_dim]);
-  ushort[] converges;
-  converges.length = Img_dim*Img_dim;
-  {import functional;
-    converges = converges.map!(n => cast(ushort)1).array;
-  }
   // --- kernel init ---
   program = Compile(Test_raycast_string);
   program.Set_Kernel("Kernel_Raycast");
@@ -55,7 +49,6 @@ void Initialize ( ){
   rng_buffer       = program.Set_Singleton!RNG(RO, rng);
   camera_buffer    = program.Set_Singleton!Camera(RO, camera);
   timer_buffer     = program.Set_Singleton!float(RO, 0.0f);
-  converge_buffer  = program.Set_Buffer!ushort(WO, converges);
   material_buffer  = program.Set_Buffer!Material(RO, material);
 
   // --- opengl ---
@@ -63,6 +56,9 @@ void Initialize ( ){
   glGenTextures(1, &texture);
   import gl_renderer;
   GL_Renderer_Initialize();
+
+
+  // --- kernel debug print ---
 }
 
 void Remove ( ) {
@@ -125,6 +121,7 @@ bool Update_Camera ( ) {
   return cam_update;
 }
 
+
 void Update ( float timer ) {
   static bool updated_last_frame;
   static int previous_img_dim = 0;
@@ -134,37 +131,55 @@ void Update ( float timer ) {
   Render();
   import gui;
   bool material_changed = Imgui_Render ( material, camera_buffer.data[0] );
+  bool reset_img_buffers = false;
   if ( !timer.Should_Update ) return;
 
+  // --- check if dimensions of image chanegd ---
   if ( previous_img_dim != Img_dim && previous_img_dim != 0 ) {
+    import functional;
+    // -- update size of buffers --
     program.Modify_Image_Size(img_buffer_write, Img_dim, Img_dim);
     program.Modify_Image_Size(img_buffer_read, Img_dim, Img_dim);
+    // -- update camera --
     camera_buffer.data[0].dimensions = [Img_dim, Img_dim];
-    program.Write(camera_buffer);
-    ushort[] converges;
-    converges.length = Img_dim*Img_dim;
-    converge_buffer.data = converges;
-    program.Write(converge_buffer);
-  }
-  previous_img_dim = Img_dim;
-  timer_buffer.data[0] = timer;
-  if ( material_changed ) {
-    material_buffer.data = material;
-    program.Write(material_buffer);
-  }
-  if ( Update_Camera() ) {
-    import functional;
-    program.Write(camera_buffer);
+    // -- update image buffers --
+    reset_img_buffers = true;
     float[] buffer;
     buffer.length = 4*Img_dim*Img_dim;
     buffer = buffer.map!(n => 0.0f).array;
     img_buffer_read.data = img_buffer_write.data = buffer;
+    // -- write results --
+    program.Write(camera_buffer);
     program.Write(img_buffer_write);
-    converge_buffer.data.each!((ref n) => n = 1);
-    program.Write(converge_buffer);
+    // (no need to write read as it's done every frame anyways)
   }
+  previous_img_dim = Img_dim;
+
+  // --- check if user has changed material ---
+  if ( material_changed ) {
+    reset_img_buffers = true;
+    material_buffer.data = material;
+    program.Write(material_buffer);
+  }
+
+  // --- check if user has moved camera ---
+  if ( Update_Camera() ) {
+    reset_img_buffers = true;
+    program.Write(camera_buffer);
+  }
+
+  // --- check if the image needs to be reset ---
+  if ( reset_img_buffers ) {
+    import functional;
+    img_buffer_write.data.each!((ref n) => n = 0.0f);
+    program.Write(img_buffer_write);
+    // again, no need to write to read as it's done directly after
+  }
+
+  // -- update image read and timer buffers --
   img_buffer_read.data = img_buffer_write.data;
   program.Write(img_buffer_read);
+  timer_buffer.data[0] = timer;
   program.Write(timer_buffer);
   program.Run([Img_dim, Img_dim, 1], [1, 1, 1]);
   updated_last_frame = true;
