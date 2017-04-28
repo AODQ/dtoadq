@@ -8,8 +8,11 @@ static import raytracer;
 
 GLFWwindow* Init ( ) {
   import derelict.glfw3.glfw3;
+  writeln("GL3");
   DerelictGL3.load();
+  writeln("GLfw3");
   DerelictGLFW3.load();
+  writeln("imgui");
   DerelictImgui.load();
 
   if (!glfwInit())
@@ -36,6 +39,7 @@ GLFWwindow* Init ( ) {
   glfwSetMouseButtonCallback(window, &Cursor_Button_Callback);
   glfwSetKeyCallback(window, &Key_Input_Callback);
 
+  writeln("done i guess");
   return window;
 }
 
@@ -70,6 +74,10 @@ void main() {
   auto window = Init();
 
   float[3] clear_colour = [0.1f, 0.1f, 0.1f];
+
+  import gui.nodes;
+  New_Node(ImVec2(200.0, 200.0), "Add");
+  New_Node(ImVec2(500.0, 200.0), "Sub");
 
   while ( !glfwWindowShouldClose(window) && running ) {
     glClearColor(clear_colour[0], clear_colour[1], clear_colour[2], 0);

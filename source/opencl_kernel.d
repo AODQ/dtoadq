@@ -303,8 +303,7 @@ IntersectionInfo Map ( float3 p, float time ) {
 
   Set_Map(&info, sdSphere(p + (float3)(-4.0f, 1.0f, 2.0f), 1.0f), 0);
   Set_Map(&info, Boundary(p, 10.0f), 1);
-  Set_Map(&info,
-    sdTorus(opRep(p, (float3)(8.0f, 8.0f, 8.0f)), (float2)(3.0f, 0.5f)), 2);
+  Set_Map(&info, sdTorus(opRep(p, (float3)(8.0f, 8.0f, 8.0f)), (float2)(3.0f, 0.5f)), 2);
 
   return info;
 }

@@ -94,9 +94,12 @@ public:
   this ( string source ) in {
     assert(device !is null);
   } body {
+    writeln("PROG");
     err = CL_SUCCESS;
     properties = [CL_CONTEXT_PLATFORM, cast(int)device.platform_id, 0];
     int err;
+    writeln("create context");
+    writeln(device.platform_id, " 00 ", device.device_id);
     context = clCreateContext(properties.ptr, 1, &device.device_id,
                                 null, null, &err);
     CLAssert(err, "Create context");
@@ -107,6 +110,7 @@ public:
     auto e = source.toStringz;
     program = clCreateProgramWithSource(context, 1, &e, null, &err);
     CLAssert(err, "Create program with source");
+    writeln("building");
     if ( clBuildProgram(program, 0, null, null, null, null) != CL_SUCCESS ) {
       writeln("Error building program");
       size_t len;
@@ -118,6 +122,7 @@ public:
       writeln("LOG: ", log);
       assert(false);
     }
+    writeln("PROGRAM BUILT .. .");
   }
   ~this() {
     Clean_Up();
@@ -287,9 +292,9 @@ auto Set_Current_Platform() {
       writeln("Platform looper");
       writeln("----- Index: ", it, "\n", RPlatform_Info(platforms[it]));
     }
-    index = 0;
+    index = 2;
     // index = readln.chomp.to!int;
-    // assert(index >= 0 && index < platforms.length, " invalid platform index")
+    // assert(index >= 0 && index < platforms.length, " invalid platform index");
   }
   return cast(void*)platforms[index];
 }
@@ -303,13 +308,19 @@ auto Set_Current_Device(CLPlatformID platform_id) {
 }
 
 void Initialize ( ) {
+  writeln("det load");
   DerelictCL.load();
+  writeln("det platform");
   auto platform_id = Set_Current_Platform();
+  writeln("det device id");
   auto device_id = Set_Current_Device(platform_id);
+  writeln("det reload");
   DerelictCL.reload(RCL_Version(platform_id));
   // DerelictCL.loadEXT(platform_id);
+  writeln("det device");
   device = new Device(platform_id, device_id);
   // writeln(RDevice_Info(device_id));
+  writeln("done init");
 }
 auto Compile(string source) {
   return new OpenCLProgram(source);

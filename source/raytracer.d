@@ -56,13 +56,14 @@ void Initialize ( ){
   glGenTextures(1, &texture);
   import gl_renderer;
   GL_Renderer_Initialize();
+  writeln("done with renderer");
 
 
   // --- kernel debug print ---
 }
 
 void Remove ( ) {
-  program.Clean_Up();
+  if ( program ) program.Clean_Up();
 }
 
 bool Should_Update ( float timer ) {
