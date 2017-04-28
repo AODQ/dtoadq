@@ -24,6 +24,7 @@ GLFWwindow* Init ( ) {
 	glfwInit();
 
   auto window = glfwCreateWindow(Win_dim, Win_dim, "Raytracer", null, null);
+  glfwSetWindowPos(window, -5, 2);
 
 	glfwMakeContextCurrent(window);
   DerelictGL3.reload();
@@ -45,7 +46,7 @@ void Update ( ref float[3] clear_colour ) {
   igImplGlfwGL3_NewFrame();
 
   // -- base imgui window --
-  import gui;
+  import gui.gui;
   igColorEdit3("background colour", clear_colour);
   igText("FPS: %.3f ms/frame (%.1f FPS)", 1000.0f / igGetIO().Framerate,
                                                     igGetIO().Framerate);

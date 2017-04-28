@@ -1,4 +1,4 @@
-module gui;
+module gui.gui;
 import globals;
 import derelict.imgui.imgui;
 import scene;
@@ -30,8 +30,15 @@ bool Imgui_Render ( ref Material[] materials, ref Camera camera ) @trusted {
   import functional;
   igBegin("Camera", &closecam);
   gdText("Position ", camera.position[0..3]);
-  gdText("Angle    ", camera.lookat[0..3].map!(n => cast(int)(n*1000.0f)/1000.0f).array);
+  gdText("Angle    ", camera.lookat[0..3]
+                            .map!(n => cast(int)(n*100.0f)/100.0f));
   igEnd();
+
+
+  bool menuthingasdf = true;
+  import gui.nodes;
+  Show_Example_Node_Graph(&menuthingasdf);
+
   return change;
 }
 
@@ -58,12 +65,34 @@ bool gdSliderNorm(T...)(T t, ref float f) {
 bool gdNewWindow(T...)(T id) {
   bool t = true;
   igBegin(Accumulator(id).toStringz, &t);
-  writeln("STATUS ", t);
   return t;
 }
 
 void gdInputText(T...)(T t, char* input_ptr, size_t input_length) {
   igInputText(t.Accumulator.toStringz, input_ptr, input_length, 0);
+}
+
+auto gdCalcTextSize ( string str ) {
+  // -- The igCalcTextSize function call wasn't working so i just implemented
+  //    it myself rather boring with cimgui again ... --
+  return ImVec2(str.length*13, 14);
+}
+
+auto gdRMousePos ( ) {
+  ImVec2 vec;
+  igGetMousePos(&vec);
+  return vec;
+}
+
+auto gdRMouseDelta ( ) {
+  ImVec2 vec;
+  igGetMouseDragDelta(&vec, 0, 1.0f);
+  return vec;
+}
+
+auto gdMenuItem(string name, string shortcut = "", bool selected = false,
+                bool enabled = true) {
+  return igMenuItem(name.toStringz, shortcut.toStringz, selected, enabled);
 }
 
 import opencl : cl_float4, To_CLFloat3;

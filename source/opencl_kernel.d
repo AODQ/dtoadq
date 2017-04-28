@@ -1,4 +1,5 @@
-module opencl_program; immutable(string) Test_raycast_string = q{
+module opencl_kernel; immutable(string) Test_raycast_string = q{
+#define MAX_DEPTH 512
 // -----------------------------------------------------------------------------
 // --------------- DEBUG -------------------------------------------------------
 bool Is_Debug_Print ( ) {
@@ -130,6 +131,7 @@ Ray New_Ray ( float3 o, float3 d ) {
 typedef struct T_IntersectionInfo {
   float dist;
   int material_index;
+  float3 origin, dir, normal;
 } IntersectionInfo;
 // -----------------------------------------------------------------------------
 // --------------- BRDF/BSDF FUNCTIONS -----------------------------------------
@@ -282,13 +284,27 @@ void Set_Map ( IntersectionInfo* pinfo, float dist, int mindex ) {
 }
 
 float sdSphere ( float3 p, float r ) { return length(p) - r; }
+float sdBox    ( float3 p, float3 b ) {
+  float3 d = fabs(p) - b;
+  return min(max(d.x, max(d.y, d.z)), 0.0f) + length(max(d, 0.0f));
+}
+float sdTorus  ( float3 p, float2 t ) {
+  float2 q = (float2)(length(p.xz) - t.x, p.y);
+  return length(q) - t.y;
+}
+
+float3 opRep ( float3 p, float3 c ) {
+  return fmod(p, c) - 0.5f*c;
+};
 
 IntersectionInfo Map ( float3 p, float time ) {
   IntersectionInfo info;
   info.dist = FLT_MAX;
 
-  Set_Map(&info, sdSphere(p + (float3)(0.0f, 1.0f, 2.0f), 1.0f), 0);
+  Set_Map(&info, sdSphere(p + (float3)(-4.0f, 1.0f, 2.0f), 1.0f), 0);
   Set_Map(&info, Boundary(p, 10.0f), 1);
+  Set_Map(&info,
+    sdTorus(opRep(p, (float3)(8.0f, 8.0f, 8.0f)), (float2)(3.0f, 0.5f)), 2);
 
   return info;
 }
@@ -354,104 +370,79 @@ IntersectionInfo March ( Ray ray, float time ) {
 }
 
 // uses cosine weight random hemisphere directions
-float3 Hemisphere_Direction ( float3 normal, __global RNG* rng ) {
+float3 Hemisphere_Direction ( __global RNG* rng, float3 normal ) {
   float u1 = Uniform(rng,  0.0f, 1.0f),
         u2 = Uniform(rng,  0.0f, 1.0f);
   float theta = acos(sqrt(1.0f - u1));
   float phi   = 2.0f*PI*u2;
 
-  float x = sin(theta)*cos(phi),
-        y = cos(theta),
-        z = sin(theta)*sin(phi);
+  float3 sdir = (fabs(normal.x) < 0.5f ? (float3)(1.0f, 0.0f, 0.0f) :
+                                         (float3)(0.0f, 1.0f, 0.0f));
+  float3 tdir = cross(normal, sdir);
 
-  float3 yvec = normal,
-         xvec = normal,
-         zvec;
+  return theta*cos(phi)*sdir + theta*sin(phi)*tdir + theta*normal;
+}
 
-  if (fabs(xvec.x)<=fabs(xvec.y) && fabs(xvec.x)<=fabs(xvec.z))
-      xvec.x = 1.0f;
-  else if (fabs(xvec.y)<=fabs(xvec.x) && fabs(xvec.y)<=fabs(xvec.z))
-      xvec.y = 1.0f;
-  else
-      xvec.z = 1.0f;
-  xvec = normalize(cross(xvec, y));
-  zvec = normalize(cross(xvec, y));
-  float3 dir = x*xvec + y*normal + z*zvec; // linear projection
-  return normalize(dir);
+float3 Hemisphere_Weighted_Direction ( __global RNG* rng, float3 normal, float weight ) {
+  float3 dir = Hemisphere_Direction(rng, normal);
+  return normalize(dir + normal*weight);
 }
 
 float3 Orient_Normal ( float3 normal, float3 direction ) {
   return normal * (dot(normal, direction) < 0.0f ? -1.0f : 1.0f);
 }
 
-float3 Raytrace ( Ray ray, __global Material* material, __global RNG* rng,
-                  float time ) {
-  float3 colour = (float3)(0.0f), weight = (float3)(1.0f);
+Ray TODO_BRDF_Reflect ( __global RNG* rng, Material material,
+                           const IntersectionInfo info) {
+  Ray rout;
+  if ( Uniform(rng, 0.0f, 1.0) > material.metallic ) {
+    // diffuse
+    rout.dir = normalize(Hemisphere_Direction(rng, info.normal));
+  } else {
+    // specular/transmission
+    float3 axis = Hemisphere_Weighted_Direction(rng, info.normal,
+                          material.specular);
+    if ( Uniform(rng, 0.0f, 1.0f) > material.anisotropic ) {
+      //reflect
+      rout.dir = normalize(info.dir - axis*dot(info.dir, axis)*2.0f);
+    } else {
+      //refract
+      // TODO ! !
+    }
+  }
+  rout.origin = info.origin + rout.dir*0.2f;
+  return rout;
+}
+
+float3 TODO_BRDF_Radiance ( Material material, float3 radiance ) {
+  return (radiance+material.emission)*material.base_colour;
+}
+
+float3 Raytrace ( __global RNG* rng, const __global Material* material,
+                  Ray ray, int* hit_materials, float time ) {
   int depth = 0;
-  bool hit = false, material_hit = false;
-  Material prev_material;
-  float3 prev_pos;
-  float3 cam_pos = ray.origin;
-  while ( ++ depth ) {
-    float depth_ratio = 1.0f-(1.0f/(float)(5 - depth));
-    if ( Uniform(rng, 0.0f, 1.0f) >= depth_ratio ) {
-      break;
-    }
+  Ray cray = ray;
+  float terminate = 1.0f;
+  // Trace a path from camera origin to some end
+  while ( depth < MAX_DEPTH && Uniform(rng, 0.0f, 1.0f) <= terminate ) {
     IntersectionInfo info = March(ray, time);
-    if ( info.dist < 0.0f ) {
-      colour = (float3)(0.0f);
-      printf("MISSED?!\n");
-      break;
-    }
-
-
-
-    // if ( m.emission > FLT_MIN ) { // EMISSIVE
-    //   float emittance = (m.emission/depth_ratio);
-    //   if ( !material_hit )
-    //     colour = (float3)(2.0f);
-    //   else {
-    //     colour = emittance * prev_material.base_colour;
-    //   // colour = emittance *
-    //   //   BRDF(
-    //   //     prev_pos, ray.origin, ray.origin + ray.dir*info.dist,
-    //   //     &prev_material, time
-    //   //   )
-    //   // ;
-    //   }
-    //   hit = true;
-    //   break;
-    // }
-
-    Material m = *(material + info.material_index);
-    float3 pos = ray.origin + ray.dir*info.dist;
-    float3 normal = Normal(pos, time);
-    float3 ro = ray.dir*-1.0f;
-    float3 onorm = Orient_Normal(normal, ro);
-    ray.origin = pos;
-    ray.dir = Hemisphere_Direction(normal, rng);
-    ray.origin += ray.dir*0.02f;
-
-    colour = m.base_colour;
-
-    if ( m.emission > FLT_MIN ) {
-      hit = true;
-      break;
-    }
-
-    // material_hit = true;
-    // prev_pos = ray.origin + ray.dir*info.dist;
-    // prev_material = m;
-    // weight *= m.base_colour;
-    // ray.origin = prev_pos;
-    // ray.dir = Hemisphere_Direction(Normal(prev_pos, time), rng);
-    // ray.origin += ray.dir*0.2f;
+    hit_materials[depth] = info.material_index;
+    ++ depth;
+    info.origin = ray.origin + ray.dir*info.dist;
+    info.normal = Normal(info.origin, time);
+    info.dir = ray.dir;
+    Material mat = material[info.material_index];
+    ray = TODO_BRDF_Reflect(rng, mat, info);
+    terminate -= 0.1f + mat.emission; // TODO, fix me!
   }
 
-  if ( hit ) {
-    return colour;
+  // Now we have a path, so we calculate the radiance from the light source
+  float3 radiance = (float3)(0.0f, 0.0f, 0.0f);
+  for ( int it = depth-1; it >= 0; -- it ) {
+    radiance = TODO_BRDF_Radiance(material[hit_materials[it]], radiance);
+    // [radiance *= ; TODO
   }
-  return (float3)(-1.0f);
+  return radiance;
 }
 // -----------------------------------------------------------------------------
 // --------------- CAMERA ------------------------------------------------------
@@ -461,9 +452,7 @@ Ray Camera_Ray(__global RNG* rng, __global Camera* camera, float time) {
 
   float2 mouse_pos = camera->lookat.xy;
 
-  float2 puv = (float2)(Uniform(rng, -0.5f, 0.5f),
-                        Uniform(rng, -0.5f, 0.5f));
-  puv = -1.0f + 2.0f * ((coord + puv)/resolution);
+  float2 puv = -1.0f + 2.0f * (coord/resolution);
 
   float input_angle = PI - 2.0f*PI*mouse_pos.x;
   float3 cam_pos = camera->position;
@@ -478,9 +467,10 @@ Ray Camera_Ray(__global RNG* rng, __global Camera* camera, float time) {
 
   return New_Ray(cam_pos, ray_dir);
 }
+
 // -----------------------------------------------------------------------------
 // --------------- KERNEL ------------------------------------------------------
-__constant int SPP = 64;
+__constant int SPP = 128;
 __kernel void Kernel_Raycast(
         __write_only image2d_t output_image,
         __read_only  image2d_t input_image,
@@ -494,21 +484,21 @@ __kernel void Kernel_Raycast(
   //    (counter is stored in alpha channel)
   float4 old_pixel = read_imagef(input_image, out);
   uchar c = (uchar)old_pixel.w;
-  if ( c >= SPP ) return;
-  // -- set up camera and trace ray
-  Ray ray = Camera_Ray(rng, camera, *time_ptr);
-  float3 colour = Raytrace(ray, material, rng, *time_ptr);
-  // -- post effects --[B
-  if ( colour.x > 0.0f ) {
-    float gamma = 2.2f;
-    colour = pow(colour, (float3)(2.0f/gamma));
-    // colour = mix(colour, old_colour.xyz, 1.0f/c);
-    // (old*counter + new)/(1+counter)
-    colour = colour/(float)SPP;
-    // if ( c != 0 )
-    //   colour = (old_colour.xyz*c + colour)/(c + 1);
-    write_imagef(output_image, out, (float4)(colour, (float)(c+1)));
+  if ( c >= SPP ) {
+    return;
   }
+  // -- set up camera and stack
+  int hit_objects[MAX_DEPTH];
+
+  // 50 samples . . .
+  float3 result = (float3)(0.0f, 0.0f, 0.0f);
+  float time = *time_ptr;
+  Ray ray = Camera_Ray(rng, camera, *time_ptr);
+  result += Raytrace(rng, material, ray, hit_objects, time);
+
+  old_pixel += (float4)(result, 1.0f);
+
+  write_imagef(output_image, out, old_pixel);
 
 
   // -- SUN GLARE :-) --

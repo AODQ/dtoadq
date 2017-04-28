@@ -138,6 +138,7 @@ public:
     mem_objects ~= image.cl_handle;
     CLAssert(err, "Creating image ");
     image.data.length = width*height*4;
+    {import functional; image.data.each!((ref n) => n = 0.0f);}
     CLAssert(clSetKernelArg(kernel, param_count, CLMem.sizeof,&image.cl_handle),
              "clSetKernelArg");
     image.index = param_count;

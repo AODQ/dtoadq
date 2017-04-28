@@ -1,6 +1,6 @@
 module raytracer;
 import opencl;
-import opencl_program : Test_raycast_string;
+import opencl_kernel : Test_raycast_string;
 import globals;
 import core.time : MonoTime;
 import scene;
@@ -35,7 +35,7 @@ void Initialize ( ){
   opencl.Initialize();
   // --- variable init ---
   auto rng = Generate_New_RNG();
-  material = [ Default_Material(), Default_Material() ];
+  material = [ Default_Material(), Default_Material(), Default_Material() ];
   auto camera = Construct_Camera([1.0f, 0.0f,  0.0f], [ 0.0f, 0.0f, -1.0f],
                                                 [Img_dim, Img_dim]);
   // --- kernel init ---
@@ -129,7 +129,7 @@ void Update ( float timer ) {
     program.Read_Image(img_buffer_write);
   updated_last_frame = false;
   Render();
-  import gui;
+  import gui.gui;
   bool material_changed = Imgui_Render ( material, camera_buffer.data[0] );
   bool reset_img_buffers = false;
   if ( !timer.Should_Update ) return;
@@ -171,7 +171,7 @@ void Update ( float timer ) {
   // --- check if the image needs to be reset ---
   if ( reset_img_buffers ) {
     import functional;
-    img_buffer_write.data.each!((ref n) => n = 0.0f);
+    {import functional; img_buffer_write.data.each!((ref n) => n = 0.0f);}
     program.Write(img_buffer_write);
     // again, no need to write to read as it's done directly after
   }
