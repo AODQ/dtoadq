@@ -121,6 +121,7 @@ Node Create_Node ( ImVec2 origin, inout NodeType node_type ) {
 
   ImVec2 title_size = gdCalcTextSize(node.name);
 
+
   title_size.y *= 3;
 
   node.input_connections  = Setup_Connections(node_type.input_connections);

@@ -75,10 +75,6 @@ void main() {
 
   float[3] clear_colour = [0.1f, 0.1f, 0.1f];
 
-  import gui.nodes;
-  New_Node(ImVec2(200.0, 200.0), "Add");
-  New_Node(ImVec2(500.0, 200.0), "Sub");
-
   while ( !glfwWindowShouldClose(window) && running ) {
     glClearColor(clear_colour[0], clear_colour[1], clear_colour[2], 0);
     glClear(GL_COLOR_BUFFER_BIT);

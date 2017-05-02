@@ -36,8 +36,8 @@ bool Imgui_Render ( ref Material[] materials, ref Camera camera ) @trusted {
 
 
   bool menuthingasdf = true;
-  import gui.nodes;
-  Show_Example_Node_Graph(&menuthingasdf);
+  import gui.nodegraphrenderer;
+  Update_Node_Graph();
 
   return change;
 }

@@ -4,16 +4,12 @@ import derelict.imgui.imgui;
 import derelict.opengl3.gl3;
 import derelict.glfw3.glfw3;
 
-GLFWwindow* g_window;
-double       g_Time = 0.0f;
-bool[3]      g_MousePressed;
-float        g_MouseWheel = 0.0f;
-GLuint       g_FontTexture = 0;
-int          g_ShaderHandle = 0, g_VertHandle = 0, g_FragHandle = 0;
-int          g_AttribLocationTex = 0, g_AttribLocationProjMtx = 0;
-int          g_AttribLocationPosition = 0, g_AttribLocationUV = 0,
-             g_AttribLocationColor = 0;
-uint         g_VboHandle, g_VaoHandle, g_ElementsHandle;
+GLFWwindow* g_window; double g_Time = 0.0f; bool[3] g_MousePressed; float
+g_MouseWheel = 0.0f; GLuint g_FontTexture = 0; int g_ShaderHandle = 0,
+g_VertHandle = 0, g_FragHandle = 0; int g_AttribLocationTex = 0,
+g_AttribLocationProjMtx = 0; int g_AttribLocationPosition = 0,
+g_AttribLocationUV = 0, g_AttribLocationColor = 0; uint g_VboHandle,
+g_VaoHandle, g_ElementsHandle;
 
 extern(C) nothrow void igImplGlfwGL3_RenderDrawLists(ImDrawData* data)
 {

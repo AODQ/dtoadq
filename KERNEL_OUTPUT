@@ -1,4 +1,4 @@
-module opencl_kernel; immutable(string) Test_pathtrace_string = q{
+
 #define MAX_DEPTH 128
 // -----------------------------------------------------------------------------
 // --------------- DEBUG -------------------------------------------------------
@@ -637,4 +637,4 @@ __kernel void Kernel_Pathtrace (
   //   colour = glare/(float)SPP;
   //   write_imagef(output_image, out, (float4)(colour, 1.0f));
   // }
-}};
+}

@@ -1,6 +1,6 @@
 module raytracer;
 import opencl;
-import opencl_kernel : Test_raycast_string;
+import opencl_kernel : Test_pathtrace_string;
 import globals;
 import core.time : MonoTime;
 import scene;
@@ -35,12 +35,35 @@ void Initialize ( ){
   opencl.Initialize();
   // --- variable init ---
   auto rng = Generate_New_RNG();
-  material = [ Default_Material(), Default_Material(), Default_Material() ];
   auto camera = Construct_Camera([1.0f, 0.0f,  0.0f], [ 0.0f, 0.0f, -1.0f],
                                                 [Img_dim, Img_dim]);
   // --- kernel init ---
-  program = Compile(Test_raycast_string);
-  program.Set_Kernel("Kernel_Raycast");
+  static import std.file;
+  writeln("FORMAT STR");
+  auto tstr = std.file.read("testmap.cl").to!string;
+  import functional;
+  string mapfunc;
+  string[] material_str_list;
+  bool hit;
+  foreach ( i; tstr.splitLines() ) {
+    writeln("`", i, "` == `-MATERIALS` ?");
+    if ( i == "-MATERIALS" ) {
+      hit = true;
+      continue;
+    }
+    if ( hit ) material_str_list ~= i;
+    else       mapfunc           ~= i;
+  }
+  writeln("MAPFUNC: ", mapfunc);
+  writeln("\n\nmaterial list: ", material_str_list);
+  foreach ( m; material_str_list ) {
+    float[] fvals = m.split[1 .. $].map!(to!float).array;
+    material ~= Create_Material(fvals);
+  }
+  auto str = Test_pathtrace_string;//.format(mapfunc);
+  std.file.write("KERNEL_OUTPUT", str);
+  program = Compile(str);
+  program.Set_Kernel("Kernel_Pathtrace");
 
   // --- parameter buffer init ---
   auto RO = BufferType.read_only, WO = BufferType.write_only;
@@ -172,7 +195,9 @@ void Update ( float timer ) {
   // --- check if the image needs to be reset ---
   if ( reset_img_buffers ) {
     import functional;
-    {import functional; img_buffer_write.data.each!((ref n) => n = 0.0f);}
+    // {import functional; img_buffer_write.data.each!((ref n) => n = 0.0f);}
+    for ( int i = 3; i < img_buffer_write.data.length; i += 4 )
+      img_buffer_write.data[i] = 1.0f;
     program.Write(img_buffer_write);
     // again, no need to write to read as it's done directly after
   }

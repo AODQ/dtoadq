@@ -30,6 +30,23 @@ auto Default_Material ( ) {
   );
 }
 
+auto Create_Material ( float[] vals ) {
+  return Material(
+    To_CLFloat3(cast(float[3])vals[0..3]),
+    vals[ 3],
+    vals[ 4],
+    vals[ 5],
+    vals[ 6],
+    vals[ 7],
+    vals[ 8],
+    vals[ 9],
+    vals[10],
+    vals[11],
+    vals[12],
+    vals[13],
+  );
+}
+
 struct Camera {
   cl_float3 position, lookat, up;
   cl_int2 dimensions;
