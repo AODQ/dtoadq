@@ -413,7 +413,7 @@ typedef struct T_RayInfo {
 } RayInfo;
 
 float3 Jitter ( float3 d, float phi, float sina, float cosa ) {
-  float3 w = normalize(d), u = normalize(cross(w.yxz, w)), v = cross(w, u);
+  float3 w = normalize(d), u = normalize(cross(w.yzx, w)), v = cross(w, u);
   return (u*cos(phi) + v*sin(phi))*sina + w*cosa;
 }
 
@@ -446,7 +446,16 @@ RayInfo Raytrace ( RNG* rng, const __global Material* material, Ray ray ) {
       // d phi sina cosa
       float3 l = Jitter(l0, 2.0f*PI*Uniform_Sample(rng),
                         sqrt(1.0f - cosa*cosa), cosa);
+    if ( Is_Debug_Print() ) {
+      printf("L <%f, %f, %f>\n",
+        l.x,
+        l.y,
+        l.z);
+    }
       int light_id = (int)(March((int)(marchinfo.y), New_Ray(l, info.origin)).y);
+    if ( Is_Debug_Print() ) {
+      printf("light id %d\n", light_id);
+    }
       if ( light_id == 16 ) {
         float omega = 2.0f*PI*(1.0f - cosa_max);
         direct_lighting += (material[light_id].emission*
@@ -465,7 +474,7 @@ RayInfo Raytrace ( RNG* rng, const __global Material* material, Ray ray ) {
 
     // calculate indirect lighting
     if ( info.material.emission > 0.01f ) {
-      radiance = info.material.emission*weight;
+      // radiance = info.material.emission*weight;
       hit = true;
       break;
     }
