@@ -8,4 +8,5 @@ Procedurally generate textures
 Bump mapping with textures
 Bidirectional path tracing
 CMI (or whatever it was)
+instead of avoiding materials, avoid ID
 

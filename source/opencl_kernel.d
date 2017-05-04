@@ -1,5 +1,5 @@
 module opencl_kernel; immutable(string) Test_pathtrace_string = q{
-#define MAX_DEPTH 128
+#define MAX_DEPTH 4
 // -----------------------------------------------------------------------------
 // --------------- DEBUG -------------------------------------------------------
 bool Is_Debug_Print ( ) {
@@ -41,7 +41,7 @@ float Uniform(RNG* rng, const float min, const float max) {
   return min + ((float)RNG_Next(rng) / (float)(ULONG_MAX/(max-min)));
 }
 
-float UniformSample ( RNG* rng ) { return Uniform(rng, 0.0f, 1.0f); }
+float Uniform_Sample ( RNG* rng ) { return Uniform(rng, 0.0f, 1.0f); }
 
 float3 Uniform_Float3(RNG* rng, const float min, const float max) {
   return (float3)(
@@ -129,103 +129,6 @@ typedef struct T_IntersectionInfo {
   Material material;
   float3 origin, dir, normal;
 } IntersectionInfo;
-// -----------------------------------------------------------------------------
-// --------------- BRDF/BSDF FUNCTIONS -----------------------------------------
-float Schlick_Fresnel ( float u ) {
-  return pown(clamp(1.0f - u, 0.0f, 1.0f), 5);
-}
-
-float GTR1 ( float NdotH, float a ) {
-  if ( a >= 1.0f ) return 1.0f/PI;
-  float a2 = a * a;
-  float t = 1.0f + (a2 - 1.0f)*NdotH*NdotH;
-  return (a2 - 1.0f)/(PI*log(a2)*t);
-}
-
-float GTR2 ( float NdotH, float a ) {
-  float a2 = a*a;
-  float t = 1.0f + (a2 - 1.0f)*NdotH*NdotH;
-  return a2/(PI*t*t);
-}
-
-float GTR2_Aniso ( float NdotH, float HdotX, float HdotY, float ax, float ay ) {
-  return 1.0f / ( PI * ax * ay * sqr(sqr(HdotX/ax) + sqr(HdotY/ay)
-                                     + NdotH*NdotH));
-}
-
-float SmithG_GGX ( float NdotV, float alphaG ) {
-  float a = alphaG*alphaG;
-  float b = NdotV*NdotV;
-  return 1.0f / (NdotV + sqrt(a + b - a*b));
-}
-
-float SmithG_GGX_Aniso ( float NdotV, float VdotX, float VdotY,
-                         float ax, float ay ) {
-  return 1.0f / (NdotV + sqrt(sqr(VdotX*ax) + sqr(VdotY*ay) + sqr(NdotV) ));
-}
-
-
-float3 Gamma_Correction ( float3 v ) {
-  return pow(v, 2.2f);
-}
-
-
-float3 Disney_BRDF ( float3  L, float3 V, float3 N, float3 X, float3 Y,
-                     Material* m ) {
-  float NdotL = dot(N, L),
-        NdotV = dot(N, V);
-  if ( NdotL < 0.0f || NdotV < 0.0f ) return (float3)(0.0f);
-
-
-  float3 H = normalize(L+V);
-  float NdotH = dot(N, H),
-        LdotH = dot(L, H);
-
-  float3 Cdlin = Gamma_Correction(m->base_colour);
-  float Cdlum = 0.3f*Cdlin.x + 0.6f*Cdlin.y + 0.1f*Cdlin.z; // emission approx
-  // normalize lum to isolate hue+sat
-  float3 Ctint = Cdlum > 0.0f ? Cdlin/Cdlum : (float3)(1.0f);
-  float3 Cspec0 = mix(m->specular*0.08f*mix((float3)(1.0f), Ctint,
-                                            m->specular_tint),
-                      Cdlin, m->metallic);
-  float3 Csheen = mix((float3)(1.0f), Ctint, m->sheen_tint);
-
-
-  // Diffuse fresnel - 1 at normal incidence to 0.5f at grazing, mix in diffuse
-  // retro reflection based on rougness
-  float FL = Schlick_Fresnel(NdotL), FV = Schlick_Fresnel(NdotV);
-  float Fd90 = 0.5f + 2.0f*LdotH*LdotH*m->roughness;
-  float Fd = mix(1.0f, Fd90, FL) * mix(1.0f, Fd90, FV);
-
-  // based on hanrahan krueger brdf approximation of isotropic bssrdf
-  // 1.25f scale is to preserve albedo
-  // fss90 used to flatten retroreflection based on roughness
-  float Fss90 = LdotH*LdotH*m->roughness;
-  float Fss = mix(1.0f, Fss90, FL) * mix(1.0f, Fss90, FV);
-  float ss = 1.25f * (Fss * (1.0f / (NdotL + NdotV) - 0.5f) + 0.5f);
-
-  // specular
-  float aspect = sqrt(1.0f - m->anisotropic*0.9f);
-  float ax = fmax(.001f, sqr(m->roughness)/aspect);
-  float ay = fmax(.001f, sqr(m->roughness)*aspect);
-  float Ds = GTR2_Aniso(NdotH, dot(H, X), dot(H, Y), ax, ay);
-  float FH = Schlick_Fresnel(LdotH);
-  float3 Fs = mix(Cspec0, (float3)(1.0f), FH);
-  float Gs  = SmithG_GGX_Aniso(NdotL, dot(L, X), dot(L, Y), ax, ay);
-        Gs *= SmithG_GGX_Aniso(NdotL, dot(V, X), dot(V, Y), ax, ay);
-
-  // sheen
-  float3 Fsheen = FH*m->sheen*Csheen;
-
-  // clearcoat (ior = 1.5f -> F0 = 0.05f)
-  float Dr = GTR1(NdotH, mix(0.1f, 0.001f, m->clearcoat_gloss));
-  float Fr = mix(0.04f, 1.0f, FH);
-  float Gr = SmithG_GGX(NdotL, 0.25f) * SmithG_GGX(NdotV, 0.25f);
-
-  return ((1.0f/PI) * mix(Fd, ss, m->subsurface)*Cdlin + Fsheen) *
-         (1.0f-m->metallic) + Gs*Fs*Ds + 0.25f*m->clearcoat*Gr*Fr*Dr;
-}
-
 // -----------------------------------------------------------------------------
 // --------------- MAP GEOMETRY FUNCTIONS --------------------------------------
 float noise ( float2 n ) {
@@ -349,8 +252,9 @@ float opS( float d1, float d2 ) {
     return fmax(-d2,d1);
 }
 
-float2 opU( float2 d1, float2 d2 ) {
-	return (d1.x<d2.x) ? d1 : d2;
+float2 opU( int avoid, float2 d1, float2 d2 ) {
+  if ( d2.y == avoid ) return d1;
+  return (d1.x<d2.x) ? d1 : d2;
 }
 
 float3 opRep( float3 p, float3 c ) {
@@ -370,39 +274,26 @@ float3 opTwist( float3 p ) {
 
 // -----------------------------------------------------------------------------
 // --------------- MAP ---------------------------------------------------------
-float2 Map ( float3 p ) {
+float2 Map ( int a, float3 p ) {
   // -- spheres --
-  float2 res= (float2)(sdSphere(p-(float3)( 0.2f,-0.95f,-1.6f),0.30f),1.0f);
-  res=opU(res,(float2)(sdBumpSphere(p-(float3)( 0.0f,-0.85f, 0.0f),0.25f),2.0f));
-  res=opU(res,(float2)(sdSphere(p-(float3)(-1.2f,-0.85f, 1.2f),0.55f),3.0f));
-  res=opU(res,(float2)(sdCylinder(p-(float3)( 0.0f, 0.0f,  0.0f),
+  float2 res = (float2)(FLT_MAX, -1);
+  res=opU(a,res,(float2)(sdSphere(p-(float3)( 0.2f,-0.95f,-1.6f),0.30f),1.0f));
+  res=opU(a,res,(float2)(sdBumpSphere(p-(float3)( 0.0f,-0.85f, 0.0f),0.25f),2.0f));
+  res=opU(a,res,(float2)(sdSphere(p-(float3)(-1.2f,-0.85f, 1.2f),0.55f),3.0f));
+  res=opU(a,res,(float2)(sdCylinder(p-(float3)( 0.0f, 0.0f,  0.0f),
                                     (float2)(0.3f, 0.4f)), 4.0f));
   // // -- walls --
-  res=opU(res,(float2)(sdPlane(p, (float3)( 0.0f,  0.0f, -1.0f),12.0f),10.0f));
-  res=opU(res,(float2)(sdPlane(p, (float3)( 1.0f,  0.0f,  0.0f),12.0f),11.0f));
-  res=opU(res,(float2)(sdPlane(p, (float3)( 0.0f,  1.0f,  0.0f),12.0f),12.0f));
-  res=opU(res,(float2)(sdPlane(p, (float3)( 0.0f,  0.0f,  1.0f),12.0f),13.0f));
-  res=opU(res,(float2)(sdPlane(p, (float3)(-1.0f,  0.0f,  0.0f),12.0f),14.0f));
-  res=opU(res,(float2)(sdPlane(p, (float3)( 0.0f, -1.0f,  0.0f),12.0f),15.0f));
-  // // --- lights --
-  // res=opU(res,(float2)(sdSphere(p-(float3)(-0.6f, -0.2f,  -3.0f), 1.3f),16.0f));
-  // res=opU(res,(float2)(sdSphere(p-(float3)( 1.8f,  1.8f,   1.9f), 0.8f),17.0f));
-//res=opU(res,(float2)(sdTorus(p-(float3)(0.0f,0.25f,1.0f),(float2)(0.20f,0.05f)),4.0f));
-//res=opU(res,(float2)(sdCapsule(p-(float3)(-1.3f,0.10f,-0.1f),(float3)(-0.8f,0.50f,0.2f),0.1f),4.0f));
-//res=opU(res,(float2)(sdTriPrism(p-(float3)(-1.0f,0.25f,-1.0f),(float2)(0.25f,0.05f)),5.0f));
-//res=opU(res,(float2)(sdCylinder(p-(float3)(1.0f,0.30f,-1.0f),(float2)(0.1f,0.2f)),6.0f));
-//res=opU(res,(float2)(sdCone(p-(float3)(0.0f,0.50f,-1.0f),(float3)(0.8f,0.6f,0.3f)),7.0f));
-//res=opU(res,(float2)(sdTorus82(p-(float3)(0.0f,0.25f,2.0f),(float2)(0.20f,0.05f)),8.0f));
-//res=opU(res,(float2)(sdTorus88(p-(float3)(-1.0f,0.25f,2.0f),(float2)(0.20f,0.05f)),9.0f));
-//res=opU(res,(float2)(sdCylinder6(p-(float3)(1.0f,0.30f,2.0f),(float2)(0.1f,0.2f)),10.0f));
-//res=opU(res,(float2)(sdHexPrism(p-(float3)(-1.0f,0.20f,1.0f),(float2)(0.25f,0.05f)),11.0f));
-//res=opU(res,(float2)(sdPryamid4(p-(float3)(-1.0f,0.15f,-2.0f),(float3)(0.8f,0.6f,0.25f)),12.0f));
-//res=opU(res,(float2)(0.5f*sdTorus(opTwist(p-(float3)(-2.0f,0.25f,2.0f)),(float2)(0.20f,0.05f)),13.0f));
-//res=opU(res,(float2)(sdConeSection(p-(float3)(0.0f,0.35f,-2.0f),0.15f,0.2f,0.1f),14.0f));
-//res=opU(res,(float2)(sdEllipsoid(p-(float3)(1.0f,0.35f,-2.0f),(float3)(0.15f,0.2f,0.05f)),15.0f));
-
+  res=opU(a, res,(float2)(sdPlane(p, (float3)( 0.0f,  0.0f, -1.0f),12.0f),10.0f));
+  res=opU(a, res,(float2)(sdPlane(p, (float3)( 1.0f,  0.0f,  0.0f),12.0f),11.0f));
+  res=opU(a, res,(float2)(sdPlane(p, (float3)( 0.0f,  1.0f,  0.0f),12.0f),12.0f));
+  res=opU(a, res,(float2)(sdPlane(p, (float3)( 0.0f,  0.0f,  1.0f),12.0f),13.0f));
+  res=opU(a, res,(float2)(sdPlane(p, (float3)(-1.0f,  0.0f,  0.0f),12.0f),14.0f));
+  res=opU(a, res,(float2)(sdPlane(p, (float3)( 0.0f, -1.0f,  0.0f),12.0f),15.0f));
+  // --- lights --
+  res=opU(a,res,(float2)(sdSphere(p-(float3)( 0.0f, 12.0f, 0.0f),1.00f),16.0f));
   return res;
 }
+
 // /** MAP INSERTION POINT: */ %s /** <- */
 // -----------------------------------------------------------------------------
 // --------------- GRAPHIC FUNCS THAT NEED MAP ---------------------------------
@@ -415,9 +306,9 @@ float3 Normal ( float3 p ) {
                Z = (float3)(0.0f, 0.0f, Delta);
 
   return (float3)(
-    (Map(p + X).x - Map(p - X).x)/Delta2,
-    (Map(p + Y).x - Map(p - Y).x)/Delta2,
-    (Map(p + Z).x - Map(p - Z).x)/Delta2
+    (Map(-1, p + X).x - Map(-1, p - X).x)/Delta2,
+    (Map(-1, p + Y).x - Map(-1, p - Y).x)/Delta2,
+    (Map(-1, p + Z).x - Map(-1, p - Z).x)/Delta2
   );
 }
 
@@ -432,33 +323,31 @@ float3 Tangent ( float3 normal ) {
   return t2;
 }
 
-float3 BRDF ( float3 pos, float3 cam, float3 lpos, Material* material ) {
-  float3 N         = normalize(Normal(pos)),
-         L         = normalize(lpos - pos),
-         V         = normalize(cam - pos),
-         tangent   = normalize(cross(Tangent(N), N)),
-         bitangent = normalize(cross(N, tangent));
-  float3 result = Disney_BRDF(L, V, N, tangent, bitangent, material);
+// float3 BRDF ( float3 pos, float3 cam, float3 lpos, Material* material ) {
+//   float3 N         = normalize(Normal(pos)),
+//          L         = normalize(lpos - pos),
+//          V         = normalize(cam - pos),
+//          tangent   = normalize(cross(Tangent(N), N)),
+//          bitangent = normalize(cross(N, tangent));
+//   float3 result = Disney_BRDF(L, V, N, tangent, bitangent, material);
 
-  result *= dot(N, L);
-  return result;
-}
+//   result *= dot(N, L);
+//   return result;
+// }
 
 // -----------------------------------------------------------------------------
 // --------------- RAYTRACING/MARCH --------------------------------------------
-float2 March ( Ray ray ) {
+float2 March ( int avoid, Ray ray ) {
   const float max_dist = 8.0f;
   float distance = 0.0f;
   float2 t_info;
   for ( int i = 0; i < 128; ++ i ) {
-    t_info = Map(ray.origin + ray.dir*distance);
+    t_info = Map(avoid, ray.origin + ray.dir*distance);
     if ( t_info.x < 0.01f || t_info.x > max_dist ) break;
     distance += t_info.x;
   }
   if ( t_info.x > max_dist ) {
-    t_info.x = 8.0f;
-    t_info.y = 0.0f;
-    // t_info.x = -1.0f;
+    t_info.x = -1.0f;
     return t_info;
   }
   t_info.x = distance;
@@ -468,8 +357,8 @@ float2 March ( Ray ray ) {
 // uses cosine weight random hemisphere directions
 // thanks to embree
 float3 Hemisphere_Direction ( RNG* rng, float3 normal ) {
-  const float phi = 2.0f*PI*UniformSample(rng),
-              vv  = 2.0f*(UniformSample(rng) - 0.5f);
+  const float phi = 2.0f*PI*Uniform_Sample(rng),
+              vv  = 2.0f*(Uniform_Sample(rng) - 0.5f);
   const float cos_theta = sign(vv)*sqrt(fabs(vv)),
               sin_theta = sqrt(fmax(0.0f, 1.0f - (cos_theta*cos_theta)));
   return (float3)(cos(phi)*sin_theta, sin(phi)*sin_theta, cos_theta);
@@ -511,8 +400,9 @@ Ray TODO_BRDF_Reflect ( RNG* rng, const IntersectionInfo* info) {
 
 float3 TODO_BRDF_Radiance ( float3 radiance, IntersectionInfo* info ){
   if ( info->material.metallic < 0.2f )
-    return (radiance+info->material.emission)*info->material.base_colour;
-            // cos(dot(info->normal, info->dir)/2.0f);
+    return info->material.base_colour;
+    // return (radiance+info->material.emission)*info->material.base_colour*PI;
+    //         // cos(dot(info->normal, info->dir)/2.0f);
   else
     return radiance*0.8f;
 }
@@ -522,37 +412,65 @@ typedef struct T_RayInfo {
   float3 colour;
 } RayInfo;
 
-RayInfo Raytrace ( RNG* rng, const __global Material* material, Ray ray,
-                  IntersectionInfo* hit_info ) {
+float3 Jitter ( float3 d, float phi, float sina, float cosa ) {
+  float3 w = normalize(d), u = normalize(cross(w.yxz, w)), v = cross(w, u);
+  return (u*cos(phi) + v*sin(phi))*sina + w*cosa;
+}
+
+RayInfo Raytrace ( RNG* rng, const __global Material* material, Ray ray ) {
   Ray cray = ray;
   // Trace a path from camera origin to some end
   int depth;
   bool hit = false;
+  float3 radiance = (float3)(0.0f),
+         weight   = (float3)(0.3f);
   for ( depth = 0; depth != MAX_DEPTH; ++ depth ) {
-    float2 marchinfo = March(ray);
+    float2 marchinfo = March(-1, ray);
+    // store info
     IntersectionInfo info;
     info.dist = marchinfo.x;
     info.dir = ray.dir;
     info.origin = ray.origin + ray.dir*info.dist;
     info.normal = normalize(Normal(info.origin));
     info.material = material[(int)(marchinfo.y)];
-    hit_info[depth] = info;
     ray = TODO_BRDF_Reflect(rng, &info);
-    if ( info.material.emission > 0.001f ) {
+    // calculate direct lighting
+
+    float3 direct_lighting = (float3)(0.0f);
+    // for loop here ...
+      float3 ori = (float3)(0.0f, 12.0f, 0.0f);
+      float  rad = 1.0;
+      float3 l0 = info.origin - ori;
+      float cosa_max = sqrt(1.0f - clamp((rad*rad)/dot(l0, l0), 0.0f, 1.0f)),
+            cosa     = mix(cosa_max, 1.0f, Uniform_Sample(rng));
+      // d phi sina cosa
+      float3 l = Jitter(l0, 2.0f*PI*Uniform_Sample(rng),
+                        sqrt(1.0f - cosa*cosa), cosa);
+      int light_id = (int)(March((int)(marchinfo.y), New_Ray(l, info.origin)).y);
+      if ( light_id == 16 ) {
+        float omega = 2.0f*PI*(1.0f - cosa_max);
+        direct_lighting += (material[light_id].emission*
+              clamp(dot(light_id, info.normal), 0.0f, 1.0f)*omega)/PI;
+      }
+    //
+    float E = 1.0f; // float(depth==0) ?
+    if ( Is_Debug_Print() ) {
+      printf("Direct lighting <%f, %f, %f>\n",
+        direct_lighting.x,
+        direct_lighting.y,
+        direct_lighting.z);
+    }
+    radiance += weight*info.material.emission*E +
+                radiance*info.material.base_colour*direct_lighting;
+
+    // calculate indirect lighting
+    if ( info.material.emission > 0.01f ) {
+      radiance = info.material.emission*weight;
       hit = true;
       break;
     }
   }
 
-  barrier(CLK_LOCAL_MEM_FENCE);
-
-  // Now we have a path, so we calculate the radiance from the light source
-  float3 radiance = (float3)(0.0f, 0.0f, 0.0f);
-  for ( int it = depth; it >= 0; -- it ) {
-    radiance = TODO_BRDF_Radiance(radiance, hit_info + it);
-  }
-
-  barrier(CLK_LOCAL_MEM_FENCE);
   RayInfo rinfo;
   rinfo.hit = hit;
   rinfo.colour = radiance;
@@ -600,41 +518,29 @@ __kernel void Kernel_Pathtrace (
   //    (counter is stored in alpha channel)
   float4 old_pixel = read_imagef(input_image, out);
   // -- set up camera and stack
-  IntersectionInfo hit_info[MAX_DEPTH];
+
+  if ( old_pixel.w < 1.0f ) {
+    old_pixel *= 0.2f;
+    old_pixel.w = 1.0f;
+    // old_pixel *= 1.5f;
+  }
 
   float time = *time_ptr;
   Ray ray = Camera_Ray(&rng, camera);
-  RayInfo result = Raytrace(&rng, material, ray, hit_info);
+  RayInfo result = Raytrace(&rng, material, ray);
 
-  if ( Is_Debug_Print() ) {
-    printf("W: %f\n", old_pixel.w);
-    printf("RESULT: <%f, %f, %f>\n", result.colour.x, result.colour.y,
-                                     result.colour.z);
-    printf("OLD:    <%f, %f, %f>\n", old_pixel.x, old_pixel.y, old_pixel.z);
-    printf("MIX:    %f\n", (old_pixel.w/(old_pixel.w+1.0f)));
-    printf("HIT:    %d\n", result.hit);
-  }
   if ( result.hit ) {
     old_pixel =
       (float4)(
         mix(
           result.colour,
           old_pixel.xyz,
-          (old_pixel.w/(old_pixel.w+5.1f))),
+          (old_pixel.w/(old_pixel.w+1.0f))),
         old_pixel.w+1.0f);
   }
 
-  barrier(CLK_GLOBAL_MEM_FENCE);
   write_imagef(output_image, out, old_pixel);
 
   if ( get_global_id(0) == 5 && get_global_id(1) == 5 )
     *rng_ptr = rng;
-
-  // -- SUN GLARE :-) --
-  // ray.dir += Uniform_Float3(rng, -2.5f, 2.5f);
-  // float3 glare = Raytrace(ray, material, rng, time);
-  // if ( glare.x > 1.5f ) {
-  //   colour = glare/(float)SPP;
-  //   write_imagef(output_image, out, (float4)(colour, 1.0f));
-  // }
 }};

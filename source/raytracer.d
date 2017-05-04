@@ -197,7 +197,7 @@ void Update ( float timer ) {
     import functional;
     // {import functional; img_buffer_write.data.each!((ref n) => n = 0.0f);}
     for ( int i = 3; i < img_buffer_write.data.length; i += 4 )
-      img_buffer_write.data[i] = 1.0f;
+      img_buffer_write.data[i] = 0.0f;
     program.Write(img_buffer_write);
     // again, no need to write to read as it's done directly after
   }
