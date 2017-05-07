@@ -1,5 +1,5 @@
 module opencl_kernel; immutable(string) Test_pathtrace_string = q{
-#define MAX_DEPTH 4
+#define MAX_DEPTH 16
 // -----------------------------------------------------------------------------
 // --------------- DEBUG -------------------------------------------------------
 bool Is_Debug_Print ( ) {
@@ -423,7 +423,7 @@ RayInfo Raytrace ( RNG* rng, const __global Material* material, Ray ray ) {
   int depth;
   bool hit = false;
   float3 radiance = (float3)(0.0f),
-         weight   = (float3)(0.3f);
+         weight   = (float3)(1.0f);
   for ( depth = 0; depth != MAX_DEPTH; ++ depth ) {
     float2 marchinfo = March(-1, ray);
     // store info
@@ -434,47 +434,15 @@ RayInfo Raytrace ( RNG* rng, const __global Material* material, Ray ray ) {
     info.normal = normalize(Normal(info.origin));
     info.material = material[(int)(marchinfo.y)];
     ray = TODO_BRDF_Reflect(rng, &info);
+
     // calculate direct lighting
 
-    float3 direct_lighting = (float3)(0.0f);
-    // for loop here ...
-      float3 ori = (float3)(0.0f, 12.0f, 0.0f);
-      float  rad = 1.0;
-      float3 l0 = info.origin - ori;
-      float cosa_max = sqrt(1.0f - clamp((rad*rad)/dot(l0, l0), 0.0f, 1.0f)),
-            cosa     = mix(cosa_max, 1.0f, Uniform_Sample(rng));
-      // d phi sina cosa
-      float3 l = Jitter(l0, 2.0f*PI*Uniform_Sample(rng),
-                        sqrt(1.0f - cosa*cosa), cosa);
-    if ( Is_Debug_Print() ) {
-      printf("L <%f, %f, %f>\n",
-        l.x,
-        l.y,
-        l.z);
-    }
-      int light_id = (int)(March((int)(marchinfo.y), New_Ray(l, info.origin)).y);
-    if ( Is_Debug_Print() ) {
-      printf("light id %d\n", light_id);
-    }
-      if ( light_id == 16 ) {
-        float omega = 2.0f*PI*(1.0f - cosa_max);
-        direct_lighting += (material[light_id].emission*
-              clamp(dot(light_id, info.normal), 0.0f, 1.0f)*omega)/PI;
-      }
-    //
     float E = 1.0f; // float(depth==0) ?
-    if ( Is_Debug_Print() ) {
-      printf("Direct lighting <%f, %f, %f>\n",
-        direct_lighting.x,
-        direct_lighting.y,
-        direct_lighting.z);
-    }
-    radiance += weight*info.material.emission*E +
-                radiance*info.material.base_colour*direct_lighting;
+    weight *= info.material.base_colour;
+    radiance += info.material.emission*weight;
 
     // calculate indirect lighting
     if ( info.material.emission > 0.01f ) {
-      // radiance = info.material.emission*weight;
       hit = true;
       break;
     }

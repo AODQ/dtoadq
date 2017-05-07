@@ -26,14 +26,20 @@ auto New_Node ( string name, float x, float y ) {
   New_Node(name, ImVec2(x, y));
 }
 
+auto Add_Connection ( NodeConnection connection ) {
+  connection.id = g_node_connections_counter;
+  g_node_connections[g_node_connections_counter] = connection;
+}
+
 auto Add (inout ImVec2 x, inout ImVec2 y) {return ImVec2(x.x + y.x, x.y + y.y);}
 auto Sub (inout ImVec2 x, inout ImVec2 y) {return ImVec2(x.x - y.x, x.y - y.y);}
 
 NodeConnection RHovering_Node ( ImVec2 offset, out ImVec2 origin ) {
+  writeln("Offset: ", offset);
   foreach ( ref node; g_nodes ) {
     ImVec2 node_origin = Add(node.origin, offset);
     foreach ( it, ref con; node.RConnection_Descs ) {
-      if ( !con.RHovering(offset) ) continue;
+      if ( !con.RHovering(Sub(node.ROrigin, offset)) ) continue;
       origin = Add(node_origin, con.ROrigin);
       return new NodeConnection(node.RID, cast(int)it);
     }
@@ -75,12 +81,25 @@ struct ConnectorBase(T) {
 
 enum ConnectionType { Input, Output };
 public class NodeConnection {
-  int in_node_id, out_node_id;
-  int in_subnode_id, out_subnode_id;
+  int in_node_id,    out_node_id,
+      in_subnode_id, out_subnode_id;
+  int id;
 
-  this ( int in_node_id_, int in_subnode_id_ ) {
-    in_node_id = in_node_id_;
-    in_subnode_id = in_subnode_id_;
+  void Set_In  ( int in_node_id_,  int in_subnode_id_ ) {
+    in_node_id   = in_node_id_;  in_subnode_id  = in_subnode_id_;
+  }
+
+  void Set_Out ( int out_node_id_, int out_subnode_id_ ) {
+    out_node_id  = out_node_id_; out_subnode_id = out_subnode_id_;
+  }
+
+  int RNode_ID (bool is_input) { return is_input ? in_node_id : out_node_id; }
+  int RSubnode_ID ( bool is_input ) {
+    return is_input ? in_subnode_id : out_subnode_id;
+  }
+
+  this ( int node_id_, int subnode_id_, bool is_input ) {
+    (is_input ? &Set_In : &Set_Out)(node_id_, subnode_id_);
   }
 }
 
@@ -127,8 +146,11 @@ public:
   auto ROutput_Connection_Descs ( ) inout {
     return subnode_data.type.subnode_descs.outputs;
   }
+  // returns array tuple [bool is_input, SubnodeType]
   auto RConnection_Descs ( ) inout {
-    return RInput_Connection_Descs ~ ROutput_Connection_Descs;
+    import functional;
+    return RInput_Connection_Descs .map!(n => [1, n]).array ~
+           ROutput_Connection_Descs.map!(n => [0, n]).array;
   }
   auto RSubnode_Data ( ) inout { return subnode_data; }
 }
@@ -163,12 +185,12 @@ class SubnodeData {
   static auto Create_Default_Data ( SubnodeDescription info ) {
     final switch ( info ) with ( SubnodeDescription ) {
       case Float3: case Colour: return Variant(gln.vec3(0.0f));
-      case Float2:              return Variant(gln.vec2(0.0f));
-      case Float:               return Variant(0.0f);
-      case Int: case Varying:   return Variant(cast(int)0);
-      case String:              return Variant("");
-      case Texture:             return Variant("N/A");
-      case BRDF:                return Variant("N/A");
+      case Float2:            return Variant(gln.vec2(0.0f));
+      case Float:             return Variant(0.0f);
+      case Int: case Varying: return Variant(cast(int)0);
+      case String:            return Variant("");
+      case Texture:           return Variant("N/A");
+      case BRDF:              return Variant("N/A");
     }
   }
 public:
@@ -201,6 +223,7 @@ struct SubnodeType {
 
   bool RHovering ( ImVec2 offset ) {
     auto p = Sub(gdRMousePos, Add(offset, ROrigin));
+    writeln("P: ", p);
     return (p.x*p.x + p.y*p.y) < (Node_slot_radius*Node_slot_radius);
   }
 }
