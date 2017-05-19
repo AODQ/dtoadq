@@ -5,88 +5,144 @@ import DragState = gui.dragstate;
 private:
 
 void Render_Lines ( ImDrawList* draw_list, ImVec2 offset ) {
-  foreach ( ref node; RNodes ) {
-    foreach ( it, ref subnode; node.RSubnode_Data.data.inputs ) {
-      // if ( subnode is null ) continue;
-      if ( subnode.type != SubnodeDataType.Connection ) continue;
-      auto connection = RNodeConnection(subnode.data.connection_id);
-      auto out_node = RNode(connection.out_node_id),
-           out_subnode_id = connection.out_subnode_id;
-      Draw_Hermite(draw_list,
-        Add(Add(offset, out_node.ROrigin), ImVec2(           2, 15+it*10)),
-        Add(Add(offset,     node.ROrigin), ImVec2(node.RSize.x, 15+it*10)));
-    }
+  foreach ( ref con; RNodeConnections ) {
+    auto in_node  = RNode(con.in_node_id),
+         out_node = RNode(con.out_node_id);
+    auto in_offset  = ImVec2(-8.0f, 25.0f + con.in_subnode_id*20.0f + 6.0f),
+         out_offset = ImVec2(out_node.RSize.x + 8.0f,
+                             25.0f + con.out_subnode_id*20.0f + 6.0f);
+    Draw_Hermite(draw_list,
+      Add(Add(offset, out_node.ROrigin), out_offset),
+      Add(Add(offset, in_node .ROrigin),  in_offset)
+    );
   }
 }
 
-void Update_Node ( ImDrawList* draw_list, ImVec2 offset, Node node,
+void Update_Node ( ImDrawList* draw_list, ImVec2 screen_offset, Node node,
                    ref int node_selected ) {
-  int node_hovered_in_scene = -1;
+  // -- mouse/ui info --
+  bool old_any_active = igIsAnyItemActive();
+  int node_hovered = -1;
   bool open_context_menu = false;
+  // -- calculate node bounds --
+  auto node_bound_min = Add(screen_offset,  node.ROrigin),
+       node_bound_max = Add(node_bound_min, node.RSize);
 
   igPushIdInt(cast(int)node.RID);
-  ImVec2 node_rect_min = Add(offset, node.ROrigin);
 
-  // Display node contents
-  ImDrawList_ChannelsSetCurrent(draw_list, 1); // set foreground
-  bool old_any_active = igIsAnyItemActive();
-
-  // draw title in center
-  ImVec2 text_size = gdCalcTextSize(node.RName);
-  ImVec2 origin = Add(node_rect_min, Node_window_padding);
-  origin.x = node_rect_min.x + text_size.x / 2;
-  igSetCursorScreenPos(origin);
-  gdText(node.RName);
-
-  bool node_widgets_active = (!old_any_active && igIsAnyItemActive());
-  auto node_rect_max = Add(node_rect_min, node.RSize);
-  // Display node box
-  ImDrawList_ChannelsSetCurrent(draw_list, 0); // set background
-  igSetCursorScreenPos(node_rect_min);
-  igInvisibleButton("node", node.RSize);
-  if ( igIsItemHovered() ) {
-    node_hovered_in_scene = cast(int)node.RID;
-    open_context_menu |= igIsMouseClicked(1);
-  }
-  bool node_active = igIsItemActive() && DragState.Is_Drag_Default;
-  auto node_bg_colour = node_hovered_in_scene == node.RID ?
-                        ImColor(50,50,50) : ImColor(20,20,20);
-  ImDrawList_AddRectFilled(draw_list, node_rect_min, node_rect_max,
-                            node_bg_colour, 4.0f, 0);
-  auto title_area = node_rect_max;
-  title_area.y = node_rect_min.y + 3.0f;
-  // Draw text bg area
-  ImDrawList_AddRectFilled(draw_list, Add(node_rect_min, ImVec2(1,1)),
-                                title_area, ImColor(100,0,0), 4.0f, 0);
-  ImDrawList_AddRect(draw_list, node_rect_min, node_rect_max,
-                                ImColor(50, 50, 50), 4.0f, 0, 1.0f);
-  ImVec2 off = node_rect_min;
-  offset.y += 40.0f;
-  offset = Add(offset, node_rect_min);
-  foreach ( it, ref connection; node.RConnection_Descs ) {
-    auto subnode_text_size = gdCalcTextSize(connection.name);
-    bool is_input = connection[0];
-    auto subnode  = connection[1];
-    auto pt = Add(Add(node_rect_min, connection.ROrigin),
-                  is_input ?
-                    ImVec2(connection.ROrigin.x - (text_size.x+1.0f), 0.0f) :
-                    ImVec2(10.0f,                                    -6.0f));
-    // -- render name and circle --
+  auto user_value = node.RUser_Value;
+  if ( user_value ) { // -- draw user input --
+    // Have to draw this before noede bounds as node bounds uses button that
+    // would override this input
+    ImDrawList_ChannelsSetCurrent(draw_list, 1);
+    auto pt = Add(node_bound_min, ImVec2(5.0f, 25.0f));
     igSetCursorScreenPos(pt);
-    gdText(subnode.name);
-    auto im_colour = ImColor(60, 60, 60);
-    pt = Add(pt, ImVec2(is_input ? -10.0f : 20.0f, 0.0f));
-    ImDrawList_AddCircleFilled(draw_list, pt, Node_slot_radius, im_colour);
-    // -- check for input --
-    import std.math : sqrt; // sdSphere { length(p) - radius }
-    auto p = sqrt(pt.x*pt.x + pt.y*pt.y) - Node_slot_radius;
-    if ( p <= 0.0f ) { DragState.Hover_Update(node.RID, it, is_input); }
-    offset += 15.0f;
+    switch ( user_value.description ) with ( SubnodeDescription ) {
+      default: assert(0);
+      case Colour:
+        float[3] arr = user_value.value.to!(float[]);
+        igColorEdit3("C", arr);
+        user_value.value = arr.to!string;
+      break;
+      case Float3:
+        float[3] arr = user_value.value.to!(float[]);
+        gdInputFloat("X", arr[0]);
+        igSetCursorScreenPos(Add(pt, ImVec2(0.0f, 25.0f)));
+        gdInputFloat("Y", arr[1]);
+        igSetCursorScreenPos(Add(pt, ImVec2(0.0f, 50.0f)));
+        gdInputFloat("Z", arr[2]);
+        user_value.value = arr.to!string;
+      break;
+      case Float2:
+        float[2] arr = user_value.value.to!(float[]);
+        gdInputFloat("X", arr[0]);
+        igSetCursorScreenPos(Add(pt, ImVec2(0.0f, 25.0f)));
+        gdInputFloat("Y", arr[1]);
+        user_value.value = arr.to!string;
+      break;
+      case Float :
+        float val = user_value.value.to!float;
+        gdInputFloat("F", val);
+        user_value.value = val.to!string;
+      break;
+      case Int   :
+        int val = user_value.value.to!int;
+        gdInputInt("I", val);
+        user_value.value = val.to!string;
+      break;
+      case String:
+        // gdInputText("Text", user_value.value);
+      break;
+    }
   }
-  node_selected = node.RID;
-  if (node_active && igIsMouseDragging(0) )
+
+  { // -- draw node bounds --
+    ImDrawList_ChannelsSetCurrent(draw_list, 0);
+    igSetCursorScreenPos(node_bound_min);
+    auto chr = "node " ~ node.RName;
+    igInvisibleButton(chr.toStringz, node.RSize);
+    if ( igIsItemHovered() && DragState.RDrag_State == DragState.State.Default){
+      node_hovered      = cast(int)node.RID;
+      open_context_menu = igIsMouseClicked(1);
+    }
+    auto bg_col = node_hovered >= 0 ? 0.2f : 0.1f;
+    auto node_bg_colour = ImColor(bg_col, bg_col, bg_col);
+    ImDrawList_AddRectFilled(draw_list, node_bound_min, node_bound_max,
+                             node_bg_colour, 4.0f, 0);
+  }
+
+  ImDrawList_ChannelsSetCurrent(draw_list, 1);
+
+  { // -- draw centered title --
+    auto text_size = node.RName.length*Text_size;
+    auto origin    = Add(node_bound_min, ImVec2(2.0f, 2.0f));
+    origin.x += node.RSize.x/2.0f; // center
+    origin.x -= text_size   /2.0f; // left adjust
+    igSetCursorScreenPos(origin);
+    gdText(node.RName);
+  }
+
+  { // -- draw input/outputs --
+    auto coffset = ImVec2(3.0f, 25.0f);
+    bool is_input = true;
+    int last_input = 0;
+    foreach ( it, ref connection; node.RConnection_Descs ) {
+      if ( connection[0] != is_input ) {
+        coffset.y =  25.0f;
+        coffset.x = node.RSize.x - node.RMax_Output_Width - 5.0f;
+        last_input = cast(int)it;
+      }
+      is_input     = cast(bool)connection[0];
+      auto subnode = connection[1];
+      auto subnode_text_size = subnode.name.length*Text_size;
+      { // -- render name --
+        auto pt = Add(node_bound_min, coffset);
+        igSetCursorScreenPos(pt);
+        gdText(subnode.name);
+      }
+      { // -- render circle --
+        auto pt = Add(node_bound_min, ImVec2(0.0f, coffset.y + 6.0f));
+        pt.x += is_input ? -8.0f : node.RSize.x + 8.0f;
+        import std.math : sqrt; // I can use SDF of a sphere here
+        auto m = Sub(pt, gdRMousePos);
+        static Radius = 5.0f;
+        bool hovering = (sqrt(m.x*m.x + m.y*m.y) - Radius) <= 0.0f;
+        auto col = hovering ? 0.8f : 0.2f;
+        auto colour = ImColor(col, col, col);
+        ImDrawList_AddCircleFilled(draw_list, pt, Radius, colour);
+        // -- update circle --
+        if ( hovering )
+          DragState.Hover_Update(node.RID, cast(int)it - last_input, is_input);
+      }
+      coffset.y += 20.0f;
+    }
+  }
+
+  // -- check node movement --
+  if ( node_hovered >= 0 && igIsMouseDragging(0) &&
+       DragState.RDrag_State == DragState.DragState.Default )
     node.SOrigin(Add(node.ROrigin, igGetIO().MouseDelta));
-  // igEnd
+
   igPopId();
 }
 
@@ -156,43 +212,21 @@ public void Update_Node_Graph ( ) {
         writeln(results);
       }
 
+      void Menu ( string label, string[] names ) {
+        if ( !igBeginMenu(label.toStringz) ) return;
+        foreach ( name; names )
+          if ( gdMenuItem(name) )
+            New_Node(name, Add(scrolling, saved_mouse_pos));
+        igEndMenu();
+      }
+
       if ( igBeginMenu("New Node") ) {
-        if ( igBeginMenu("Generic Math") ) {
-          if ( gdMenuItem("Multiply") ) {
-            New_Node("Multiply", saved_mouse_pos);
-          }
-          if ( gdMenuItem("Cos") ) {
-            New_Node("Cos", saved_mouse_pos);
-          }
-          if ( gdMenuItem("Sin") ) {
-            New_Node("Sin", saved_mouse_pos);
-          }
-          if ( gdMenuItem("Tan") ) {
-            New_Node("Tan", saved_mouse_pos);
-          }
-          if ( gdMenuItem("Subtract") ) {
-            New_Node("Subtract", saved_mouse_pos);
-          }
-          if ( gdMenuItem("Divide") ) {
-            New_Node("Divide", saved_mouse_pos);
-          }
-          if ( gdMenuItem("Add") ) {
-            New_Node("Add", saved_mouse_pos);
-          }
-          igEndMenu();
-        }
-        if ( igBeginMenu("Map Operations") ) {
-          if ( gdMenuItem("sdSphere") ) {
-            New_Node("sdSphere", saved_mouse_pos);
-          }
-          if ( gdMenuItem("sdBox") ) {
-            New_Node("sdBox", saved_mouse_pos);
-          }
-          if ( gdMenuItem("opRepeat") ) {
-            New_Node("opRepeat", saved_mouse_pos);
-          }
-          igEndMenu();
-        }
+        Menu("Constants", ["Colour", "Float3", "Float2", "Float", "Int",
+                           "String"]),
+        Menu("Variables", ["Origin", "Time"]);
+        Menu("Generic Math", ["Add", "Subtract", "Multiply", "Divide",
+                               "Sin", "Cos", "Tan"]);
+        Menu("Map Operations" , ["Map", "sdSphere"]);
         igEndMenu();
       }
 

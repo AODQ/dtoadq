@@ -62,6 +62,18 @@ bool gdSliderNorm(T...)(T t, ref float f) {
   return igSliderFloat(t.Accumulator.toStringz, &f, 0.0f, 1.0f);
 }
 
+bool gdInputFloat(T...)(T t, ref float f) {
+  return igInputFloat(t.Accumulator.toStringz, &f);
+}
+
+bool gdInputInt(T...)(T t, ref int f) {
+  return igInputInt(t.Accumulator.toStringz, &f);
+}
+
+bool gdInputText(T...)(T t, ref string f) {
+  return igInputText(t.Accumulator.toStringz, f.ptr);
+}
+
 bool gdNewWindow(T...)(T id) {
   bool t = true;
   igBegin(Accumulator(id).toStringz, &t);
