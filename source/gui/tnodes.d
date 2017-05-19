@@ -10,8 +10,12 @@ auto RNode ( int ID ) in {
 } body {
   return g_nodes[ID];
 }
+auto SNode_ID_Counter          ( int id ) { g_node_id_counter          = id; }
+auto SNode_Connections_Counter ( int id ) { g_node_connections_counter = id; }
 auto RNode_ID_Counter ( ) { return g_node_id_counter; }
 auto RNode_Connections_Counter ( ) { return g_node_connections_counter; }
+void Clear_Nodes ( ) { g_nodes.clear; }
+void Clear_Node_Connections ( ) { g_node_connections.clear; }
 
 auto RSubnode ( int node_id, int subnode_id, bool is_input ) in {
   assert(subnode_id >= 0);
@@ -24,26 +28,34 @@ auto RSubnode ( int node_id, int subnode_id, bool is_input ) in {
 }
 
 auto RNodeConnection ( int ID   ) { return g_node_connections[ID]; }
-auto RNodeConnections( ) { return g_node_connections; }
+auto RNode_Connections( ) { return g_node_connections; }
 auto RNodeType       ( string name ) in {
   assert(name in g_node_types, "RNodeType from invalid name: " ~ name);
 } body { return g_node_types[name];     }
 
+auto New_Node ( string name, ImVec2 vec, int id ) {
+  auto node = new Node(name.RNodeType, g_node_id_counter, vec);
+  g_nodes[id] = node;
+  return node;
+}
 auto New_Node ( string name, ImVec2 vec ) {
-  writeln("Adding node!");
-  g_nodes[g_node_id_counter] = new Node(name.RNodeType, g_node_id_counter, vec);
-  writeln(g_nodes);
-  ++ g_node_id_counter;
+  auto node = new Node(name.RNodeType, g_node_id_counter, vec);
+  g_nodes[g_node_id_counter ++] = node;
+  return node;
 }
 auto New_Node ( string name, float x, float y ) {
   New_Node(name, ImVec2(x, y));
 }
 
+auto Add_Connection ( NodeConnection connection, int id ) {
+  g_node_connections[id] = connection;
+  return connection;
+}
 auto Add_Connection ( NodeConnection connection ) {
   connection.id = g_node_connections_counter;
-  g_node_connections[g_node_connections_counter] =
+  g_node_connections[g_node_connections_counter ++] =
     new NodeConnection(connection);
-  ++ g_node_connections_counter;
+  return connection;
 }
 
 auto Add (inout ImVec2 x, inout ImVec2 y) {return ImVec2(x.x + y.x, x.y + y.y);}
@@ -80,6 +92,7 @@ int                 g_node_id_counter, g_node_connections_counter;
 Node          [int] g_nodes;
 NodeConnection[int] g_node_connections;
 NodeType[string] g_node_types;
+
 
 static this() {
   alias SD = SubnodeDescription;
@@ -147,6 +160,13 @@ public class NodeConnection {
 
   this ( int node_id_, int subnode_id_, bool is_input ) {
     Set(node_id_, subnode_id_, is_input);
+  }
+
+  this ( int id_, int in_node_id_,    int out_node_id_,
+                  int in_subnode_id_, int out_subnode_id_ ) {
+    id = id_;
+    in_node_id_ = in_node_id_;  in_subnode_id  = in_subnode_id_;
+    out_node_id = out_node_id_; out_subnode_id = out_subnode_id_;
   }
 
   this ( NodeConnection nc ) {
@@ -243,11 +263,21 @@ public:
     Calculate_Size();
   }
 
-  auto RID   ( ) inout { return id; }
-  auto RName ( ) inout { return name; }
-  auto ROrigin ( ) inout { return origin; }
-  auto RSize ( ) inout { return size; }
-  auto RUser_Value ( ) { return user_value; }
+  this ( string node_type_name, int id_, ImVec2 origin_ ) {
+    this(g_node_types[node_type_name], id_, origin_);
+  }
+
+  auto RID         ( ) inout      { return id;         }
+  auto RName       ( ) inout      { return name;       }
+  auto ROrigin     ( ) inout      { return origin;     }
+  auto RSize       ( ) inout      { return size;       }
+  auto RUser_Value ( )            { return user_value; }
+  auto SUser_Value ( string val ) in {
+    assert(user_value || val == "", "Setting val to null user value");
+  } body {
+    if ( user_value )
+      user_value.value = val;
+  }
 
   auto SOrigin ( ImVec2 origin_ ) {
     import std.math : fmax;
@@ -260,6 +290,13 @@ public:
   auto ROutput_Connection_Descs ( ) inout {
     return subnodes.type.subnode_descs.outputs;
   }
+  void SInput_Connection_Data  ( SubnodeDataContainer[] type ) {
+    subnodes.data.inputs = type;
+  }
+  void SOutput_Connection_Data ( SubnodeDataContainer[] type ) {
+    subnodes.data.outputs = type;
+  }
+
   // returns array tuple [bool is_input, SubnodeType]
   auto RConnection_Descs ( ) {
     import functional, std.typecons : tuple;
@@ -271,18 +308,16 @@ public:
   auto RMax_Input_Width  ( ) { return RMax_Put_Size(subnodes.data.inputs ); }
 }
 
-public enum SubnodeDataType { Data, Connection }
-
+public struct SubnodeDataContainer {
+  string name;
+  int data;
+  this ( string name_, int connection_id_ ) {
+    name = name_;
+    data = connection_id_;
+  }
+}
 class SubnodeData {
 public:
-  struct SubnodeDataContainer {
-    SubnodeDataType type;
-    string name;
-    int data;
-    this ( string name_, int connection_id_ ) {
-      name = name_; type = SubnodeDataType.Connection;
-    }
-  }
 
   NodeType type;
   ConnectorBase!SubnodeDataContainer data;

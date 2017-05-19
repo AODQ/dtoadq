@@ -5,7 +5,7 @@ import DragState = gui.dragstate;
 private:
 
 void Render_Lines ( ImDrawList* draw_list, ImVec2 offset ) {
-  foreach ( ref con; RNodeConnections ) {
+  foreach ( ref con; RNode_Connections ) {
     auto in_node  = RNode(con.in_node_id),
          out_node = RNode(con.out_node_id);
     auto in_offset  = ImVec2(-8.0f, 25.0f + con.in_subnode_id*20.0f + 6.0f),
@@ -197,19 +197,12 @@ public void Update_Node_Graph ( ) {
   igPushStyleVarVec(ImGuiStyleVar_WindowPadding, ImVec2(8, 8));
     if ( igBeginPopup("context_menu") ) {
       if ( gdMenuItem("Load Graph") ) {
-        // TODO
+        import gui.node_parser;
+        Load_Graph();
       }
       if ( gdMenuItem("Save Graph") ) {
-        writeln("Saved graph: ");
-        string results;
-        foreach ( node; RNodes ) {
-          // results ~= "NODE ---\n";
-          // results ~= "  Origin: <" ~ node.origin.x.to!string ~ ", "
-          //                        ~ node.origin.y.to!string ~ ">,\n";
-          // results ~= "  Name: " ~ node.name ~ "\n";
-          // results ~= "  Input: TODO\n";
-        }
-        writeln(results);
+        import gui.node_parser;
+        Save_Graph();
       }
 
       void Menu ( string label, string[] names ) {
