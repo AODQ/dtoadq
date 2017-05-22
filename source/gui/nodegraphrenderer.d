@@ -23,7 +23,6 @@ void Update_Node ( ImDrawList* draw_list, ImVec2 screen_offset, Node node,
   // -- mouse/ui info --
   bool old_any_active = igIsAnyItemActive();
   int node_hovered = -1;
-  bool open_context_menu = false;
   // -- calculate node bounds --
   auto node_bound_min = Add(screen_offset,  node.ROrigin),
        node_bound_max = Add(node_bound_min, node.RSize);
@@ -83,7 +82,7 @@ void Update_Node ( ImDrawList* draw_list, ImVec2 screen_offset, Node node,
     igInvisibleButton(chr.toStringz, node.RSize);
     if ( igIsItemHovered() && DragState.RDrag_State == DragState.State.Default){
       node_hovered      = cast(int)node.RID;
-      open_context_menu = igIsMouseClicked(1);
+      node_selected     = igIsMouseClicked(1) ? node_hovered : node_selected;
     }
     auto bg_col = node_hovered >= 0 ? 0.2f : 0.1f;
     auto node_bg_colour = ImColor(bg_col, bg_col, bg_col);
@@ -157,7 +156,7 @@ public void Update_Node_Graph ( ) {
   bool open_context_menu = false;
   int node_hovered_in_list  = -1,
       node_hovered_in_scene = -1;
-  int node_selected = -1;
+  static int node_selected = -1;
   static ImVec2 scrolling = ImVec2(0.0f, 0.0f);
 
   igSameLine();
@@ -183,47 +182,62 @@ public void Update_Node_Graph ( ) {
 
   static ImVec2 saved_mouse_pos;
   // open context menu
-  if ( igIsAnyItemHovered && igIsMouseHoveringWindow && igIsMouseClicked(1)){
-    node_selected = node_hovered_in_list = node_hovered_in_scene = -1;
+  if ( igIsMouseHoveringWindow && igIsMouseClicked(1)){
     open_context_menu = true;
     saved_mouse_pos = gdRMousePos;
   }
   if ( open_context_menu ) {
-    igOpenPopup("context_menu");
-    if ( node_hovered_in_list  != -1 ) node_selected = node_hovered_in_list;
-    if ( node_hovered_in_scene != -1 ) node_selected = node_hovered_in_scene;
+    if ( node_selected != -1 ) igOpenPopup("node_menu"   );
+    else                       igOpenPopup("context_menu");
   }
   // draw context menu
   igPushStyleVarVec(ImGuiStyleVar_WindowPadding, ImVec2(8, 8));
-    if ( igBeginPopup("context_menu") ) {
-      if ( gdMenuItem("Load Graph") ) {
-        import gui.node_parser;
-        Load_Graph();
+    if ( node_selected != -1 ) {
+      if ( igBeginPopup("node_menu") ) {
+        if ( igBeginMenu("Erase") ) {
+          if ( gdMenuItem("Node") ) {
+            Remove_Node(node_selected);
+          }
+          if ( gdMenuItem("Connections") ) {
+            Clear_Connections(node_selected);
+          }
+          igEndMenu();
+        }
+        igEndPopup();
+      } else {
+        node_selected = -1;
       }
-      if ( gdMenuItem("Save Graph") ) {
-        import gui.node_parser;
-        Save_Graph();
-      }
+    } else {
+      if ( igBeginPopup("context_menu") ) {
+        if ( gdMenuItem("Load Graph") ) {
+          import gui.node_parser;
+          Load_Graph();
+        }
+        if ( gdMenuItem("Save Graph") ) {
+          import gui.node_parser;
+          Save_Graph();
+        }
+        if ( gdMenuItem("Parse Graph") ) {
+          import gui.node_parser;
+          Parse_Graph();
+        }
 
-      void Menu ( string label, string[] names ) {
-        if ( !igBeginMenu(label.toStringz) ) return;
-        foreach ( name; names )
-          if ( gdMenuItem(name) )
-            New_Node(name, Add(scrolling, saved_mouse_pos));
-        igEndMenu();
-      }
+        void Menu ( string label, string[] names ) {
+          if ( !igBeginMenu(label.toStringz) ) return;
+          foreach ( name; names )
+            if ( gdMenuItem(name) )
+              New_Node(name, Add(scrolling, saved_mouse_pos));
+          igEndMenu();
+        }
 
-      if ( igBeginMenu("New Node") ) {
-        Menu("Constants", ["Colour", "Float3", "Float2", "Float", "Int",
-                           "String"]),
-        Menu("Variables", ["Origin", "Time"]);
-        Menu("Generic Math", ["Add", "Subtract", "Multiply", "Divide",
-                               "Sin", "Cos", "Tan"]);
-        Menu("Map Operations" , ["Map", "sdSphere"]);
-        igEndMenu();
-      }
+        if ( igBeginMenu("New Node") ) {
+          import gui.opencl_funcs;
+          Apply_Function(&Menu);
+          igEndMenu();
+        }
 
-      igEndPopup();
+        igEndPopup();
+      }
     }
   igPopStyleVar();
 
@@ -231,11 +245,10 @@ public void Update_Node_Graph ( ) {
 
   // Scrolling
   if ( igIsWindowHovered() && !igIsAnyItemActive()&&igIsMouseDragging(2, 0.0f))
-    scrolling = Sub(scrolling, igGetIO().MouseDelta);
+    scrolling = Add(scrolling, igGetIO().MouseDelta);
 
   igPopItemWidth();
   igEndChild();
-  // igPopStyleColor();
   igPopStyleVar();
   igPopStyleVar();
   igEndGroup();

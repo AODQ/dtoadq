@@ -13,8 +13,7 @@ private bool g_is_input;
 private bool last_update_hovered;
 
 bool Valid_Subnode_Connection ( int node_id, int subnode_id, bool is_input ) {
-  return is_input != g_is_input && g_connection.RNode_ID(is_input) != node_id &&
-         g_connection.RSubnode_ID(is_input) != subnode_id;
+  return true;
 }
 
 void Reset_Connection ( ) {
@@ -34,20 +33,15 @@ void Hover_Update ( int node_id, int subnode_id, bool is_input ) {
       last_update_hovered = true;
       if ( igIsMouseClicked(0) ) {
         g_state      = DragState.Dragging;
-        writeln("NODE ID: ", node_id);
-        writeln("SUBNODE ID: ", subnode_id);
-        writeln("RES: ", RNode(node_id).RName);
         g_connection = new NodeConnection(node_id, subnode_id, is_input);
-        writeln("CONNECTION: ", g_connection.To_String);
         g_is_input   = is_input;
         g_origin     = gdRMousePos;
       }
     break;
     case Dragging:
       if ( !igIsMouseDown(0) ) {
-        if ( !Valid_Subnode_Connection(node_id, subnode_id, is_input) ) {
+        if ( Valid_Subnode_Connection(node_id, subnode_id, is_input) ) {
           g_connection.Set(node_id, subnode_id, is_input);
-          writeln("Added connection: ", g_connection.To_String);
           Add_Connection(g_connection);
         }
         Reset_Connection;

@@ -94,7 +94,6 @@ public:
   this ( string source ) in {
     assert(device !is null);
   } body {
-    writeln("PROG");
     err = CL_SUCCESS;
     properties = [CL_CONTEXT_PLATFORM, cast(int)device.platform_id, 0];
     int err;

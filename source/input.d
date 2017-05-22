@@ -3,7 +3,7 @@ module input;
 import derelict.glfw3;
 
 
-private bool mouse_left, mouse_right, mouse_middle;
+private bool mouse_left, mouse_right, mouse_middle, mouse_x1;
 private float mouse_x, mouse_y, mouse_x_stick, mouse_y_stick;
 
 extern(C) static void Cursor_Button_Callback ( GLFWwindow* window,
@@ -12,6 +12,7 @@ extern(C) static void Cursor_Button_Callback ( GLFWwindow* window,
   if ( button == GLFW_MOUSE_BUTTON_LEFT   ) mouse_left   = mouse_pressed;
   if ( button == GLFW_MOUSE_BUTTON_RIGHT  ) mouse_right  = mouse_pressed;
   if ( button == GLFW_MOUSE_BUTTON_MIDDLE ) mouse_middle = mouse_pressed;
+  if ( button == GLFW_MOUSE_BUTTON_4      ) mouse_x1     = mouse_pressed;
   if ( mouse_pressed ) {
     mouse_x_stick = mouse_x;
     mouse_y_stick = mouse_y;
@@ -35,6 +36,7 @@ extern(C) static void Key_Input_Callback ( GLFWwindow* window,
 bool RMouse_Left   ( ) { return mouse_left;   }
 bool RMouse_Right  ( ) { return mouse_right;  }
 bool RMouse_Middle ( ) { return mouse_middle; }
+bool RMouse_X1     ( ) { return mouse_x1;     }
 
 import std.stdio;
 float RMouse_X       ( ) { return mouse_x;       }

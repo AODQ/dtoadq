@@ -1,4 +1,4 @@
-module opencl_kernel; immutable(string) Test_pathtrace_string = q{
+module opencl_kernel; immutable(string) DTOADQ_kernel = q{
 #define MAX_DEPTH 16
 // -----------------------------------------------------------------------------
 // --------------- DEBUG -------------------------------------------------------
@@ -269,32 +269,19 @@ float3 opTwist( float3 p ) {
     // return (float3)(m*p.xz,p.y);
 }
 
-//------------------------------------------------------------------
-
-
 // -----------------------------------------------------------------------------
 // --------------- MAP ---------------------------------------------------------
-float2 Map ( int a, float3 p ) {
+float2 Map ( int a, float3 origin ) {
   // -- spheres --
   float2 res = (float2)(FLT_MAX, -1);
-  res=opU(a,res,(float2)(sdSphere(p-(float3)( 0.2f,-0.95f,-1.6f),0.30f),1.0f));
-  res=opU(a,res,(float2)(sdBumpSphere(p-(float3)( 0.0f,-0.85f, 0.0f),0.25f),2.0f));
-  res=opU(a,res,(float2)(sdSphere(p-(float3)(-1.2f,-0.85f, 1.2f),0.55f),3.0f));
-  res=opU(a,res,(float2)(sdCylinder(p-(float3)( 0.0f, 0.0f,  0.0f),
-                                    (float2)(0.3f, 0.4f)), 4.0f));
-  // // -- walls --
-  res=opU(a, res,(float2)(sdPlane(p, (float3)( 0.0f,  0.0f, -1.0f),12.0f),10.0f));
-  res=opU(a, res,(float2)(sdPlane(p, (float3)( 1.0f,  0.0f,  0.0f),12.0f),11.0f));
-  res=opU(a, res,(float2)(sdPlane(p, (float3)( 0.0f,  1.0f,  0.0f),12.0f),12.0f));
-  res=opU(a, res,(float2)(sdPlane(p, (float3)( 0.0f,  0.0f,  1.0f),12.0f),13.0f));
-  res=opU(a, res,(float2)(sdPlane(p, (float3)(-1.0f,  0.0f,  0.0f),12.0f),14.0f));
-  res=opU(a, res,(float2)(sdPlane(p, (float3)( 0.0f, -1.0f,  0.0f),12.0f),15.0f));
-  // --- lights --
-  res=opU(a,res,(float2)(sdSphere(p-(float3)( 0.0f, 12.0f, 0.0f),1.00f),16.0f));
+
+  //---MAP INSERTION POINT---
+  //%MAP%//
+  //-------------------------
+
   return res;
 }
 
-// /** MAP INSERTION POINT: */ %s /** <- */
 // -----------------------------------------------------------------------------
 // --------------- GRAPHIC FUNCS THAT NEED MAP ---------------------------------
 float3 Normal ( float3 p ) {
@@ -338,7 +325,7 @@ float3 Tangent ( float3 normal ) {
 // -----------------------------------------------------------------------------
 // --------------- RAYTRACING/MARCH --------------------------------------------
 float2 March ( int avoid, Ray ray ) {
-  const float max_dist = 8.0f;
+  const float max_dist = 128.0f;
   float distance = 0.0f;
   float2 t_info;
   for ( int i = 0; i < 128; ++ i ) {
@@ -417,42 +404,10 @@ float3 Jitter ( float3 d, float phi, float sina, float cosa ) {
   return (u*cos(phi) + v*sin(phi))*sina + w*cosa;
 }
 
-RayInfo Raytrace ( RNG* rng, const __global Material* material, Ray ray ) {
-  Ray cray = ray;
-  // Trace a path from camera origin to some end
-  int depth;
-  bool hit = false;
-  float3 radiance = (float3)(0.0f),
-         weight   = (float3)(1.0f);
-  for ( depth = 0; depth != MAX_DEPTH; ++ depth ) {
-    float2 marchinfo = March(-1, ray);
-    // store info
-    IntersectionInfo info;
-    info.dist = marchinfo.x;
-    info.dir = ray.dir;
-    info.origin = ray.origin + ray.dir*info.dist;
-    info.normal = normalize(Normal(info.origin));
-    info.material = material[(int)(marchinfo.y)];
-    ray = TODO_BRDF_Reflect(rng, &info);
-
-    // calculate direct lighting
-
-    float E = 1.0f; // float(depth==0) ?
-    weight *= info.material.base_colour;
-    radiance += info.material.emission*weight;
-
-    // calculate indirect lighting
-    if ( info.material.emission > 0.01f ) {
-      hit = true;
-      break;
-    }
-  }
-
-  RayInfo rinfo;
-  rinfo.hit = hit;
-  rinfo.colour = radiance;
-  return rinfo;
+RayInfo RPixel_Colour ( RNG* rng, const __global Material* material, Ray ray ) {
+  //%PIXELCOLOUR%//
 }
+
 // -----------------------------------------------------------------------------
 // --------------- CAMERA ------------------------------------------------------
 Ray Camera_Ray(RNG* rng, __global Camera* camera) {
@@ -504,7 +459,7 @@ __kernel void Kernel_Pathtrace (
 
   float time = *time_ptr;
   Ray ray = Camera_Ray(&rng, camera);
-  RayInfo result = Raytrace(&rng, material, ray);
+  RayInfo result = RPixel_Colour(&rng, material, ray);
 
   if ( result.hit ) {
     old_pixel =
@@ -521,3 +476,63 @@ __kernel void Kernel_Pathtrace (
   if ( get_global_id(0) == 5 && get_global_id(1) == 5 )
     *rng_ptr = rng;
 }};
+
+
+string MLT_pixel_colour_function = q{
+  Ray cray = ray;
+  // Trace a path from camera origin to some end
+  int depth;
+  bool hit = false;
+  float3 radiance = (float3)(0.0f),
+         weight   = (float3)(1.0f);
+  for ( depth = 0; depth != MAX_DEPTH; ++ depth ) {
+    float2 marchinfo = March(-1, ray);
+    // store info
+    IntersectionInfo info;
+    info.dist = marchinfo.x;
+    info.dir = ray.dir;
+    info.origin = ray.origin + ray.dir*info.dist;
+    info.normal = normalize(Normal(info.origin));
+    info.material = material[(int)(marchinfo.y)];
+    ray = TODO_BRDF_Reflect(rng, &info);
+
+    // calculate direct lighting
+
+    float E = 1.0f; // float(depth==0) ?
+    weight *= info.material.base_colour;
+    radiance += info.material.emission*weight;
+
+    // calculate indirect lighting
+    if ( info.material.emission > 0.01f ) {
+      hit = true;
+      break;
+    }
+  }
+
+  RayInfo rinfo;
+  rinfo.hit = hit;
+  rinfo.colour = radiance;
+  return rinfo;
+};
+
+string Raytrace_pixel_colour_function = q{
+  Ray cray = ray;
+  float2 marchinfo = March(-1, ray);
+  RayInfo rinfo;
+  rinfo.hit = marchinfo.x >= 0.0f;
+  rinfo.colour = (float3)(0.2f);
+  if ( rinfo.hit )
+    rinfo.colour = material[(int)(marchinfo.y)].base_colour;
+  return rinfo;
+};
+
+string Raycast_pixel_colour_function = q{
+  Ray cray = ray;
+  float2 marchinfo = March(-1, ray);
+  RayInfo rinfo;
+  rinfo.hit = marchinfo.x >= 0.0f;
+  rinfo.colour = (float3)(0.2f);
+  if ( rinfo.hit )
+    rinfo.colour = material[(int)(marchinfo.y)].base_colour;
+  return rinfo;
+};

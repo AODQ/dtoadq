@@ -1,6 +1,6 @@
 module gui.tnodes;
-import derelict.imgui.imgui : ImVec2;
-import globals, gui.gui, std.variant : Variant;
+import derelict.imgui.imgui : ImVec2, igGetMousePos;
+import globals, std.variant : Variant;
 
 // ----------------------------------------------------------------------------
 // --------------------------- public access ----------------------------------
@@ -10,6 +10,33 @@ auto RNode ( int ID ) in {
 } body {
   return g_nodes[ID];
 }
+
+auto Remove_Node ( int ID ) in {
+  assert(ID in g_nodes);
+} body {
+  Clear_Connections(ID);
+  writeln("REMOVING: ", ID);
+  g_nodes.remove(ID);
+  writeln("AFTER: ", g_nodes);
+}
+
+auto Clear_Connections ( int ID ) in {
+  assert(ID in g_nodes);
+} body {
+  auto node = g_nodes[ID];
+  // we remove both parts of connection, even though we only need to remove one
+  // part as this node is deleted
+  foreach ( con_tuple; node.RSubnode_Connections ) {
+    int con_id = (*con_tuple[1]).data;
+    if ( con_id == -1 ) continue;
+    auto con = con_id.RNodeConnection;
+    con. in_node_id.RNode.Subnode_Connection(con. in_subnode_id, -1, true );
+    con.out_node_id.RNode.Subnode_Connection(con.out_subnode_id, -1, false);
+    // finally we delete this connection
+    g_node_connections.remove(con_id);
+  }
+}
+
 auto SNode_ID_Counter          ( int id ) { g_node_id_counter          = id; }
 auto SNode_Connections_Counter ( int id ) { g_node_connections_counter = id; }
 auto RNode_ID_Counter ( ) { return g_node_id_counter; }
@@ -34,7 +61,7 @@ auto RNodeType       ( string name ) in {
 } body { return g_node_types[name];     }
 
 auto New_Node ( string name, ImVec2 vec, int id ) {
-  auto node = new Node(name.RNodeType, g_node_id_counter, vec);
+  auto node = new Node(name.RNodeType, id, vec);
   g_nodes[id] = node;
   return node;
 }
@@ -47,15 +74,17 @@ auto New_Node ( string name, float x, float y ) {
   New_Node(name, ImVec2(x, y));
 }
 
-auto Add_Connection ( NodeConnection connection, int id ) {
-  g_node_connections[id] = connection;
-  return connection;
+auto Add_Connection ( NodeConnection con, int id ) {
+  g_node_connections[id] = new NodeConnection(con);
+  // -- set input/output connections --
+  g_nodes[con. in_node_id].Subnode_Connection(con. in_subnode_id, con.id, 1);
+  g_nodes[con.out_node_id].Subnode_Connection(con.out_subnode_id, con.id, 0);
+  return con;
 }
-auto Add_Connection ( NodeConnection connection ) {
-  connection.id = g_node_connections_counter;
-  g_node_connections[g_node_connections_counter ++] =
-    new NodeConnection(connection);
-  return connection;
+auto Add_Connection ( NodeConnection con ) {
+  // -- set connection id --
+  con.id = g_node_connections_counter ++;
+  return Add_Connection(con, con.id);
 }
 
 auto Add (inout ImVec2 x, inout ImVec2 y) {return ImVec2(x.x + y.x, x.y + y.y);}
@@ -95,36 +124,8 @@ NodeType[string] g_node_types;
 
 
 static this() {
-  alias SD = SubnodeDescription;
-  alias ST = SubnodeType;
-  g_node_types = [
-  // -- constants --
-  "Colour" : new NodeType("Colour", [], [ST(" ", SD.Colour)], SD.Colour),
-  "Float3" : new NodeType("Float3", [], [ST(" ", SD.Float3)], SD.Float3),
-  "Float2" : new NodeType("Float2", [], [ST(" ", SD.Float2)], SD.Float2),
-  "Float"  : new NodeType("Float",  [], [ST(" ", SD.Float )], SD.Float ),
-  "Int"    : new NodeType("Int",    [], [ST(" ", SD.Int   )], SD.Int   ),
-  "String" : new NodeType("String", [], [ST(" ", SD.String)], SD.String),
-  // -- variables --
-  "Origin" : new NodeType("Origin", [], [ST(" ", SD.Float3)]),
-  "Time"   : new NodeType("Time"  , [], [ST(" ", SD.Float )]),
-  // -- generic math --
-  "Add" : new NodeType("Add",
-    [ST("In0", SD.Varying), ST("In1", SD.Varying)], [ST("Out", SD.Varying)]),
-  "Multiply" : new NodeType("Multiply",
-    [ST("In0", SD.Varying), ST("In1", SD.Varying)], [ST("Out", SD.Varying)]),
-  "Subtract" : new NodeType("Subtract",
-    [ST("In0", SD.Varying), ST("In1", SD.Varying)], [ST("Out", SD.Varying)]),
-  "Divide" : new NodeType("Divide",
-    [ST("In0", SD.Varying), ST("In1", SD.Varying)], [ST("Out", SD.Varying)]),
-  "Cos" : new NodeType("Cos", [ST("In", SD.Varying)], [ST("Out", SD.Varying)]),
-  "Sin" : new NodeType("Sin", [ST("In", SD.Varying)], [ST("Out", SD.Varying)]),
-  "Tan" : new NodeType("Tan", [ST("In", SD.Varying)], [ST("Out", SD.Varying)]),
-  // -- map operations --
-  "sdSphere" : new NodeType("sdSphere",
-    [ST("Origin", SD.Float3), ST("Radius", SD.Float)], [ST("Out", SD.Float)]),
-  "Map" : new NodeType("Map", [ST("Function", SD.Float3)], []),
- ];
+  import gui.opencl_funcs;
+  g_node_types = RNode_Type_Map();
 }
 
 // ----------------------------------------------------------------------------
@@ -165,8 +166,12 @@ public class NodeConnection {
   this ( int id_, int in_node_id_,    int out_node_id_,
                   int in_subnode_id_, int out_subnode_id_ ) {
     id = id_;
-    in_node_id_ = in_node_id_;  in_subnode_id  = in_subnode_id_;
+    in_node_id  = in_node_id_;  in_subnode_id  = in_subnode_id_;
     out_node_id = out_node_id_; out_subnode_id = out_subnode_id_;
+    import std.string : format;
+    writeln("IN: <%d, %d>. OUT: <%d, %d>, ID: %d"
+           .format(in_node_id_, in_subnode_id_, out_node_id_, out_subnode_id_, id_));
+    writeln("RESULT: ", this.To_String);
   }
 
   this ( NodeConnection nc ) {
@@ -297,7 +302,17 @@ public:
     subnodes.data.outputs = type;
   }
 
+  void Subnode_Connection ( int subnode_id, int connection_id, bool is_input ){
+    (*(is_input ? &subnodes.data.inputs : &subnodes.data.outputs)
+      )[subnode_id].data = connection_id;
+  }
+
   // returns array tuple [bool is_input, SubnodeType]
+  auto RSubnode_Connections ( ) {
+    import functional, std.typecons : tuple;
+    return subnodes.data.inputs .map!((ref n) => tuple(1, &n)).array ~
+           subnodes.data.outputs.map!((ref n) => tuple(0, &n)).array;
+  }
   auto RConnection_Descs ( ) {
     import functional, std.typecons : tuple;
     return RInput_Connection_Descs .map!(n => tuple(1, n)).array ~
@@ -349,10 +364,18 @@ struct SubnodeType {
   }
 
   bool RHovering ( ImVec2 offset ) {
-    auto p = Sub(gdRMousePos, Add(offset, ROrigin));
+    ImVec2 mouse;
+    igGetMousePos(&mouse);
+    auto p = Sub(mouse, Add(offset, ROrigin));
     writeln("P: ", p);
     return (p.x*p.x + p.y*p.y) < (Node_slot_radius*Node_slot_radius);
   }
+}
+
+public enum ParseNodeType {
+  Function,
+  Operation,
+  Constant
 }
 
 class NodeType {
@@ -360,19 +383,24 @@ private:
   string name;
   ConnectorBase!SubnodeType subnode_descs;
   SubnodeDescription user_input;
+  ParseNodeType parse_node_type;
 public:
-  this ( string name_, SubnodeType[] inputs, SubnodeType[] outputs ) {
+  this ( string name_, SubnodeType[] inputs, SubnodeType[] outputs,
+         ParseNodeType parse_node_type_ ) {
     name = name_;
     subnode_descs = ConnectorBase!SubnodeType(inputs, outputs);
     user_input = SubnodeDescription.Nil;
+    parse_node_type = parse_node_type_;
   }
 
   this ( string name_, SubnodeType[] inputs, SubnodeType[] outputs,
                        SubnodeDescription user_input_ ) {
-    this(name_, inputs, outputs);
+    this(name_, inputs, outputs, ParseNodeType.Constant);
     user_input = user_input_;
   }
 
-  auto RInput_Length  ( ) inout { return subnode_descs.inputs.length;  }
-  auto ROutput_Length ( ) inout { return subnode_descs.outputs.length; }
+  auto RInput_Length    ( ) inout { return subnode_descs.inputs.length;  }
+  auto ROutput_Length   ( ) inout { return subnode_descs.outputs.length; }
+  auto RParse_Node_Type ( ) inout { return parse_node_type;              }
+  string RName ( ) { return name; }
 }

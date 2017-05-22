@@ -1,6 +1,5 @@
 module raytracer;
 import opencl;
-import opencl_kernel : Test_pathtrace_string;
 import globals;
 import core.time : MonoTime;
 import scene;
@@ -34,9 +33,6 @@ void Initialize ( ){
   // --- opencl        ---
   opencl.Initialize();
   // --- variable init ---
-  auto rng = Generate_New_RNG();
-  auto camera = Construct_Camera([1.0f, 0.0f,  0.0f], [ 0.0f, 0.0f, -1.0f],
-                                                [Img_dim, Img_dim]);
   // --- kernel init ---
   static import std.file;
   writeln("FORMAT STR");
@@ -60,30 +56,78 @@ void Initialize ( ){
     float[] fvals = m.split[1 .. $].map!(to!float).array;
     material ~= Create_Material(fvals);
   }
-  auto str = Test_pathtrace_string;//.format(mapfunc);
-  std.file.write("KERNEL_OUTPUT", str);
-  program = Compile(str);
-  program.Set_Kernel("Kernel_Pathtrace");
-
-  // --- parameter buffer init ---
-  auto RO = BufferType.read_only, WO = BufferType.write_only;
-  img_buffer_write = program.Set_Image_Buffer(WO, Img_dim);
-  img_buffer_read  = program.Set_Image_Buffer(RO, Img_dim);
-  rng_buffer       = program.Set_Singleton!RNG(RO, rng);
-  camera_buffer    = program.Set_Singleton!Camera(RO, camera);
-  timer_buffer     = program.Set_Singleton!float(RO, 0.0f);
-  material_buffer  = program.Set_Buffer!Material(RO, material);
-
+  Recompile(true); // Just compiles but same as recompiling anyways
   // --- opengl ---
   import derelict.opengl3.gl3;
   glGenTextures(1, &texture);
   import gl_renderer;
   GL_Renderer_Initialize();
   writeln("done with renderer");
-
-
-  // --- kernel debug print ---
 }
+
+enum Kernel_Type { Raycast, Raytrace, MLT, }
+enum Kernel_Flag { Render_Normals,         }
+struct Kernel_Information {
+  Kernel_Type type;
+  bool[Kernel_Flag] flags;
+}
+private Kernel_Information kernel_information;
+static this ( ) {
+  with ( Kernel_Flag ) {
+    kernel_information = Kernel_Information(
+      Kernel_Type.Raycast,
+      [ Render_Normals : false ]
+  );}
+}
+private string map_function;
+/** Does not recompile for you */
+auto Set_Kernel_Type ( Kernel_Type type ) {
+  kernel_information.type = Kernel_Type.Raycast;
+}
+/** Does not recompile for you */
+auto Set_Kernel_Flag ( Kernel_Flag flag, bool status ) {
+  kernel_information.flags[flag] = status;
+}
+/** Does not recompile for you */
+void Set_Map_Function ( string val ) { map_function = val; }
+
+private string RPixel_Colour_String ( ) {
+  import opencl_kernel;
+  final switch ( kernel_information.type ) with ( Kernel_Type ) {
+    case Raycast:  return Raycast_pixel_colour_function;
+    case Raytrace: return Raytrace_pixel_colour_function;
+    case MLT:      return MLT_pixel_colour_function;
+  }
+}
+
+void Recompile ( bool reset_all = false ) {
+  import opencl_kernel, std.string : replace;
+  if ( program !is null ) program.Clean_Up();
+  string kernel = DTOADQ_kernel;
+  kernel = kernel.replace("//%MAP%//", map_function)
+                 .replace("//%PIXELCOLOUR%//", RPixel_Colour_String);
+  program = Compile(kernel);
+  program.Set_Kernel("Kernel_Pathtrace");
+
+  auto rng = Generate_New_RNG();
+  auto camera = Construct_Camera([1.0f, 0.0f,  0.0f], [ 0.0f, 0.0f, -1.0f],
+                                                [Img_dim, Img_dim]);
+  if ( !reset_all ) {
+    camera = camera_buffer.data[0];
+  }
+
+  // --- parameter buffer init ---
+  auto RO = BufferType.read_only, WO = BufferType.write_only;
+  img_buffer_write = program.Set_Image_Buffer(WO, Img_dim);
+  img_buffer_read  = program.Set_Image_Buffer(RO, Img_dim);
+  rng_buffer       = program.Set_Singleton!RNG(RO, rng);
+  writeln("CAMERA BUFFER: ", camera_buffer);
+  camera_buffer    = program.Set_Singleton!Camera(RO, camera);
+  timer_buffer     = program.Set_Singleton!float(RO, 0.0f);
+  material_buffer  = program.Set_Buffer!Material(RO, material);
+  writeln("Recompiled!");
+}
+
 
 void Remove ( ) {
   if ( program ) program.Clean_Up();
@@ -103,15 +147,8 @@ bool Update_Camera ( ) {
   bool cam_update;
   auto lookvec = camera_buffer.data[0].lookat;
   auto pos = camera_buffer.data[0].position;
-  if ( RMouse_Right() ) {
-    cam_update = true;
-    lookvec[0] += (RMouse_X-RMouse_X_Stick)/Win_dim/10.0f;
-    lookvec[1] -= (RMouse_Y-RMouse_Y_Stick)/Win_dim/10.0f;
-    lookvec[1]  = fmax(0.0f, fmin(1.0f, lookvec[1]));
-    camera_buffer.data[0].lookat = lookvec;
-  }
 
-  if ( RMouse_Middle() ) {
+  if ( RMouse_X1() ) {
     cam_update = true;
     lookvec[0] += (RMouse_X-RMouse_X_Stick)/Win_dim;
     lookvec[1] -= (RMouse_Y-RMouse_Y_Stick)/Win_dim;
@@ -153,8 +190,11 @@ void Update ( float timer ) {
     program.Read_Image(img_buffer_write);
   updated_last_frame = false;
   Render();
-  import gui.gui;
-  bool material_changed = Imgui_Render ( material, camera_buffer.data[0] );
+  bool material_changed;
+  {
+    import gui.gui;
+    material_changed = Imgui_Render ( material, camera_buffer.data[0] );
+  }
   bool reset_img_buffers = false;
   if ( !timer.Should_Update ) return;
 
