@@ -7,6 +7,7 @@ import derelict.imgui.imgui,
 static import raytracer;
 
 GLFWwindow* Init ( ) {
+  raytracer.Initialize_OpenCL;
   import derelict.glfw3.glfw3;
   writeln("GL3");
   DerelictGL3.load();
@@ -39,6 +40,7 @@ GLFWwindow* Init ( ) {
   glfwSetMouseButtonCallback (window, &Cursor_Button_Callback   );
   glfwSetKeyCallback         (window, &Key_Input_Callback       );
 
+  writeln("done i guess");
   return window;
 }
 

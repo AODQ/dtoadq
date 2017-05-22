@@ -29,10 +29,9 @@ private MonoTime timer_start;
 private bool reset_camera;
 private uint texture;
 
+void Initialize_OpenCL()  { opencl.Initialize(); }
+
 void Initialize ( ){
-  // --- opencl        ---
-  opencl.Initialize();
-  // --- variable init ---
   // --- kernel init ---
   static import std.file;
   writeln("FORMAT STR");

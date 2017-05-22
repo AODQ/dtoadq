@@ -291,9 +291,10 @@ auto Set_Current_Platform() {
       writeln("Platform looper");
       writeln("----- Index: ", it, "\n", RPlatform_Info(platforms[it]));
     }
-    index = 0;
-    // index = readln.chomp.to!int;
-    // assert(index >= 0 && index < platforms.length, " invalid platform index");
+    write("CHOOSE A PLATFORM: ");
+    index = readln.chomp.to!int;
+    writeln();
+    assert(index >= 0 && index < platforms.length, " invalid platform index");
   }
   return cast(void*)platforms[index];
 }
