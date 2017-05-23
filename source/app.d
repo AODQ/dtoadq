@@ -28,7 +28,7 @@ GLFWwindow* Init ( ) {
 	glfwInit();
 
   auto window = glfwCreateWindow(1080, 1080, "Raytracer", null, null);
-  glfwSetWindowPos(window, -5, 2);
+  glfwSetWindowPos(window, 400, 2);
 
 	glfwMakeContextCurrent(window);
   DerelictGL3.reload();

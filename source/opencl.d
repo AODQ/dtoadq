@@ -123,9 +123,6 @@ public:
     }
     writeln("PROGRAM BUILT .. .");
   }
-  ~this() {
-    Clean_Up();
-  }
 
   void Set_Kernel(string kernel_name) {
     kernel = clCreateKernel(program, kernel_name.ptr, &err);
@@ -254,15 +251,23 @@ public:
   }
 
   void Clean_Up() {
-    if ( program == null ) return;
-    foreach ( mem; mem_objects )
+    foreach ( ref mem; mem_objects ) {
       clReleaseMemObject(mem);
+      delete mem;
+    }
     mem_objects = [];
     clReleaseProgram(program);
     clReleaseKernel(kernel);
     clReleaseCommandQueue(command_queue);
     clReleaseContext(context);
+    delete program;
+    delete context;
+    delete command_queue;
+    delete kernel;
     program = null;
+    context = null;
+    command_queue = null;
+    kernel = null;
   }
 }
 
@@ -308,7 +313,7 @@ auto Set_Current_Device(CLPlatformID platform_id) {
 }
 
 void Initialize ( ) {
-  writeln("det load");
+  writeln("DerelictCL load");
   DerelictCL.load();
   writeln("det platform");
   auto platform_id = Set_Current_Platform();

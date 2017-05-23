@@ -65,34 +65,42 @@ void Initialize ( ){
 }
 
 enum Kernel_Type { Raycast, Raytrace, MLT, }
-enum Kernel_Flag { Render_Normals,         }
+enum Kernel_Flag { Show_Normals,           }
+enum Kernel_Var  { March_Dist, March_Reps }
 struct Kernel_Information {
   Kernel_Type type;
   bool[Kernel_Flag] flags;
+  int [Kernel_Var ] vars;
 }
-private Kernel_Information kernel_information;
+private Kernel_Information kernel_info;
 static this ( ) {
-  with ( Kernel_Flag ) {
-    kernel_information = Kernel_Information(
-      Kernel_Type.Raycast,
-      [ Render_Normals : false ]
-  );}
+  alias KF = Kernel_Flag, KV = Kernel_Var;
+  kernel_info = Kernel_Information(
+    Kernel_Type.Raycast,
+    [ KF.Show_Normals : false ],
+    [ KV.March_Dist   : 64,
+      KV.March_Reps   : 128 ]
+  );
 }
 private string map_function;
 /** Does not recompile for you */
 auto Set_Kernel_Type ( Kernel_Type type ) {
-  kernel_information.type = Kernel_Type.Raycast;
+  kernel_info.type = Kernel_Type.Raycast;
 }
 /** Does not recompile for you */
 auto Set_Kernel_Flag ( Kernel_Flag flag, bool status ) {
-  kernel_information.flags[flag] = status;
+  kernel_info.flags[flag] = status;
+}
+/** Does not recompile for you */
+auto Set_Kernel_Var   ( Kernel_Var var, int value ) {
+  kernel_info.vars[var] = value;
 }
 /** Does not recompile for you */
 void Set_Map_Function ( string val ) { map_function = val; }
 
 private string RPixel_Colour_String ( ) {
   import opencl_kernel;
-  final switch ( kernel_information.type ) with ( Kernel_Type ) {
+  final switch ( kernel_info.type ) with ( Kernel_Type ) {
     case Raycast:  return Raycast_pixel_colour_function;
     case Raytrace: return Raytrace_pixel_colour_function;
     case MLT:      return MLT_pixel_colour_function;
@@ -103,8 +111,18 @@ void Recompile ( bool reset_all = false ) {
   import opencl_kernel, std.string : replace;
   if ( program !is null ) program.Clean_Up();
   string kernel = DTOADQ_kernel;
-  kernel = kernel.replace("//%MAP%//", map_function)
-                 .replace("//%PIXELCOLOUR%//", RPixel_Colour_String);
+  {
+    alias KV = Kernel_Var;
+    kernel = kernel
+      .replace("//%MAP", map_function)
+      .replace("//%PIXELCOLOUR", RPixel_Colour_String)
+      .replace("//%MARCH_DIST", kernel_info.vars[KV.March_Dist].to!string)
+      .replace("//%MARCH_REPS", kernel_info.vars[KV.March_Reps].to!string);
+  }
+  if ( kernel_info.flags[Kernel_Flag.Show_Normals] ) {
+    writeln(kernel);
+    kernel = kernel.replace("//#define SHOW_NORMALS", "#define SHOW_NORMALS");
+  }
   program = Compile(kernel);
   program.Set_Kernel("Kernel_Pathtrace");
 
@@ -199,6 +217,7 @@ void Update ( float timer ) {
 
   // --- check if dimensions of image chanegd ---
   if ( previous_img_dim != Img_dim && previous_img_dim != 0 ) {
+    Recompile();
     import functional;
     // -- update size of buffers --
     program.Modify_Image_Size(img_buffer_write, Img_dim, Img_dim);

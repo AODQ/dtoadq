@@ -20,7 +20,7 @@ alias PFn = PNT.Function, POp = PNT.Operation, PCo = PNT.Constant;
 NT NNT(string n, ST[] i, ST[] o, SD s ) { return new NT(n, i, o, s); }
 NT NNT(string n, ST[] i, ST[] o, PNT p) { return new NT(n, i, o, p); }
 NT Map_Func (T...)( string name, T args ) {
-  ST[] stargs; foreach ( n; args ) stargs ~= ST(n);
+  ST[] stargs; foreach ( n; args ) stargs ~= ST (n);
   return new NT(name, [ST("Origin")] ~ stargs, [ST("Out")], PFn);
 }
 
@@ -51,10 +51,18 @@ static NodeCategory[] node_types = [
     NNT("sin", [STV("In" )],                  [STV("Out" )], PFn ),
     NNT("tan", [STV("In" )],                  [STV("Out" )], PFn ),
   ]),
-  NodeCategory("Map", [
+  NodeCategory("Map Basic", [
     NNT("Render_Map", [STF3("Function"), STI("Material")], [], PFn),
-    Map_Func("sdSphere", "Radius"),
-  ])
+    Map_Func("SD_Sphere", "Radius"),
+    Map_Func("SD_Box", "Bounds"),
+    Map_Func("SD_Cross", "dist"),
+  ]),
+  NodeCategory("Map Mod", [
+    Map_Func("OP_Union",     "Origin"),
+    Map_Func("OP_Subtract",  "Origin"),
+    Map_Func("OP_Intersect", "Origin"),
+    Map_Func("OP_Repeat",    "Modulo"),
+  ]),
 ];
 
 

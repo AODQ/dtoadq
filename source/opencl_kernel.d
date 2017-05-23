@@ -1,5 +1,8 @@
 module opencl_kernel; immutable(string) DTOADQ_kernel = q{
 #define MAX_DEPTH 16
+#define MARCH_DIST //%MARCH_DIST.0f
+#define MARCH_REPS //%MARCH_REPS
+//#define SHOW_NORMALS
 // -----------------------------------------------------------------------------
 // --------------- DEBUG -------------------------------------------------------
 bool Is_Debug_Print ( ) {
@@ -140,21 +143,35 @@ float noise ( float2 n ) {
              f.y);
 }
 
+float SD_Sphere ( float3 origin, float radius ) {
+  return length(origin) - radius;
+}
+
+float SD_Box ( float3 origin, float3 bounds ) {
+  float3 d = fabs(origin) - bounds;
+  return fmin(fmax(d.x, fmax(d.y, d.z)), 0.0f) + length(fmax(d, 0.0f));
+}
+
+float SD_Box2 ( float2 origin, float2 bounds ) {
+  float2 d = fabs(origin) - bounds;
+  return fmin(fmax(d.x, d.y), 0.0f) + length(fmax(d, 0.0f));
+}
+
+float SD_Cross ( float3 origin, float dist ) {
+  float da = SD_Box2(origin.xy, (float2)(dist));
+  float db = SD_Box2(origin.yz, (float2)(dist));
+  float dc = SD_Box2(origin.zx, (float2)(dist));
+  return fmin(da, fmin(db, dc));
+}
+
+
+
 float sdPlane ( float3 p, float3 wal, float dist ) {
   return dot(p, wal) + dist;
 }
 
-float sdSphere( float3 p, float s ) {
-    return length(p)-s;
-}
-
 float sdBumpSphere( float3 p, float s ) {
   return length(p) - s+noise(p.xy);//0.2f*cos(p.z);
-}
-
-float sdBox( float3 p, float3 b ) {
-    float3 d = fabs(p) - b;
-    return fmin(fmax(d.x,fmax(d.y,d.z)),0.0f) + length(fmax(d,0.0f));
 }
 
 float sdEllipsoid( float3 p, float3 r ) {
@@ -207,7 +224,7 @@ float sdConeSection( float3 p, float h, float r1, float r2 ) {
 
 float sdPryamid4(float3 p, float3 h ) { // h = { cos a, sin a, height } {
     // Tetrahedron = Octahedron - Cube
-    float box = sdBox( p - (float3)(0.0f,-2.0f*h.z,0.0f), (float3)(2.0f*h.z) );
+    float box = SD_Box( p - (float3)(0.0f,-2.0f*h.z,0.0f), (float3)(2.0f*h.z) );
 
     float d = 0.0f;
     d = fmax( d, fabs( dot(p, (float3)( -h.x, h.y, 0.0f )) ));
@@ -248,8 +265,20 @@ float sdCylinder6( float3 p, float2 h ) {
 
 //------------------------------------------------------------------
 
-float opS( float d1, float d2 ) {
-    return fmax(-d2,d1);
+float OP_Union( float d1, float d2 ) {
+  return fmin(d2,d1);
+}
+
+float OP_Subtract ( float d1, float d2 ) {
+  return fmax(-d1, d2);
+}
+
+float OP_Intersect ( float d1, float d2 ) {
+  return fmax(d1, d2);
+}
+
+float3 OP_Repeat ( float3 p, float3 c ) {
+    return fmod(p,c)-0.5f*c;
 }
 
 float2 opU( int avoid, float2 d1, float2 d2 ) {
@@ -257,9 +286,6 @@ float2 opU( int avoid, float2 d1, float2 d2 ) {
   return (d1.x<d2.x) ? d1 : d2;
 }
 
-float3 opRep( float3 p, float3 c ) {
-    return fmod(p,c)-0.5f*c;
-}
 
 float3 opTwist( float3 p ) {
     float  c = cos(10.0f*p.y+10.0f);
@@ -276,7 +302,7 @@ float2 Map ( int a, float3 origin ) {
   float2 res = (float2)(FLT_MAX, -1);
 
   //---MAP INSERTION POINT---
-  //%MAP%//
+  //%MAP
   //-------------------------
 
   return res;
@@ -285,18 +311,12 @@ float2 Map ( int a, float3 origin ) {
 // -----------------------------------------------------------------------------
 // --------------- GRAPHIC FUNCS THAT NEED MAP ---------------------------------
 float3 Normal ( float3 p ) {
-  const float Delta  = 0.001f,
-              Delta2 = Delta*2.0f;
-
-  const float3 X = (float3)(Delta, 0.0f, 0.0f),
-               Y = (float3)(0.0f, Delta, 0.0f),
-               Z = (float3)(0.0f, 0.0f, Delta);
-
-  return (float3)(
-    (Map(-1, p + X).x - Map(-1, p - X).x)/Delta2,
-    (Map(-1, p + Y).x - Map(-1, p - Y).x)/Delta2,
-    (Map(-1, p + Z).x - Map(-1, p - Z).x)/Delta2
-  );
+  float2 eps = (float2)(0.001f,0.0);
+	return normalize((float3)(
+    (Map(-1, p+eps.xyy).x - Map(-1, p-eps.xyy).x),
+    (Map(-1, p+eps.yxy).x - Map(-1, p-eps.yxy).x),
+    (Map(-1, p+eps.yyx).x - Map(-1, p-eps.yyx).x)
+  ));
 }
 
 /**
@@ -325,15 +345,14 @@ float3 Tangent ( float3 normal ) {
 // -----------------------------------------------------------------------------
 // --------------- RAYTRACING/MARCH --------------------------------------------
 float2 March ( int avoid, Ray ray ) {
-  const float max_dist = 128.0f;
   float distance = 0.0f;
   float2 t_info;
-  for ( int i = 0; i < 128; ++ i ) {
+  for ( int i = 0; i < MARCH_REPS; ++ i ) {
     t_info = Map(avoid, ray.origin + ray.dir*distance);
-    if ( t_info.x < 0.01f || t_info.x > max_dist ) break;
+    if ( t_info.x < 0.01f || t_info.x > MARCH_DIST ) break;
     distance += t_info.x;
   }
-  if ( t_info.x > max_dist ) {
+  if ( t_info.x > MARCH_DIST ) {
     t_info.x = -1.0f;
     return t_info;
   }
@@ -405,7 +424,7 @@ float3 Jitter ( float3 d, float phi, float sina, float cosa ) {
 }
 
 RayInfo RPixel_Colour ( RNG* rng, const __global Material* material, Ray ray ) {
-  //%PIXELCOLOUR%//
+  //%PIXELCOLOUR
 }
 
 // -----------------------------------------------------------------------------
@@ -516,14 +535,6 @@ string MLT_pixel_colour_function = q{
 };
 
 string Raytrace_pixel_colour_function = q{
-  Ray cray = ray;
-  float2 marchinfo = March(-1, ray);
-  RayInfo rinfo;
-  rinfo.hit = marchinfo.x >= 0.0f;
-  rinfo.colour = (float3)(0.2f);
-  if ( rinfo.hit )
-    rinfo.colour = material[(int)(marchinfo.y)].base_colour;
-  return rinfo;
 };
 
 string Raycast_pixel_colour_function = q{
@@ -532,7 +543,15 @@ string Raycast_pixel_colour_function = q{
   RayInfo rinfo;
   rinfo.hit = marchinfo.x >= 0.0f;
   rinfo.colour = (float3)(0.2f);
-  if ( rinfo.hit )
-    rinfo.colour = material[(int)(marchinfo.y)].base_colour;
+  if ( rinfo.hit ) {
+    #ifdef SHOW_NORMALS
+      rinfo.colour = normalize(Normal(ray.origin + ray.dir*marchinfo.x));
+      // rinfo.colour += (float3)(0.3f, 0.3f, 0.3f);
+      // rinfo.colour = cos(cross(ray.origin + ray.dir*marchinfo.x,
+      //                          (float3)(2.0f, 1.0f, 2.0f)));
+    #else
+      rinfo.colour = material[(int)(marchinfo.y)].base_colour;
+    #endif
+  }
   return rinfo;
 };

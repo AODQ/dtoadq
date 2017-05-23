@@ -245,7 +245,7 @@ private:
         case Float3: size.y = max(size.y, 100.0f); goto case;
         case Float2: size.y = max(size.y,  70.0f); goto case;
         case Int: case Float : size.y = max(size.y,  50.0f);
-          size.x = 160.0f; break;
+          size.x =  80.0f; break;
         case String: break;
       }
     }

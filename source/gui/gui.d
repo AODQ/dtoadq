@@ -3,8 +3,8 @@ import globals;
 import derelict.imgui.imgui;
 import scene;
 import gui.nodegraphrenderer : Update_Node_Graph;
-import raytracer : Kernel_Type, Kernel_Flag, Set_Kernel_Type,
-                   Set_Kernel_Flag, Recompile;
+static import Kernel = raytracer;
+import raytracer : Kernel_Type, Kernel_Var, Kernel_Flag;
 
 
 bool Imgui_Render ( ref Material[] materials, ref Camera camera ) @trusted {
@@ -40,8 +40,10 @@ bool Imgui_Render ( ref Material[] materials, ref Camera camera ) @trusted {
   }
   // -- render options --
   if ( igCollapsingHeader("Render Options") ) {
-    static bool render_normals = false;
-    static int kernel_type = 0, pkernel_type;
+    static bool Show_Normals = false;
+    static int kernel_type = 0, pkernel_type,
+               march_dist = 64,
+               march_reps = 128;
     bool recompile = false;
 
     pkernel_type = kernel_type;
@@ -49,19 +51,27 @@ bool Imgui_Render ( ref Material[] materials, ref Camera camera ) @trusted {
     igRadioButton("Raytrace", &kernel_type, 1); igSameLine();
     igRadioButton("MLT",      &kernel_type, 2);
     if ( kernel_type != pkernel_type ) {
-      Set_Kernel_Type(cast(Kernel_Type)kernel_type);
+      Kernel.Set_Kernel_Type(cast(Kernel_Type)kernel_type);
       recompile = true;
     }
 
-    if ( igCheckbox("Render normals", &render_normals) ) {
-      Set_Kernel_Flag(Kernel_Flag.Render_Normals, render_normals);
+    if ( igCheckbox("Show Normals", &Show_Normals) ) {
+      Kernel.Set_Kernel_Flag(Kernel_Flag.Show_Normals, Show_Normals);
       recompile = true;
     }
 
-    igSliderInt("DIM", &Img_dim,        8, 1080);
+    if ( igSliderInt("March Distance", &march_dist, 1, 2048) ) {
+      Kernel.Set_Kernel_Var(Kernel_Var.March_Dist, march_dist);
+      recompile = true;
+    }
+    if ( igSliderInt("March Repetitions", &march_reps, 1, 256) ) {
+      Kernel.Set_Kernel_Var(Kernel_Var.March_Reps, march_reps);
+      recompile = true;
+    }
+    igSliderInt("Dimensions", &Img_dim, 32, 1080);
 
     if ( recompile ) {
-      Recompile();
+      Kernel.Recompile();
     }
   }
 

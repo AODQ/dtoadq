@@ -148,7 +148,7 @@ void Update_Node ( ImDrawList* draw_list, ImVec2 screen_offset, Node node,
 public void Update_Node_Graph ( ) {
   static bool opened = true;
   igSetNextWindowSize(ImVec2(400, 400), ImGuiSetCond_FirstUseEver);
-  if ( !igBegin("Model Node Graph", &opened) ) {
+  if ( !igBegin("SDF Node Graph", &opened) ) {
     igEnd();
     return;
   }
@@ -162,11 +162,11 @@ public void Update_Node_Graph ( ) {
   igSameLine();
   igBeginGroup();
 
-  igPushStyleVarVec(ImGuiStyleVar_FramePadding, ImVec2(1, 1));
+  igPushStyleVarVec(ImGuiStyleVar_FramePadding,  ImVec2(1, 1));
   igPushStyleVarVec(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
   igBeginChild("scrolling_region", ImVec2(0, 0), true,
                 ImGuiWindowFlags_NoScrollbar|ImGuiWindowFlags_NoMove);
-  igPushItemWidth(120.0f);
+  igPushItemWidth(60.0f); // set input field
   auto draw_list = igGetWindowDrawList();
   ImDrawList_ChannelsSplit(draw_list, 2);
 
@@ -226,7 +226,7 @@ public void Update_Node_Graph ( ) {
           if ( !igBeginMenu(label.toStringz) ) return;
           foreach ( name; names )
             if ( gdMenuItem(name) )
-              New_Node(name, Add(scrolling, saved_mouse_pos));
+              New_Node(name, Sub(saved_mouse_pos, scrolling));
           igEndMenu();
         }
 

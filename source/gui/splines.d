@@ -3,7 +3,7 @@ import derelict.imgui.imgui;
 
 void Draw_Hermite ( ImDrawList* draw_list, ImVec2 p1, ImVec2 p2 ) {
   ImVec2 v1 = ImVec2(80.0f, 0.0f), v2 = v1;
-  size_t steps = 20;
+  size_t steps = 8;
   foreach ( step; 0 .. steps ) {
     float t = cast(float)step/cast(float)steps, t2 = t*t, t3 = t*t*t;
     float h1 =  2*t3 - 3*t2 + 1.0f, h2 = -2*t3 + 3*t2,
