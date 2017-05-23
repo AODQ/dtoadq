@@ -19,8 +19,10 @@ RNG Generate_New_RNG() {
 }
 
 private OpenCLProgram program;
-private OpenCLImage img_buffer_write, img_buffer_read;
+private OpenCLGLImage[2] img_buffer; // Ping-pong ogl/ocl interop as described:
+      // https://github.com/nvpro-samples/gl_cl_interop_pingpong_st
 private OpenCLSingleton!RNG rng_buffer;
+private OpenCLSingleton!bool img_reset_buffer;
 private OpenCLSingleton!Camera camera_buffer;
 private OpenCLSingleton!float timer_buffer;
 private OpenCLBuffer!Material material_buffer;
@@ -29,19 +31,14 @@ private MonoTime timer_start;
 private bool reset_camera;
 private uint texture;
 
-void Initialize_OpenCL()  { opencl.Initialize(); }
-
-void Initialize ( ){
-  // --- kernel init ---
+void Load_Default_File ( ) {
   static import std.file;
-  writeln("FORMAT STR");
   auto tstr = std.file.read("testmap.cl").to!string;
   import functional;
   string mapfunc;
   string[] material_str_list;
   bool hit;
   foreach ( i; tstr.splitLines() ) {
-    writeln("`", i, "` == `-MATERIALS` ?");
     if ( i == "-MATERIALS" ) {
       hit = true;
       continue;
@@ -49,19 +46,20 @@ void Initialize ( ){
     if ( hit ) material_str_list ~= i;
     else       mapfunc           ~= i;
   }
-  writeln("MAPFUNC: ", mapfunc);
-  writeln("\n\nmaterial list: ", material_str_list);
   foreach ( m; material_str_list ) {
     float[] fvals = m.split[1 .. $].map!(to!float).array;
     material ~= Create_Material(fvals);
   }
-  Recompile(true); // Just compiles but same as recompiling anyways
+}
+
+void Initialize ( ){
+  Load_Default_File();
+  opencl.Initialize();
   // --- opengl ---
-  import derelict.opengl3.gl3;
-  glGenTextures(1, &texture);
   import gl_renderer;
   GL_Renderer_Initialize();
-  writeln("done with renderer");
+  // --- kernel init ---
+  Recompile(true); // Just compiles but same as recompiling anyways
 }
 
 enum Kernel_Type { Raycast, Raytrace, MLT, }
@@ -120,7 +118,6 @@ void Recompile ( bool reset_all = false ) {
       .replace("//%MARCH_REPS", kernel_info.vars[KV.March_Reps].to!string);
   }
   if ( kernel_info.flags[Kernel_Flag.Show_Normals] ) {
-    writeln(kernel);
     kernel = kernel.replace("//#define SHOW_NORMALS", "#define SHOW_NORMALS");
   }
   program = Compile(kernel);
@@ -130,15 +127,18 @@ void Recompile ( bool reset_all = false ) {
   auto camera = Construct_Camera([1.0f, 0.0f,  0.0f], [ 0.0f, 0.0f, -1.0f],
                                                 [Img_dim, Img_dim]);
   if ( !reset_all ) {
-    camera = camera_buffer.data[0];
+    camera   = camera_buffer.data[0];
+  } else {
   }
 
   // --- parameter buffer init ---
   auto RO = BufferType.read_only, WO = BufferType.write_only;
-  img_buffer_write = program.Set_Image_Buffer(WO, Img_dim);
-  img_buffer_read  = program.Set_Image_Buffer(RO, Img_dim);
+  writeln("DOING GL THING");
+  img_buffer[0]    = program.Set_Image_GL_Buffer(RO, Img_dim);
+  writeln("DOING GL THING DONESO");
+  img_buffer[1]    = program.Set_Image_GL_Buffer(WO, Img_dim);
+  img_reset_buffer = program.Set_Singleton!bool(RO, true);
   rng_buffer       = program.Set_Singleton!RNG(RO, rng);
-  writeln("CAMERA BUFFER: ", camera_buffer);
   camera_buffer    = program.Set_Singleton!Camera(RO, camera);
   timer_buffer     = program.Set_Singleton!float(RO, 0.0f);
   material_buffer  = program.Set_Buffer!Material(RO, material);
@@ -173,7 +173,7 @@ bool Update_Camera ( ) {
     Unstick();
   }
 
-  float vel = 0.1f + RKey_Input(32)*0.3f;
+  float vel = 0.1f + RKey_Input(82)*0.3f - RKey_Input(70)*0.09f;
   import gln;
 
   if ( RKey_Input(65) || RKey_Input(68) ) { // AD
@@ -200,11 +200,12 @@ bool Update_Camera ( ) {
 }
 
 
+static int flip_img = 0;
 void Update ( float timer ) {
+  program.Acquire_Ownership(img_buffer[0]);
+  program.Acquire_Ownership(img_buffer[1]);
   static bool updated_last_frame;
   static int previous_img_dim = 0;
-  if ( updated_last_frame )
-    program.Read_Image(img_buffer_write);
   updated_last_frame = false;
   Render();
   bool material_changed;
@@ -215,25 +216,18 @@ void Update ( float timer ) {
   bool reset_img_buffers = false;
   if ( !timer.Should_Update ) return;
 
-  // --- check if dimensions of image chanegd ---
+  // --- check if dimensions of image changed ---
   if ( previous_img_dim != Img_dim && previous_img_dim != 0 ) {
     Recompile();
     import functional;
     // -- update size of buffers --
-    program.Modify_Image_Size(img_buffer_write, Img_dim, Img_dim);
-    program.Modify_Image_Size(img_buffer_read, Img_dim, Img_dim);
+    program.Resize_Image_GL_Buffer(img_buffer[0], Img_dim, Img_dim);
+    program.Resize_Image_GL_Buffer(img_buffer[1], Img_dim, Img_dim);
     // -- update camera --
     camera_buffer.data[0].dimensions = [Img_dim, Img_dim];
-    // -- update image buffers --
     reset_img_buffers = true;
-    float[] buffer;
-    buffer.length = 4*Img_dim*Img_dim;
-    buffer = buffer.map!(n => 0.0f).array;
-    img_buffer_read.data = img_buffer_write.data = buffer;
     // -- write results --
     program.Write(camera_buffer);
-    program.Write(img_buffer_write);
-    // (no need to write read as it's done every frame anyways)
   }
   previous_img_dim = Img_dim;
 
@@ -251,38 +245,44 @@ void Update ( float timer ) {
   }
 
   // --- check if the image needs to be reset ---
-  if ( reset_img_buffers ) {
-    import functional;
-    // {import functional; img_buffer_write.data.each!((ref n) => n = 0.0f);}
-    for ( int i = 3; i < img_buffer_write.data.length; i += 4 )
-      img_buffer_write.data[i] = 0.0f;
-    program.Write(img_buffer_write);
-    // again, no need to write to read as it's done directly after
-  }
+  img_reset_buffer.data[0] = reset_img_buffers;
+  program.Write(img_reset_buffer);
 
-  // -- update image read and timer buffers --
-  img_buffer_read.data = img_buffer_write.data;
-  program.Write(img_buffer_read);
+  // timer
   timer_buffer.data[0] = timer;
   program.Write(timer_buffer);
+
+  // -- update kernel arguments --
+  program.Change_Kernel_Arg(img_buffer[flip_img  ], 0);
+  program.Change_Kernel_Arg(img_buffer[flip_img^1], 1);
+  flip_img ^= 1;
+  program.Change_Kernel_Arg(img_reset_buffer, 2);
+  program.Change_Kernel_Arg(rng_buffer,  3);
+  program.Change_Kernel_Arg(camera_buffer, 4);
+  program.Change_Kernel_Arg(timer_buffer, 5);
+  program.Change_Kernel_Arg(material_buffer, 6);
+  // -- run --
   program.Run([Img_dim, Img_dim, 1], [1, 1, 1]);
-  updated_last_frame = true;
+  updated_last_frame = true ;
+  program.Release_Ownership(img_buffer[0]);
+  program.Release_Ownership(img_buffer[1]);
 }
 
 void Render ( ) {
-  CLImage_To_GLImage(CLImage(img_buffer_write.data,
-                             cast(int)img_buffer_write.width,
-                             cast(int)img_buffer_write.height));
   import gl_renderer;
-  GL_Render(texture, Img_dim, Img_dim);
+  GL_Render(img_buffer[flip_img].gl_texture, Img_dim, Img_dim);
 }
 
+/** Still need this in case the GPU doesn't have
+      GL_CL interoperability for some reason . . .
+*/
 private void CLImage_To_GLImage ( CLImage image ) {
     import derelict.opengl3.gl3;
-  glBindTexture(GL_TEXTURE_2D, texture);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image.width, image.height, 0,
-               GL_RGBA, GL_FLOAT, cast(void*)image.buffer.ptr);
-  glBindTexture(GL_TEXTURE_2D, 0);
+
+  // glBindTexture(GL_TEXTURE_2D, texture);
+  // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+  // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+  // glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image.width, image.height, 0,
+  //              GL_RGBA, GL_FLOAT, cast(void*)image.buffer.ptr);
+  // glBindTexture(GL_TEXTURE_2D, 0);
 }

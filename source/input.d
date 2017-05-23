@@ -25,7 +25,7 @@ extern(C) static void Cursor_Position_Callback ( GLFWwindow* window,
   mouse_y = ypos;
 }
 
-private bool[320] keystate;
+private bool[400] keystate;
 
 extern(C) static void Key_Input_Callback ( GLFWwindow* window,
                         int key, int scancode, int action, int mods ) nothrow {

@@ -6,7 +6,7 @@ import std.conv : to;
 import openclmisc;
 
 alias cl_context              CLContext;
-alias cl_context_properties[3] CLContextProperties;
+alias cl_context_properties[] CLContextProperties;
 alias cl_command_queue        CLCommandQueue;
 alias cl_program              CLProgram;
 alias cl_device_id            CLDeviceID;
@@ -35,18 +35,45 @@ struct BaseBuffer(BType) {
   int index;
 }
 
-struct OpenCLImage {
-  BaseBuffer!float _mybuffer;
-  alias _mybuffer this;
+struct OpenCLGLImage {
+  CLMem cl_handle;
+  uint gl_texture;
   cl_image_format  format;
   cl_image_desc    description;
   size_t width, height;
-  this ( BufferType _type, float[] _data, int _ind, cl_image_format _format,
-         cl_image_desc _description, size_t _width, size_t _height) {
-    _mybuffer = BaseBuffer!float(_type, CLMem(), _data, _ind);
+  this ( BufferType _type, int _ind, cl_image_format _format,
+         cl_image_desc _description, size_t _width, size_t _height,
+         ref CLContext context) {
     format = _format;
     description = _description;
     width = _width; height = _height;
+    Create_Memory(context);
+  }
+
+  void Resize ( size_t width_, size_t height_, ref CLContext context ) {
+    width = width_;
+    height = height_;
+    Create_Memory(context);
+  }
+
+  void Create_Memory ( ref CLContext context ) {
+    import derelict.opengl3.gl3;
+    glGenTextures(1, &gl_texture);
+    glBindTexture(GL_TEXTURE_2D, gl_texture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, cast(int)width, cast(int)height, 0,
+                 GL_RGBA, GL_FLOAT, null);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    int err;
+    cl_handle = clCreateFromGLTexture(context, CL_MEM_READ_WRITE,
+                            GL_TEXTURE_2D, 0, gl_texture, &err);
+    CLAssert(err, "clCreateFromGLTexture");
+  }
+
+  void Release_Memory (  ) {
+    import derelict.opengl3.gl3;
+    glDeleteTextures(1, &gl_texture);
+    clReleaseMemObject(cl_handle);
   }
 }
 
@@ -59,14 +86,14 @@ struct OpenCLSingleton(BType) {
 }
 
 
-OpenCLImage Create_CL_Image(BufferType type, int width, int height,
-                                                int param_index) {
-  return OpenCLImage(
-    type, [], param_index,
+OpenCLGLImage Create_CLGL_Image ( BufferType type, int width, int height,
+                                  int param_index, CLContext context ) {
+  return OpenCLGLImage(
+    type, param_index,
     cl_image_format(CL_RGBA, CL_FLOAT),
-    cl_image_desc (CL_MEM_OBJECT_IMAGE2D, width, height, 1,
-                  0, 0, 0, 0, 0, null),
-    width, height
+    cl_image_desc  (CL_MEM_OBJECT_IMAGE2D, width, height, 1,
+                    0, 0, 0, 0, 0, null),
+    width, height, context
   );
 }
 
@@ -95,23 +122,36 @@ public:
     assert(device !is null);
   } body {
     err = CL_SUCCESS;
-    properties = [CL_CONTEXT_PLATFORM, cast(int)device.platform_id, 0];
+    {
+      version(Windows) {
+        import derelict.opengl.glw;
+        properties = [CL_CONTEXT_PLATFORM, cast(int)device.platform_id,
+                      CL_GL_CONTEXT_KHR,   cast(int)wglGetCurrentContext(),
+                      CL_WGL_HDC_KHR,      cast(int)wglGetCurrentDisplay(),
+                      0];
+        writeln("Windows probably don't even work! :-)");
+      }
+      version(linux) {
+        import derelict.opengl3.glx;
+        properties = [CL_CONTEXT_PLATFORM, cast(int)device.platform_id,
+                      CL_GL_CONTEXT_KHR,   cast(int)glXGetCurrentContext(),
+                      CL_GLX_DISPLAY_KHR,  cast(int)glXGetCurrentDisplay(),
+                      0];
+      }
+    }
     int err;
-    writeln("create context");
-    writeln(device.platform_id, " 00 ", device.device_id);
     context = clCreateContext(properties.ptr, 1, &device.device_id,
                                 null, null, &err);
-    CLAssert(err, "Create context");
+    CLAssert(err, "clCreateContext");
     command_queue = clCreateCommandQueue(context, device.device_id, 0, &err);
-    CLAssert(err, "Create command queue");
+    CLAssert(err, "clCreateCommandQueue");
 
     import std.string;
     auto e = source.toStringz;
     program = clCreateProgramWithSource(context, 1, &e, null, &err);
-    CLAssert(err, "Create program with source");
-    writeln("building");
+    CLAssert(err, "clCreateProgramWithSource");
     if ( clBuildProgram(program, 0, null, null, null, null) != CL_SUCCESS ) {
-      writeln("Error building program");
+      writeln("clBuildProgram");
       size_t len;
       clGetProgramBuildInfo(program, device.device_id, CL_PROGRAM_BUILD_LOG, 0,
                             null, &len);
@@ -121,7 +161,6 @@ public:
       writeln("LOG: ", log);
       assert(false);
     }
-    writeln("PROGRAM BUILT .. .");
   }
 
   void Set_Kernel(string kernel_name) {
@@ -129,43 +168,39 @@ public:
     CLAssert(err, "clCreateKernel");
   }
 
-  OpenCLImage Set_Image_Buffer(BufferType type, int dim) {
-    return Set_Image_Buffer(type, dim, dim);
+  void Acquire_Ownership(ref OpenCLGLImage image) {
+    import derelict.opengl3.gl3;
+    glFlush();
+    clEnqueueAcquireGLObjects(command_queue, 1, &image.cl_handle,
+                              0, null, null);
   }
-  OpenCLImage Set_Image_Buffer(BufferType type, int width, int height){
-    OpenCLImage image = Create_CL_Image(type, width, height, param_count);
-    image.cl_handle = clCreateImage(context, type, &image.format,
-                                    &image.description, null, &err);
-    mem_objects ~= image.cl_handle;
-    CLAssert(err, "Creating image ");
-    image.data.length = width*height*4;
-    {import functional; image.data.each!((ref n) => n = 0.0f);}
-    CLAssert(clSetKernelArg(kernel, param_count, CLMem.sizeof,&image.cl_handle),
-             "clSetKernelArg");
-    image.index = param_count;
-    ++param_count;
+
+  void Release_Ownership(ref OpenCLGLImage image) {
+    clEnqueueReleaseGLObjects(command_queue, 1, &image.cl_handle,
+                              0, null, null);
+    clFlush(null);
+  }
+
+  OpenCLGLImage Set_Image_GL_Buffer ( BufferType type, int dim ) {
+    return Set_Image_GL_Buffer(type, dim, dim);
+  }
+  OpenCLGLImage Set_Image_GL_Buffer ( BufferType type, int width, int height ) {
+    auto image = Create_CLGL_Image(type, width, height, param_count, context);
+    Resize_Image_GL_Buffer(image, width, height);
+    ++ param_count;
+    writeln("param count: ", param_count);
     return image;
   }
 
-  void Modify_Image_Size ( ref OpenCLImage image, int width, int height ) {
-    clReleaseMemObject(image.cl_handle);
-    image.width = width;
-    image.height = height;
-    image.description = cl_image_desc(CL_MEM_OBJECT_IMAGE2D, width, height, 1,
-                                      0, 0, 0, 0, 0, null);
-    image.cl_handle = clCreateImage(context, image.type, &image.format,
-                                    &image.description, null, &err);
-    CLAssert(err, "Modifying image size ");
-    image.data.length = width*height*4;
-
-    CLAssert(clSetKernelArg(kernel, image.index, CLMem.sizeof,&image.cl_handle),
-            "clSetKernelArg");
+  void Resize_Image_GL_Buffer ( ref OpenCLGLImage img, int width, int height ) {
+    img.Resize(width, height, context);
   }
 
   OpenCLSingleton!T Set_Singleton(T)(BufferType type, inout(T) data) {
     auto singleton = OpenCLSingleton!T(
       type, data, param_count
     );
+    writeln("cl handle");
     singleton.cl_handle = clCreateBuffer(context, type | CL_MEM_COPY_HOST_PTR,
                                          T.sizeof, singleton.data.ptr, &err);
     CLAssert(err, "clCreateBuffer");
@@ -176,14 +211,11 @@ public:
     return singleton;
   }
 
-  void Write(OpenCLImage image) {
-    size_t[3] origin = [0, 0, 0];
-    size_t[3] region = [image.width, image.height, 1];
-    CLAssert(clEnqueueWriteImage(command_queue, image.cl_handle,
-                  CL_TRUE, origin.ptr, region.ptr, 0, 0,
-                  cast(void*)image.data.ptr, 0, null, null),
-             "clEnqueueWriteImage");
+  void Change_Kernel_Arg(T)( ref T s, int index ) {
+    CLAssert(clSetKernelArg(kernel, index, CLMem.sizeof, &s.cl_handle),
+             "clSetKernelArg");
   }
+
   void Write(T)(OpenCLBuffer!T buffer) {
     int len = cast(int)buffer.data.length;
     CLAssert(clEnqueueWriteBuffer(command_queue, buffer.cl_handle,
@@ -208,15 +240,17 @@ public:
     );
 
     auto flags = type | (data is null? 0 : CL_MEM_COPY_HOST_PTR);
+    writeln("BUFFER SIZE: ", data.length*T.sizeof);
     buffer.cl_handle = clCreateBuffer(context, flags, data.length*T.sizeof,
                                       buffer.data.ptr, &err);
+    CLAssert(err, "clCreateBuffer data");
     int temp = cast(int)data.length;
     buffer.cl_length_handle = clCreateBuffer(context,
                              CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
                              int.sizeof, &temp, &err);
+    CLAssert(err, "clCreateBuffer length");
     mem_objects ~= buffer.cl_handle;
     mem_objects ~= buffer.cl_length_handle;
-    CLAssert(err, "clCreateBufferl");
     CLAssert(clSetKernelArg(kernel, param_count, CLMem.sizeof,
                             &buffer.cl_handle),
              "clSetKernelArg");
@@ -238,16 +272,6 @@ public:
     CLAssert(clEnqueueReadBuffer(command_queue, buffer.cl_handle, CL_TRUE, 0,
                   BType.sizeof*buffer.data.length, buffer.data.ptr,
                   0, null, null), "Enqueue read buffer");
-  }
-
-  void Read_Image(ref OpenCLImage image) {
-    static size_t[3] origin = [0, 0, 0];
-    size_t[3] region = [
-      image.width, image.height, 1
-    ];
-    CLAssert(clEnqueueReadImage(command_queue, image.cl_handle, CL_TRUE,
-                origin.ptr, region.ptr, 0, 0, image.data.ptr, 0, null, null),
-                "Enqueue image");
   }
 
   void Clean_Up() {
@@ -293,11 +317,11 @@ auto Set_Current_Platform() {
   { // grab index
     import functional;
     foreach ( it; 0 .. platforms.length ) {
-      writeln("Platform looper");
       writeln("----- Index: ", it, "\n", RPlatform_Info(platforms[it]));
     }
     write("CHOOSE A PLATFORM: ");
-    index = readln.chomp.to!int;
+    // index = readln.chomp.to!int;
+    index = 0;
     writeln();
     assert(index >= 0 && index < platforms.length, " invalid platform index");
   }
@@ -313,20 +337,20 @@ auto Set_Current_Device(CLPlatformID platform_id) {
 }
 
 void Initialize ( ) {
-  writeln("DerelictCL load");
   DerelictCL.load();
-  writeln("det platform");
   auto platform_id = Set_Current_Platform();
-  writeln("det device id");
   auto device_id = Set_Current_Device(platform_id);
-  writeln("det reload");
   DerelictCL.reload(RCL_Version(platform_id));
-  // DerelictCL.loadEXT(platform_id);
-  writeln("det device");
+  DerelictCL.loadEXT(platform_id);
   device = new Device(platform_id, device_id);
-  // writeln(RDevice_Info(device_id));
-  writeln("done init");
+  auto device_extensions = RDevice_Info(device_id);
+  import std.string : count;
+  if ( device_extensions.count("cl_khr_gl_sharing") == 0 ) {
+    writeln("Requires cl_khr_gl_sharing (for the moment)!");
+    assert(0);
+  }
 }
+
 auto Compile(string source) {
   return new OpenCLProgram(source);
 }

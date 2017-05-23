@@ -456,18 +456,23 @@ Ray Camera_Ray(RNG* rng, __global Camera* camera) {
 // -----------------------------------------------------------------------------
 // --------------- KERNEL ------------------------------------------------------
 __kernel void Kernel_Pathtrace (
+        __read_only image2d_t input_image,
         __write_only image2d_t output_image,
-        __read_only  image2d_t input_image,
+        __global bool* reset_image,
         __global RNG* rng_ptr,
         __global Camera* camera,
         __global float* time_ptr,
         __global Material* material, __global int* material_size
       ) {
   int2 out = (int2)(get_global_id(0), get_global_id(1));
+  int image_rw_index = camera->dim.y*out.y + out.x;
   RNG rng = *rng_ptr;
   // -- get old pixel, check if there are samples to be done
   //    (counter is stored in alpha channel)
-  float4 old_pixel = read_imagef(input_image, out);
+  float4 old_pixel = (float4)(0.0f);
+  if ( !*reset_image ) {
+    old_pixel = read_imagef(input_image, out);
+  }
   // -- set up camera and stack
 
   if ( old_pixel.w < 1.0f ) {
@@ -546,9 +551,6 @@ string Raycast_pixel_colour_function = q{
   if ( rinfo.hit ) {
     #ifdef SHOW_NORMALS
       rinfo.colour = normalize(Normal(ray.origin + ray.dir*marchinfo.x));
-      // rinfo.colour += (float3)(0.3f, 0.3f, 0.3f);
-      // rinfo.colour = cos(cross(ray.origin + ray.dir*marchinfo.x,
-      //                          (float3)(2.0f, 1.0f, 2.0f)));
     #else
       rinfo.colour = material[(int)(marchinfo.y)].base_colour;
     #endif
