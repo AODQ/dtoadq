@@ -1,4 +1,6 @@
 ﻿module imgui_glfw;
+// -- I didn't write this code, it comes standard for IMGUI, and the port was
+//    done as an example in CIMGUI
 
 import derelict.imgui.imgui;
 import derelict.opengl3.gl3;

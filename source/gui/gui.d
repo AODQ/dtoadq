@@ -3,9 +3,8 @@ import globals;
 import derelict.imgui.imgui;
 import scene;
 import gui.nodegraphrenderer : Update_Node_Graph;
-static import Kernel = raytracer;
-import raytracer : Kernel_Type, Kernel_Var, Kernel_Flag;
-
+static import Kernel = kernelinfo;
+static import DTOADQ = dtoadq;
 
 bool Imgui_Render ( ref Material[] materials, ref Camera camera ) @trusted {
   bool change;
@@ -41,38 +40,38 @@ bool Imgui_Render ( ref Material[] materials, ref Camera camera ) @trusted {
   // -- render options --
   if ( igCollapsingHeader("Render Options") ) {
     static bool Show_Normals = false;
-    static int kernel_type = 0, pkernel_type,
+    static int kernel_type = 0, resolution = 0, pkernel_type,
                march_dist = 64,
                march_reps = 128;
-    bool recompile = false;
 
     pkernel_type = kernel_type;
     igRadioButton("Raycast",  &kernel_type, 0); igSameLine();
     igRadioButton("Raytrace", &kernel_type, 1); igSameLine();
     igRadioButton("MLT",      &kernel_type, 2);
+    alias Kernel_Type = Kernel.Kernel_Info.Type,
+          Kernel_Flag = Kernel.Kernel_Info.Flag,
+          Kernel_Var  = Kernel.Kernel_Info.Var;
     if ( kernel_type != pkernel_type ) {
       Kernel.Set_Kernel_Type(cast(Kernel_Type)kernel_type);
-      recompile = true;
     }
 
     if ( igCheckbox("Show Normals", &Show_Normals) ) {
       Kernel.Set_Kernel_Flag(Kernel_Flag.Show_Normals, Show_Normals);
-      recompile = true;
     }
 
     if ( igSliderInt("March Distance", &march_dist, 1, 2048) ) {
       Kernel.Set_Kernel_Var(Kernel_Var.March_Dist, march_dist);
-      recompile = true;
     }
     if ( igSliderInt("March Repetitions", &march_reps, 1, 256) ) {
       Kernel.Set_Kernel_Var(Kernel_Var.March_Reps, march_reps);
-      recompile = true;
     }
-    igSliderInt("Dimensions", &Img_dim, 32, 1080);
 
-    if ( recompile ) {
-      Kernel.Recompile();
+    static import DIMG = dtoadqimage;
+    foreach ( it, str; DIMG.RResolution_Strings ) {
+      igRadioButton(str.toStringz, &resolution, cast(int)it);
     }
+
+    DTOADQ.Set_Image_Buffer(cast(DIMG.Resolution)resolution);
   }
 
 

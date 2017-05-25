@@ -51,7 +51,7 @@ private void Check_Shader_Error ( int handle, string type ) @trusted {
   }
 }
 
-void GL_Renderer_Initialize() {
+void Renderer_Initialize() {
   // --- create shader ---
   shader_id      = glCreateProgram();
   auto def_vert_handle = glCreateShader(GL_VERTEX_SHADER),
@@ -97,7 +97,7 @@ void GL_Renderer_Initialize() {
                                         elements.ptr, GL_STATIC_DRAW);
 }
 
-void GL_Render ( GLuint texture, float width, float height ) {
+void Render ( GLuint texture ) {
   import globals;
   import gl3n.linalg;
 

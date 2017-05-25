@@ -4,7 +4,7 @@ import derelict.imgui.imgui,
        derelict.opengl3.gl3,
        derelict.glfw3,
        imgui_glfw;
-static import raytracer;
+static import DTOADQ = dtoadq;
 
 GLFWwindow* Init ( ) {
   import derelict.glfw3.glfw3;
@@ -32,7 +32,7 @@ GLFWwindow* Init ( ) {
 	glfwMakeContextCurrent(window);
   DerelictGL3.reload();
   igImplGlfwGL3_Init(window, true);
-  raytracer.Initialize();
+  DTOADQ.Initialize();
 
   import input;
   glfwSetCursorPosCallback   (window, &Cursor_Position_Callback );
@@ -46,19 +46,19 @@ void Update () {
   ImGuiIO* io = igGetIO();
   glfwPollEvents();
   igImplGlfwGL3_NewFrame();
-  raytracer.Update(glfwGetTime());
+  DTOADQ.Update(glfwGetTime());
 }
 
 bool running = true;
 
-import opencl : CLImage;
-
 void main() {
   scope ( exit ) {
+    writeln("Terminating glfw...");
     glfwTerminate();
     igImplGlfwGL3_Shutdown();
-    raytracer.Remove();
-    writeln("Successfully ended");
+    writeln("Terminating OCL/DTOADQ");
+    DTOADQ.Clean_Up();
+    writeln("ended");
   }
   auto window = Init();
 

@@ -424,7 +424,7 @@ float3 Jitter ( float3 d, float phi, float sina, float cosa ) {
 }
 
 RayInfo RPixel_Colour ( RNG* rng, const __global Material* material, Ray ray ) {
-  //%PIXELCOLOUR
+  //%KERNELTYPE
 }
 
 // -----------------------------------------------------------------------------
@@ -455,14 +455,14 @@ Ray Camera_Ray(RNG* rng, __global Camera* camera) {
 
 // -----------------------------------------------------------------------------
 // --------------- KERNEL ------------------------------------------------------
-__kernel void Kernel_Pathtrace (
+__kernel void Kernel_DTOADQ (
         __read_only image2d_t input_image,
         __write_only image2d_t output_image,
         __global bool* reset_image,
         __global RNG* rng_ptr,
         __global Camera* camera,
         __global float* time_ptr,
-        __global Material* material, __global int* material_size
+        __global Material* material, __global uint* material_size
       ) {
   int2 out = (int2)(get_global_id(0), get_global_id(1));
   int image_rw_index = camera->dim.y*out.y + out.x;
@@ -502,7 +502,7 @@ __kernel void Kernel_Pathtrace (
 }};
 
 
-string MLT_pixel_colour_function = q{
+string MLT_kernel_function = q{
   Ray cray = ray;
   // Trace a path from camera origin to some end
   int depth;
@@ -539,10 +539,10 @@ string MLT_pixel_colour_function = q{
   return rinfo;
 };
 
-string Raytrace_pixel_colour_function = q{
+string Raytrace_kernel_function = q{
 };
 
-string Raycast_pixel_colour_function = q{
+string Raycast_kernel_function = q{
   Ray cray = ray;
   float2 marchinfo = March(-1, ray);
   RayInfo rinfo;

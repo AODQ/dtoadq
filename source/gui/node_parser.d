@@ -194,8 +194,7 @@ string Parse_Graph ( ) {
     parsed_result ~= "\n" ~ node.Eval_Node;
   }
   writeln("Result: ", parsed_result);
-  import raytracer;
+  import kernelinfo;
   Set_Map_Function(parsed_result);
-  Recompile();
   return "";
 }
