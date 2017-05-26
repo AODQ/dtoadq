@@ -20,12 +20,12 @@ void Initialize ( ) {
   OCL.Initialize("DTOADQ_Kernel");
   // -- initialize variables --
   DIMG.Initialize();
-  image_buffer = DIMG.RImage(DIMG.Resolution.r640_360);
   rng_buffer = RNG.Generate_New();
   img_reset_buffer = true;
   camera_buffer = Construct_Camera([1.0f, 0.0f, 0.0f], [0.0f, 0.0f, -1.0f],
                                    [image_buffer.x, image_buffer.y]);
   material_buffer = [ Default_Material() ];
+  Set_Image_Buffer(DIMG.Resolution.r640_360, true);
 }
 
 void Compile ( ) {
@@ -45,12 +45,13 @@ void Compile ( ) {
   OCL.Compile(kernel);
 }
 
-void Set_Image_Buffer ( DIMG.Resolution resolution ) {
-  if ( image_buffer.resolution != resolution ) {
+void Set_Image_Buffer ( DIMG.Resolution resolution, bool force = false ) {
+  if ( force || image_buffer.resolution != resolution ) {
     image_buffer = DIMG.RImage(resolution);
     camera_buffer.dimensions.x = image_buffer.x;
     camera_buffer.dimensions.y = image_buffer.y;
     writeln("IMG X: ", image_buffer.x, " Y: ", image_buffer.y);
+    writeln("IMAGE BUFFER: ", image_buffer);
     import glfw;
   }
 }
@@ -60,8 +61,6 @@ cl_event image_unlock_event;
 void Update ( float timer ) {
   // -- camera/gui/etc --
   Update_Camera(camera_buffer);
-
-
   // -- kernel --
   if ( Should_Recompile(false) ) {
     writeln("recompilin");

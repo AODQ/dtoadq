@@ -10,13 +10,15 @@ private struct CLImage {
       import derelict.opengl3.gl3;
       glGenTextures(1, &gl_texture[it]);
       glBindTexture(GL_TEXTURE_2D, gl_texture[it]);
+      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
       glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height,
                                   0, GL_RGBA, GL_FLOAT, null);
       glBindTexture(GL_TEXTURE_2D, 0);
 
       cl_handle[it] = OCL.Create_CLGL_Texture(gl_texture[it]);
       writeln("GL_HANDLE: ", gl_texture[it], " CL_HANDLE: ", cl_handle[it]._mem,
-              "  ", height, "x", width);
+              "  ", width, "x", height);
     }
   }
 

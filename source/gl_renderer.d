@@ -109,7 +109,6 @@ void Render ( GLuint texture, cl_event image_event ) {
     Sync_GL_Event(image_event);
   }
 
-
   // -- render texture --
 
   glUseProgram(shader_id);

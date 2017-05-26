@@ -54,9 +54,10 @@ int err;
 private void Initialize_Kernel ( ) {
   {
     import derelict.opengl3.glx;
-    CL.properties = [CL_CONTEXT_PLATFORM, cast(int)device.platform_id,
-                     CL_GL_CONTEXT_KHR,   cast(int)glXGetCurrentContext(),
-                     CL_GLX_DISPLAY_KHR,  cast(int)glXGetCurrentDisplay(),
+    alias CLCP = cl_context_properties;
+    CL.properties = [CL_CONTEXT_PLATFORM, cast(CLCP)device.platform_id,
+                     CL_GL_CONTEXT_KHR,   cast(CLCP)glXGetCurrentContext(),
+                     CL_GLX_DISPLAY_KHR,  cast(CLCP)glXGetCurrentDisplay(),
                      0];
   }
   CL.context = clCreateContext(CL.properties.ptr, 1, &device.device_id,
@@ -97,26 +98,19 @@ private auto RHandles ( CLPredefinedMem[] cl_predefined_mem ) {
   import functional;
   return cl_predefined_mem.map!(n => n._mem).array;
 }
-import derelict.opengl3.gl3 : glFinish;
 void Lock_CLGL_Images ( CLPredefinedMem[] cl_predefined_mem ) {
+  import derelict.opengl3.gl3;
   glFinish(); // TODO remove this if possible
-  clFinish(CL.command_queue); // and this
   auto handles = cl_predefined_mem.RHandles;
   CLAssert(clEnqueueAcquireGLObjects(CL.command_queue, cast(int)handles.length,
             &handles[0], 0, null, null), "clEnqueueAcquireGLObjects");
-  glFinish(); // TODO remove this if possible
-  clFinish(CL.command_queue); // and this
 }
 
 cl_event Unlock_CLGL_Images ( CLPredefinedMem[]  cl_predefined_mem ) {
   auto handles = cl_predefined_mem.RHandles;
   cl_event event;
-  glFinish(); // TODO remove this if possible
-  clFinish(CL.command_queue); // and this
   CLAssert(clEnqueueReleaseGLObjects(CL.command_queue, cast(int)handles.length,
             &handles[0], 0, null, &event), "clEnqueueReleaseGLObjects");
-  glFinish(); // TODO remove this if possible
-  clFinish(CL.command_queue); // and this
   return event;
 }
 
