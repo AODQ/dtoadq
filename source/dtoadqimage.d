@@ -3,17 +3,24 @@ import globals, opencl, scene;
 static import OCL = opencl;
 
 private struct CLImage {
-  OCL.CLPredefinedMem cl_handle;
-  uint gl_texture;
+  OCL.CLPredefinedMem[2] cl_handle;
+  uint[2] gl_texture;
   this ( int width, int height ) {
-    import derelict.opengl3.gl3;
-    glGenTextures(1, &gl_texture);
-    glBindTexture(GL_TEXTURE_2D, gl_texture);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height,
-                                0, GL_RGBA, GL_FLOAT, null);
-    glBindTexture(GL_TEXTURE_2D, 0);
+    foreach ( it; 0 .. 2 ) {
+      import derelict.opengl3.gl3;
+      glGenTextures(1, &gl_texture[it]);
+      glBindTexture(GL_TEXTURE_2D, gl_texture[it]);
+      glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height,
+                                  0, GL_RGBA, GL_FLOAT, null);
+      glBindTexture(GL_TEXTURE_2D, 0);
 
-    cl_handle = OCL.Create_CLGL_Texture(gl_texture);
+      cl_handle[it] = OCL.Create_CLGL_Texture(gl_texture[it]);
+      writeln("GL_HANDLE: ", gl_texture[it], " CL_HANDLE: ", cl_handle[it]._mem,
+              "  ", height, "x", width);
+    }
+  }
+
+  ~this ( ) {
   }
 }
 
@@ -29,34 +36,38 @@ enum Resolution {
 private struct ImageInfo {
   Resolution resolution;
   string value;
-  uint y, x, total;
+  uint x, y, total;
 }
 struct Image {
   ImageInfo _image_info;
   alias _image_info this;
 
-  private CLImage[] images;
+  private CLImage image;
   private int rw_access = 0;
+
+  this ( ImageInfo _image_info_, CLImage image_ ) {
+    _image_info = _image_info_;
+    image = image_;
+  }
 
   void Lock ( ) {
     import derelict.opengl3.gl3;
     glFlush();
     static import OCL = opencl;
-    OCL.Lock_CLGL_Image(images[0].cl_handle);
-    OCL.Lock_CLGL_Image(images[1].cl_handle);
+    OCL.Lock_CLGL_Images(image.cl_handle);
   }
 
-  void Unlock ( ) {
+  auto Unlock ( ) {
     static import OCL = opencl;
-    OCL.Unlock_CLGL_Image(images[0].cl_handle);
-    OCL.Unlock_CLGL_Image(images[1].cl_handle);
+    auto event = OCL.Unlock_CLGL_Images(image.cl_handle);
     OCL.Flush();
     rw_access ^= 1;
+    return event;
   }
 
-  auto RRead   ( ) { return images[rw_access  ]; }
-  auto RWrite  ( ) { return images[rw_access^1]; }
-  auto RRender ( ) { return images[rw_access  ].gl_texture; }
+  auto RRead   ( ) { return image.cl_handle [rw_access  ]; }
+  auto RWrite  ( ) { return image.cl_handle [rw_access^1]; }
+  auto RRender ( ) { return image.gl_texture[rw_access  ]; }
 }
 
 private Resolution [string] resolution_string;
@@ -102,9 +113,15 @@ static this ( ) {
 
 
 void Initialize() {
-  foreach ( res; image_info ) {
-    Image img;
-    img._image_info = res;
-    foreach ( it; 0 .. 2 ) img.images ~= CLImage(res.x, res.y);
+  foreach ( res; image_info )
+    images[res.resolution] = Image(res, CLImage(res.x, res.y));
+}
+
+void Clean_Up ( ) {
+  foreach ( img; images ) {
+    import derelict.opencl.cl, derelict.opengl3.gl3;
+    clReleaseMemObject(img.image.cl_handle[0].cl_mem);
+    clReleaseMemObject(img.image.cl_handle[1].cl_mem);
+    glDeleteTextures(2, &img.image.gl_texture[0]);
   }
 }

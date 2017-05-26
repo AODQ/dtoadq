@@ -1,7 +1,7 @@
 module gui.gui;
 import globals;
 import derelict.imgui.imgui;
-import scene;
+import scene, camera : Camera;
 import gui.nodegraphrenderer : Update_Node_Graph;
 static import Kernel = kernelinfo;
 static import DTOADQ = dtoadq;

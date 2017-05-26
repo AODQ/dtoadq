@@ -3,6 +3,8 @@ import globals, scene, kernelinfo;
 static import DIMG = dtoadqimage;
 static import OCL  = opencl;
 static import GL   = gl_renderer;
+import camera;
+import derelict.opencl.cl : cl_event;
 
 // -- kernel vars --
 private DIMG.Image image_buffer;
@@ -15,7 +17,7 @@ private Material[] material_buffer;
 void Initialize ( ) {
   // -- GL -> OCL --
   GL.Renderer_Initialize();
-  OCL.Initialize("DTOAD_Kernel");
+  OCL.Initialize("DTOADQ_Kernel");
   // -- initialize variables --
   DIMG.Initialize();
   image_buffer = DIMG.RImage(DIMG.Resolution.r640_360);
@@ -46,11 +48,23 @@ void Compile ( ) {
 void Set_Image_Buffer ( DIMG.Resolution resolution ) {
   if ( image_buffer.resolution != resolution ) {
     image_buffer = DIMG.RImage(resolution);
+    camera_buffer.dimensions.x = image_buffer.x;
+    camera_buffer.dimensions.y = image_buffer.y;
+    writeln("IMG X: ", image_buffer.x, " Y: ", image_buffer.y);
+    import glfw;
   }
 }
 
+cl_event image_unlock_event;
+
 void Update ( float timer ) {
+  // -- camera/gui/etc --
+  Update_Camera(camera_buffer);
+
+
+  // -- kernel --
   if ( Should_Recompile(false) ) {
+    writeln("recompilin");
     Compile();
   }
   image_buffer.Lock();
@@ -60,14 +74,18 @@ void Update ( float timer ) {
     img_reset_buffer,
     rng_buffer,
     camera_buffer,
+    timer,
     material_buffer, material_buffer.length,
     image_buffer.x, image_buffer.y
   );
-  image_buffer.Unlock();
+  auto image_unlock_event = image_buffer.Unlock();
+  img_reset_buffer ^= 1;
 }
 
 void Render ( ) {
-  GL.Render(image_buffer.RRender);
+  import gui.gui;
+  Imgui_Render(material_buffer, camera_buffer);
+  GL.Render(image_buffer.RRender, image_unlock_event);
 }
 
 void Clean_Up ( ) {

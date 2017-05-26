@@ -36,8 +36,9 @@ void Set_Map_Function ( string value ) {
 }
 
 auto Should_Recompile ( bool silent = true ) {
-  recompile ^= !silent;
-  return recompile^(!silent);
+  auto ret = recompile;
+  recompile = recompile&silent;
+  return ret;
 }
 
 immutable(Kernel_Info) RKernel_Info ( ) { return cast(immutable)kernel_info; }

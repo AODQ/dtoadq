@@ -6,8 +6,8 @@ module opencl_kernel; immutable(string) DTOADQ_kernel = q{
 // -----------------------------------------------------------------------------
 // --------------- DEBUG -------------------------------------------------------
 bool Is_Debug_Print ( ) {
-  return get_global_id(get_work_dim()/2) == 1 &&
-         get_global_id(get_work_dim()/2) == 1;
+  return get_global_id(0) == 200 &&
+         get_global_id(1) == 200;
 }
 // -----------------------------------------------------------------------------
 // --------------- GPU-CPU STRUCTS ---------------------------------------------
@@ -455,8 +455,8 @@ Ray Camera_Ray(RNG* rng, __global Camera* camera) {
 
 // -----------------------------------------------------------------------------
 // --------------- KERNEL ------------------------------------------------------
-__kernel void Kernel_DTOADQ (
-        __read_only image2d_t input_image,
+__kernel void DTOADQ_Kernel (
+        __read_only  image2d_t input_image,
         __write_only image2d_t output_image,
         __global bool* reset_image,
         __global RNG* rng_ptr,
@@ -481,11 +481,16 @@ __kernel void Kernel_DTOADQ (
     // old_pixel *= 1.5f;
   }
 
+
   float time = *time_ptr;
   Ray ray = Camera_Ray(&rng, camera);
   RayInfo result = RPixel_Colour(&rng, material, ray);
 
   if ( result.hit ) {
+    if ( Is_Debug_Print() ) {
+      printf("-----");
+      printf("Bef: <%f, %f, %f>\n", old_pixel.x, old_pixel.y, old_pixel.z);
+    }
     old_pixel =
       (float4)(
         mix(
@@ -493,6 +498,9 @@ __kernel void Kernel_DTOADQ (
           old_pixel.xyz,
           (old_pixel.w/(old_pixel.w+1.0f))),
         old_pixel.w+1.0f);
+    if ( Is_Debug_Print() ) {
+      printf("Aft: <%f, %f, %f>\n", old_pixel.x, old_pixel.y, old_pixel.z);
+    }
   }
 
   write_imagef(output_image, out, old_pixel);

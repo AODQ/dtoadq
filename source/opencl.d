@@ -1,4 +1,9 @@
 module opencl;
+/**
+  A general-purpose opencl module, though most parts are specific to my
+    project. For example, to run the kernel you may only use two-dimensional
+    global group, most functions only exist on a per-demand-basis, etc
+*/
 public import derelict.opencl.cl;
 import std.stdio;
 import openclmisc;
@@ -35,68 +40,98 @@ private Device device;
 enum BufferType { write_only = CL_MEM_WRITE_ONLY,
                   read_only  = CL_MEM_READ_ONLY };
 
-private CLContext           context;
-private CLContextProperties properties;
-private CLCommandQueue      command_queue;
-private CLProgram           program;
-private CLKernel            kernel;
-private CLMem[]             mem_objects;
-private int                 err;
-private string              kernel_name;
+public abstract class CL {
+static:
+  CLContext           context;
+  CLContextProperties properties;
+  CLCommandQueue      command_queue;
+  CLProgram           program;
+  CLKernel            kernel;
+  string              kernel_name;
+}
+int err;
 
-
-private void Initialize_Kernel ( string kernel_name_ ) {
-  kernel_name = kernel_name_;
+private void Initialize_Kernel ( ) {
   {
     import derelict.opengl3.glx;
-    properties = [CL_CONTEXT_PLATFORM, cast(int)device.platform_id,
-                  CL_GL_CONTEXT_KHR,   cast(int)glXGetCurrentContext(),
-                  CL_GLX_DISPLAY_KHR,  cast(int)glXGetCurrentDisplay(),
-                  0];
+    CL.properties = [CL_CONTEXT_PLATFORM, cast(int)device.platform_id,
+                     CL_GL_CONTEXT_KHR,   cast(int)glXGetCurrentContext(),
+                     CL_GLX_DISPLAY_KHR,  cast(int)glXGetCurrentDisplay(),
+                     0];
   }
-  context = clCreateContext(properties.ptr, 1, &device.device_id,
+  CL.context = clCreateContext(CL.properties.ptr, 1, &device.device_id,
                             null, null, &err);
   CLAssert(err, "clCreateContext");
-  command_queue = clCreateCommandQueue(context, device.device_id, 0, &err);
+  CL.command_queue = clCreateCommandQueue(CL.context, device.device_id, 0,&err);
   CLAssert(err, "clCreateCommandQueue");
 }
 
-void Compile ( string kernel ) {
+void Compile ( string source ) {
   import std.string : toStringz;
-  auto cstr_kernel = kernel.toStringz;
-  program = clCreateProgramWithSource(context, 1, &cstr_kernel, null, &err);
+  auto sourcestr = source.toStringz;
+  CL.program = clCreateProgramWithSource(CL.context, 1, &sourcestr, null, &err);
   CLAssert(err, "clCreateProgramWithSource");
-  if ( clBuildProgram(program, 0, null, null, null, null) != CL_SUCCESS ) {
-      writeln("clBuildProgram");
+  if ( clBuildProgram(CL.program, 0, null, null, null, null) != CL_SUCCESS ) {
       size_t len;
-      clGetProgramBuildInfo(program, device.device_id, CL_PROGRAM_BUILD_LOG, 0,
-                            null, &len);
+      clGetProgramBuildInfo(CL.program, device.device_id, CL_PROGRAM_BUILD_LOG,
+                            0, null, &len);
       char[] log; log.length = len;
-      clGetProgramBuildInfo(program, device.device_id, CL_PROGRAM_BUILD_LOG,
+      clGetProgramBuildInfo(CL.program, device.device_id, CL_PROGRAM_BUILD_LOG,
                             len, log.ptr, null);
       writeln("LOG: ", log);
       assert(false);
   }
+  CL.kernel = clCreateKernel(CL.program, CL.kernel_name.toStringz, &err);
+  CLAssert(err, "clCreateKernel");
 }
 
 auto Create_CLGL_Texture ( uint gl_texture ) {
   import derelict.opengl3.gl3;
-  auto cl_handle = clCreateFromGLTexture(context, CL_MEM_READ_WRITE,
-                                GL_TEXTURE_2D, 0, gl_texture, &err);
+  auto cl_handle = clCreateFromGLTexture(CL.context, CL_MEM_READ_WRITE,
+                                   GL_TEXTURE_2D, 0, gl_texture, &err);
   CLAssert(err, "clCreateFromGLTexture");
   return cl_handle;
 }
-void Lock_CLGL_Image ( CLPredefinedMem cl_handle ) {
-  clEnqueueAcquireGLObjects(command_queue, 1, &image.cl_handle,
-                            0, null, null);
+
+private auto RHandles ( CLPredefinedMem[] cl_predefined_mem ) {
+  import functional;
+  return cl_predefined_mem.map!(n => n._mem).array;
+}
+import derelict.opengl3.gl3 : glFinish;
+void Lock_CLGL_Images ( CLPredefinedMem[] cl_predefined_mem ) {
+  glFinish(); // TODO remove this if possible
+  clFinish(CL.command_queue); // and this
+  auto handles = cl_predefined_mem.RHandles;
+  CLAssert(clEnqueueAcquireGLObjects(CL.command_queue, cast(int)handles.length,
+            &handles[0], 0, null, null), "clEnqueueAcquireGLObjects");
+  glFinish(); // TODO remove this if possible
+  clFinish(CL.command_queue); // and this
 }
 
-void Unlock_CLGL_Image ( CLPredefinedMem  cl_handle ) {
-    clEnqueueReleaseGLObjects(command_queue, 1, &image.cl_handle,
-                              0, null, null);
+cl_event Unlock_CLGL_Images ( CLPredefinedMem[]  cl_predefined_mem ) {
+  auto handles = cl_predefined_mem.RHandles;
+  cl_event event;
+  glFinish(); // TODO remove this if possible
+  clFinish(CL.command_queue); // and this
+  CLAssert(clEnqueueReleaseGLObjects(CL.command_queue, cast(int)handles.length,
+            &handles[0], 0, null, &event), "clEnqueueReleaseGLObjects");
+  glFinish(); // TODO remove this if possible
+  clFinish(CL.command_queue); // and this
+  return event;
 }
 
-void Flush ( ) { clFlush(null); }
+void Sync_GL_Event ( cl_event event ) {
+  import derelict.opengl3.gl3;
+  // event = glCreateSyncFromCLeventARB(cast(_cl_context)CL.context, event, 0);
+  // glWaitSynx(event, 0, GL_TIMEOUT_IGNORE);
+  glFinish(); // TODO remove this if possible
+  clFinish(CL.command_queue); // and this
+}
+
+void Flush ( ) {
+  CLAssert(clFlush(CL.command_queue), "clFlush");
+  CLAssert(clFinish(CL.command_queue), "clFinish");
+}
 
 private auto Load_Argument(T)(T data, int it) {
   import std.traits;
@@ -104,26 +139,24 @@ private auto Load_Argument(T)(T data, int it) {
 
   CLMem cl_handle;
   static if ( isArray!(T) )
-    cl_handle = clCreateBuffer(context, flgs, data.length*T.sizeof, &data[0],
+    cl_handle = clCreateBuffer(CL.context, flgs, data.length*T.sizeof, &data[0],
                                &err);
   else static if ( is(T == CLPredefinedMem) ) {
-    cl_handle = data;
+    cl_handle = data._mem;
     err = 0;
   } else
-    cl_handle = clCreateBuffer(context, flgs, T.sizeof, &data, &err);
+    cl_handle = clCreateBuffer(CL.context, flgs, T.sizeof, &data, &err);
   CLAssert(err, "clCreateBuffer");
 
   static if ( isArray!(T) )
-    CLAssert(clEnqueueWriteBuffer(command_queue, cl_handle, CL_TRUE, 0,
-                        data.length*T.sizeof, &data[0], 0, null, null),
-             "clEnqueueWriteBuffer");
+    CLAssert(clEnqueueWriteBuffer(CL.command_queue, cl_handle, CL_TRUE, 0,
+        data.length*T.sizeof, &data[0], 0, null, null), "clEnqueueWriteBuffer");
   else static if ( !is(T == CLPredefinedMem) )
-    CLAssert(clEnqueueWriteBuffer(command_queue, cl_handle, CL_TRUE, 0,
-                                   T.sizeof, &data,     0, null, null),
-             "clEnqueueWriteBuffer");
+    CLAssert(clEnqueueWriteBuffer(CL.command_queue, cl_handle, CL_TRUE, 0,
+                    T.sizeof, &data,    0, null, null), "clEnqueueWriteBuffer");
   // don't do writing for a predefinedclmem
-  CLAssert(clSetKernelArg(kernel, it, CLMem.sizeof, cl_handle),
-           "clSetKernelArg");
+  CLAssert(clSetKernelArg(CL.kernel, it, CLMem.sizeof, &cl_handle),
+                                                "clSetKernelArg");
   return cl_handle;
 }
 
@@ -131,17 +164,18 @@ void Run ( T... ) ( T params, size_t X, size_t Y ) {
   CLMem[] cl_handles_dealloc;
 
   foreach ( it, ref p; params ) {
-    CLMem cl_handle;
-    cl_handle = Load_Argument(p, it);
-    static if ( !is(T == CLPredefinedMem) )
+    CLMem cl_handle = Load_Argument(p, it);
+    static if ( !is(typeof(p) == CLPredefinedMem) ) {
       cl_handles_dealloc ~= cl_handle;
+    }
   }
 
-  ulong[] global = [cast(ulong)X, cast(ulong)Y, 1];
-  ulong[] local  = [1, 1, 1];
-  CLAssert(clEnqueueNDRangeKernel(command_queue, kernel,
-            cast(uint)global.length, null, global.ptr, local.ptr,
-            0, null, null), "clEnqueueNDRangeKernel");
+  ulong[] global = [cast(ulong)X, cast(ulong)Y];
+  cl_event kernel_event;
+  CLAssert(clEnqueueNDRangeKernel(CL.command_queue, CL.kernel, 2, null,
+          global.ptr, null, 0, null, &kernel_event), "clEnqueueNDRangeKernel");
+
+  CLAssert(clWaitForEvents(1, &kernel_event), "clWaitForEvents");
 
   foreach ( mem; cl_handles_dealloc ) {
     clReleaseMemObject(mem);
@@ -149,10 +183,10 @@ void Run ( T... ) ( T params, size_t X, size_t Y ) {
 }
 
 void Clean_Up() {
-  clReleaseProgram(program);
-  clReleaseKernel(kernel);
-  clReleaseCommandQueue(command_queue);
-  clReleaseContext(context);
+  clReleaseProgram(CL.program);
+  clReleaseKernel(CL.kernel);
+  clReleaseCommandQueue(CL.command_queue);
+  clReleaseContext(CL.context);
 }
 
 void CLAssert(int cond, string err) {
@@ -196,7 +230,8 @@ auto Set_Current_Device(CLPlatformID platform_id) {
   return device_id;
 }
 
-void Initialize ( string kernel_name ) {
+void Initialize ( string kernel_name_ ) {
+  CL.kernel_name = kernel_name_;
   DerelictCL.load();
   auto platform_id = Set_Current_Platform();
   auto device_id = Set_Current_Device(platform_id);
@@ -210,14 +245,14 @@ void Initialize ( string kernel_name ) {
     assert(0);
   }
 
-  Initialize_Kernel(kernel_name);
+  Initialize_Kernel();
 }
 
 // --- conversion helpers ---
 private string To_CL_Mixin ( string name ) {
   import std.conv, std.string;
   string res;
-  foreach ( i; 2 .. 9 ) {
+  foreach ( i; 2 .. 5 ) {
     string si = name ~ i.to!string;
     res ~= q{
       auto To_CL%s(%s[3] a) {

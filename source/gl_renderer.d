@@ -43,7 +43,8 @@ private void Check_Shader_Error ( int handle, string type ) @trusted {
   if ( compile_status == GL_FALSE ) {
     writeln(type ~ " shader compilation failed");
     writeln("--------------------------------------");
-    GLchar[256] error_message;
+
+  GLchar[256] error_message;
     glGetShaderInfoLog(handle, 256, null, error_message.ptr);
     writeln(error_message);
     writeln("--------------------------------------");
@@ -97,13 +98,22 @@ void Renderer_Initialize() {
                                         elements.ptr, GL_STATIC_DRAW);
 }
 
-void Render ( GLuint texture ) {
+import derelict.opencl.cl : cl_event;
+void Render ( GLuint texture, cl_event image_event ) {
   import globals;
   import gl3n.linalg;
 
+  // -- make sure OpenCL work on target is done --
+  {
+    import opencl;
+    Sync_GL_Event(image_event);
+  }
+
+
+  // -- render texture --
+
   glUseProgram(shader_id);
   glBindVertexArray(VAO);
-
 
   glActiveTexture(GL_TEXTURE0);
   glBindTexture(GL_TEXTURE_2D, texture);
