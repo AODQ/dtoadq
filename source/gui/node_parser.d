@@ -1,5 +1,6 @@
 module gui.node_parser;
 import globals, gui.tnodes, derelict.imgui.imgui : ImVec2;
+import opencl : To_OpenCL_Float, To_OpenCL_Float_Array;
 
 string To_String ( ImVec2 vec ) {
   return [vec.x, vec.y].to!string;
@@ -121,16 +122,6 @@ struct GraphParseInfo {
   string result; // result if compiled, otherwise error string
 }
 
-string To_OpenCL_Float ( string float_val ) in {
-  assert(!float_val.empty);
-} body {
-  import functional;
-  // -- "3"|"3."|"3.0" -> "3.0f" (there are no f in imgui floats)
-  if ( float_val.filter!(n => n == '.').empty ) float_val ~= ".";
-  if ( float_val[$-1] == '.' ) float_val ~= "0"; // to include "3." & "3"
-  return float_val ~ "f";
-}
-
 string Eval_Node_Str ( Node node ) {
   import functional;
   string nodename = node.RName;
@@ -155,11 +146,7 @@ string Eval_Node_Str ( Node node ) {
         default: return nodename;
         case "Float": return node.RUser_Value.value.To_OpenCL_Float;
         case "Float2": case "Float3": case "Colour":
-          auto vals = node.RUser_Value.value.to!(float[])
-                          .map!(n => n.to!string.To_OpenCL_Float).array;
-          if ( vals.length == 2 )
-            return "(float2)(" ~ vals[0] ~ ", " ~ vals[1] ~ ")";
-          return "(float3)(" ~ vals[0] ~ ", " ~ vals[1] ~ ", " ~ vals[2] ~ ")";
+          return node.RUser_Value.value.to!(float[]).To_OpenCL_Float_Array;
         case "String": case "Int": return node.RUser_Value.value;
         case "Origin": return "origin";
         case "Time":   return "time";
@@ -195,6 +182,6 @@ string Parse_Graph ( ) {
   }
   writeln("Result: ", parsed_result);
   import kernelinfo;
-  Set_Map_Function(parsed_result);
+  // Set_Map_Function(parsed_result);
   return "";
 }

@@ -42,3 +42,15 @@ int[] RWindow_Pos ( ) {
     return [-1, -1];
   }
 }
+
+auto RDefault_Project ( ) {
+  if ( !Check_File_Exists ) return "";
+  auto load = RJSONValue;
+
+  try {
+    return load["default-project"].str;
+  } catch ( Exception e ) {
+    writeln("ERROR: Could not parse default-project, expecting format: 'name'");
+    return "";
+  }
+}

@@ -1,12 +1,15 @@
+--- IMMEDIATE
+render to video
+REQUIRre files
+
+--- NECESSARY
 Some form of light glare
-Rework random so not all workers use same random seed
-Finish prototype of node graph
-Allow node graphs to be saved (JSON & OpenCL format)
-Allow 'hot reloading' of opencl kernel w/ node graph
 Texture mapping
 Procedurally generate textures
 Bump mapping with textures
-Bidirectional path tracing
-CMI (or whatever it was)
 instead of avoiding materials, avoid ID
 
+--- WOULD BE NICE
+Rework random so not all workers use same random seed
+optimize opengl/opencl interop
+better camera movement

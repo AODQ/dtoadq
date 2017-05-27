@@ -6,77 +6,108 @@ import gui.nodegraphrenderer : Update_Node_Graph;
 static import Kernel = kernelinfo;
 static import DTOADQ = dtoadq;
 
+private void Render_Materials ( ref Material[] materials, ref bool change ) {
+    igBegin("Materials");
+      foreach ( i; 0 .. materials.length ) {
+        auto m = &materials[i];
+        import std.conv : to;
+        auto istr = i.to!string;
+        change |= CLFloat3_Colour_Edit("Base Colour", istr, m.base_colour);
+        change |= gdSliderNorm("Metallic",        istr, m.metallic);
+        change |= gdSliderNorm("Subsurface",      istr, m.subsurface);
+        change |= gdSliderNorm("Specular",        istr, m.specular);
+        change |= gdSliderNorm("Specular_tint",   istr, m.specular_tint);
+        change |= gdSliderNorm("Roughness",       istr, m.roughness);
+        change |= gdSliderNorm("Anisotropic",     istr, m.anisotropic);
+        change |= gdSliderNorm("Sheen",           istr, m.sheen);
+        change |= gdSliderNorm("Sheen_tint",      istr, m.sheen_tint);
+        change |= gdSliderNorm("Clearcoat",       istr, m.clearcoat);
+        change |= gdSliderNorm("Clearcoat_gloss", istr, m.clearcoat_gloss);
+        change |= gdSliderNorm("Emission",        istr, m.emission);
+      }
+    igEnd();
+}
+
 bool Imgui_Render ( ref Material[] materials, ref Camera camera ) @trusted {
   bool change;
-  bool close;
-  igBegin("Material Properties", &close);
-  foreach ( i; 0 .. materials.length ) {
-    auto m = &materials[i];
-    import std.conv : to;
-    auto istr = i.to!string;
-    change |= CLFloat3_Colour_Edit("Base Colour", istr, m.base_colour);
-    change |= gdSliderNorm("Metallic",        istr, m.metallic);
-    change |= gdSliderNorm("Subsurface",      istr, m.subsurface);
-    change |= gdSliderNorm("Specular",        istr, m.specular);
-    change |= gdSliderNorm("Specular_tint",   istr, m.specular_tint);
-    change |= gdSliderNorm("Roughness",       istr, m.roughness);
-    change |= gdSliderNorm("Anisotropic",     istr, m.anisotropic);
-    change |= gdSliderNorm("Sheen",           istr, m.sheen);
-    change |= gdSliderNorm("Sheen_tint",      istr, m.sheen_tint);
-    change |= gdSliderNorm("Clearcoat",       istr, m.clearcoat);
-    change |= gdSliderNorm("Clearcoat_gloss", istr, m.clearcoat_gloss);
-    change |= gdSliderNorm("Emission",        istr, m.emission);
-  }
+  igBegin("Project Details");
+    import functional;
+    if ( igCollapsingHeader("Statistics") ) {
+      igText("FPS: %.3f ms/frame (%.1f FPS)", 1000.0f / igGetIO().Framerate,
+                                                        igGetIO().Framerate);
+      gdText("CAMERA POSITION --");
+      change |= gdInputFloat("X", camera.position[0]);
+      change |= gdInputFloat("Y", camera.position[1]);
+      change |= gdInputFloat("Z", camera.position[2]);
+      gdText("Camera Angle    ", camera.lookat[0..3]
+                                .map!(n => cast(int)(n*100.0f)/100.0f));
+      change |= gdSlider("FOV", camera.fov, 50.0f, 140.0f);
+    }
+    // -- render options --
+    if ( igCollapsingHeader("Render Options") ) {
+      static bool Show_Normals = false;
+      static int kernel_type = 0, resolution = 0, pkernel_type,
+                march_dist = 64,
+                march_reps = 128;
+
+      pkernel_type = kernel_type;
+      igRadioButton("Raycast",  &kernel_type, 0); igSameLine();
+      igRadioButton("Raytrace", &kernel_type, 1); igSameLine();
+      igRadioButton("MLT",      &kernel_type, 2);
+      alias Kernel_Type = Kernel.KernelInfo.Type,
+            Kernel_Flag = Kernel.KernelInfo.Flag,
+            Kernel_Var  = Kernel.KernelInfo.Var;
+      if ( kernel_type != pkernel_type ) {
+        Kernel.Set_Kernel_Type(cast(Kernel_Type)kernel_type);
+      }
+
+      if ( igCheckbox("Show Normals", &Show_Normals) ) {
+        Kernel.Set_Kernel_Flag(Kernel_Flag.Show_Normals, Show_Normals);
+      }
+
+      if ( igSliderInt("March Distance", &march_dist, 1, 2048) ) {
+        Kernel.Set_Kernel_Var(Kernel_Var.March_Dist, march_dist);
+      }
+      if ( igSliderInt("March Repetitions", &march_reps, 1, 256) ) {
+        Kernel.Set_Kernel_Var(Kernel_Var.March_Reps, march_reps);
+      }
+
+      static import DIMG = dtoadqimage;
+      foreach ( it, str; DIMG.RResolution_Strings ) {
+        igRadioButton(str.toStringz, &resolution, cast(int)it);
+      }
+
+      DTOADQ.Set_Image_Buffer(cast(DIMG.Resolution)resolution);
+    }
+
+    static bool open_file_browser = false;
+    igCheckbox("File Browser", &open_file_browser);
+    if ( open_file_browser ) {
+      static import Files = gui.files;
+      Files.Update(open_file_browser);
+    }
+
+    static bool open_materials = false;
+    igCheckbox("Materials", &open_materials);
+    if ( open_materials )
+      Render_Materials(materials, change);
+
+    static bool open_editor = false;
+    igCheckbox("Editor", &open_editor);
+    if ( open_editor ) {
+      final switch ( KI.RProcedural_Type ) {
+        case KI.ProceduralType.Function: break;
+        case KI.ProceduralType.Texture: break;
+        case KI.ProceduralType.Model:
+          import gui.modeleditor;
+          change |= Update_Model(open_editor);
+        break;
+        case KI.ProceduralType.Scene:
+          Update_Node_Graph();
+        break;
+      }
+    }
   igEnd();
-  bool closecam;
-  import functional;
-  if ( igCollapsingHeader("Statistics") ) {
-    igText("FPS: %.3f ms/frame (%.1f FPS)", 1000.0f / igGetIO().Framerate,
-                                                      igGetIO().Framerate);
-    gdText("Camera Position ", camera.position[0..3]);
-    gdText("Camera Angle    ", camera.lookat[0..3]
-                              .map!(n => cast(int)(n*100.0f)/100.0f));
-  }
-  // -- render options --
-  if ( igCollapsingHeader("Render Options") ) {
-    static bool Show_Normals = false;
-    static int kernel_type = 0, resolution = 0, pkernel_type,
-               march_dist = 64,
-               march_reps = 128;
-
-    pkernel_type = kernel_type;
-    igRadioButton("Raycast",  &kernel_type, 0); igSameLine();
-    igRadioButton("Raytrace", &kernel_type, 1); igSameLine();
-    igRadioButton("MLT",      &kernel_type, 2);
-    alias Kernel_Type = Kernel.Kernel_Info.Type,
-          Kernel_Flag = Kernel.Kernel_Info.Flag,
-          Kernel_Var  = Kernel.Kernel_Info.Var;
-    if ( kernel_type != pkernel_type ) {
-      Kernel.Set_Kernel_Type(cast(Kernel_Type)kernel_type);
-    }
-
-    if ( igCheckbox("Show Normals", &Show_Normals) ) {
-      Kernel.Set_Kernel_Flag(Kernel_Flag.Show_Normals, Show_Normals);
-    }
-
-    if ( igSliderInt("March Distance", &march_dist, 1, 2048) ) {
-      Kernel.Set_Kernel_Var(Kernel_Var.March_Dist, march_dist);
-    }
-    if ( igSliderInt("March Repetitions", &march_reps, 1, 256) ) {
-      Kernel.Set_Kernel_Var(Kernel_Var.March_Reps, march_reps);
-    }
-
-    static import DIMG = dtoadqimage;
-    foreach ( it, str; DIMG.RResolution_Strings ) {
-      igRadioButton(str.toStringz, &resolution, cast(int)it);
-    }
-
-    DTOADQ.Set_Image_Buffer(cast(DIMG.Resolution)resolution);
-  }
-
-
-  bool menuthingasdf = true;
-  Update_Node_Graph();
 
   return change;
 }
@@ -97,6 +128,9 @@ bool gdButton(T...)(T t) {
   return igButton(t.Accumulator.toStringz);
 }
 
+bool gdSlider(T...)(T t, ref float f, float low, float hi) {
+  return igSliderFloat(t.Accumulator.toStringz, &f, low, hi);
+}
 bool gdSliderNorm(T...)(T t, ref float f) {
   return igSliderFloat(t.Accumulator.toStringz, &f, 0.0f, 1.0f);
 }

@@ -6,10 +6,12 @@ import derelict.imgui.imgui,
        imgui_glfw;
 static import DTOADQ = dtoadq;
 static import GLFW   = glfw;
+static import Files  = gui.files;
 
 void Init ( ) {
   GLFW.Initialize();
   DTOADQ.Initialize();
+  Files.Initialize();
 }
 
 void Update () {
@@ -21,7 +23,7 @@ void Update () {
 }
 
 void Render ( ) {
-  glClearColor(0.0f, 1.0f, 0.0f, 1.0f);
+  glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
   glClear(GL_COLOR_BUFFER_BIT);
   DTOADQ.Render();
   igRender();

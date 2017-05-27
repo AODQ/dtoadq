@@ -143,143 +143,9 @@ float noise ( float2 n ) {
              f.y);
 }
 
-float SD_Sphere ( float3 origin, float radius ) {
-  return length(origin) - radius;
-}
-
-float SD_Box ( float3 origin, float3 bounds ) {
-  float3 d = fabs(origin) - bounds;
-  return fmin(fmax(d.x, fmax(d.y, d.z)), 0.0f) + length(fmax(d, 0.0f));
-}
-
-float SD_Box2 ( float2 origin, float2 bounds ) {
-  float2 d = fabs(origin) - bounds;
-  return fmin(fmax(d.x, d.y), 0.0f) + length(fmax(d, 0.0f));
-}
-
-float SD_Cross ( float3 origin, float dist ) {
-  float da = SD_Box2(origin.xy, (float2)(dist));
-  float db = SD_Box2(origin.yz, (float2)(dist));
-  float dc = SD_Box2(origin.zx, (float2)(dist));
-  return fmin(da, fmin(db, dc));
-}
-
-
-
-float sdPlane ( float3 p, float3 wal, float dist ) {
-  return dot(p, wal) + dist;
-}
-
-float sdBumpSphere( float3 p, float s ) {
-  return length(p) - s+noise(p.xy);//0.2f*cos(p.z);
-}
-
-float sdEllipsoid( float3 p, float3 r ) {
-    return (length( p/r ) - 1.0f) * fmin(fmin(r.x,r.y),r.z);
-}
-
-float sdTorus( float3 p, float2 t ) {
-    return length( (float2)(length(p.xz)-t.x,p.y) )-t.y;
-}
-
-float sdHexPrism( float3 p, float2 h ) {
-    float3 q = fabs(p);
-    float d1 = q.z-h.y;
-    float d2 = fmax((q.x*0.866025f+q.y*0.5f),q.y)-h.x;
-    return length(fmax((float2)(d1,d2),0.0f)) + fmin(fmax(d1,d2), 0.0f);
-}
-
-float sdCapsule( float3 p, float3 a, float3 b, float r ) {
-	float3 pa = p-a, ba = b-a;
-	float h = clamp( dot(pa,ba)/dot(ba,ba), 0.0f, 1.0f );
-	return length( pa - ba*h ) - r;
-}
-
-float sdTriPrism( float3 p, float2 h ) {
-    float3 q = fabs(p);
-    float d1 = q.z-h.y;
-    float d2 = fmax(q.x*0.866025f+p.y*0.5f,-p.y)-h.x*0.5f;
-    return length(fmax((float2)(d1,d2),0.0f)) + fmin(fmax(d1,d2), 0.0f);
-}
-
-float sdCylinder( float3 p, float2 h ) {
-  float2 d = fabs((float2)(length(p.xz),p.y)) - h;
-  return fmin(fmax(d.x,d.y),0.0f) + length(fmax(d,0.0f));
-}
-
-float sdCone( float3 p, float3 c ) {
-    float2 q = (float2)( length(p.xz), p.y );
-    float d1 = -q.y-c.z;
-    float d2 = fmax( dot(q,c.xy), q.y);
-    return length(fmax((float2)(d1,d2),0.0f)) + fmin(fmax(d1,d2), 0.0f);
-}
-
-float sdConeSection( float3 p, float h, float r1, float r2 ) {
-    float d1 = -p.y - h;
-    float q = p.y - h;
-    float si = 0.5f*(r1-r2)/h;
-    float d2 = fmax( sqrt( dot(p.xz,p.xz)*(1.0f-si*si)) + q*si - r2, q );
-    return length(fmax((float2)(d1,d2),0.0f)) + fmin(fmax(d1,d2), 0.0f);
-}
-
-float sdPryamid4(float3 p, float3 h ) { // h = { cos a, sin a, height } {
-    // Tetrahedron = Octahedron - Cube
-    float box = SD_Box( p - (float3)(0.0f,-2.0f*h.z,0.0f), (float3)(2.0f*h.z) );
-
-    float d = 0.0f;
-    d = fmax( d, fabs( dot(p, (float3)( -h.x, h.y, 0.0f )) ));
-    d = fmax( d, fabs( dot(p, (float3)(  h.x, h.y, 0.0f )) ));
-    d = fmax( d, fabs( dot(p, (float3)(  0.0f, h.y, h.x )) ));
-    d = fmax( d, fabs( dot(p, (float3)(  0.0f, h.y,-h.x )) ));
-    float octa = d - h.z;
-    return fmax(-box,octa); // Subtraction
- }
-
-float length2( float2 p ) {
-	return sqrt( p.x*p.x + p.y*p.y );
-}
-
-float length6( float2 p ) {
-	p = p*p*p; p = p*p;
-	return pow( p.x + p.y, 1.0f/6.0f );
-}
-
-float length8( float2 p ) {
-	p = p*p; p = p*p; p = p*p;
-	return pow( p.x + p.y, 1.0f/8.0f );
-}
-
-float sdTorus82( float3 p, float2 t ) {
-    float2 q = (float2)(length2(p.xz)-t.x,p.y);
-    return length8(q)-t.y;
-}
-
-float sdTorus88( float3 p, float2 t ) {
-    float2 q = (float2)(length8(p.xz)-t.x,p.y);
-    return length8(q)-t.y;
-}
-
-float sdCylinder6( float3 p, float2 h ) {
-    return fmax( length6(p.xz)-h.x, fabs(p.y)-h.y );
-}
-
-//------------------------------------------------------------------
-
-float OP_Union( float d1, float d2 ) {
-  return fmin(d2,d1);
-}
-
-float OP_Subtract ( float d1, float d2 ) {
-  return fmax(-d1, d2);
-}
-
-float OP_Intersect ( float d1, float d2 ) {
-  return fmax(d1, d2);
-}
-
-float3 OP_Repeat ( float3 p, float3 c ) {
-    return fmod(p,c)-0.5f*c;
-}
+//---MAP GEOMETRY INSERTION POINT---
+//%MODEL
+//----------------------------------
 
 float2 opU( int avoid, float2 d1, float2 d2 ) {
   if ( d2.y == avoid ) return d1;
@@ -431,9 +297,10 @@ RayInfo RPixel_Colour ( RNG* rng, const __global Material* material, Ray ray ) {
 // --------------- CAMERA ------------------------------------------------------
 Ray Camera_Ray(RNG* rng, __global Camera* camera) {
   float2 coord = (float2)((float)get_global_id(0), (float)get_global_id(1));
-  coord += (float2)(Uniform(rng, -0.8f, 0.8f),
-                    Uniform(rng, -0.8f, 0.8f));
+  coord += (float2)(Uniform(rng, -1.0f, 1.0f),
+                    Uniform(rng, -1.0f, 1.0f));
   float2 resolution = (float2)((float)camera->dim.x, (float)camera->dim.y);
+  resolution.y *= 16.0f/9.0f;
 
   float2 mouse_pos = camera->lookat.xy;
 
@@ -448,7 +315,8 @@ Ray Camera_Ray(RNG* rng, __global Camera* camera) {
   float3 cam_right = normalize ( cross(cam_front, (float3)(0.0f, 1.0f, 0.0f)));
 
   float3 cam_up = normalize(cross(cam_right, cam_front));
-  float3 ray_dir = normalize(puv.x*cam_right + puv.y*cam_up + 2.0f*cam_front);
+  float3 ray_dir = normalize(puv.x*cam_right + puv.y*cam_up +
+                             (180.0f - camera->fov)*PI/180.0f*cam_front);
 
   return New_Ray(cam_pos, ray_dir);
 }
@@ -487,10 +355,6 @@ __kernel void DTOADQ_Kernel (
   RayInfo result = RPixel_Colour(&rng, material, ray);
 
   if ( result.hit ) {
-    if ( Is_Debug_Print() ) {
-      printf("-----");
-      printf("Bef: <%f, %f, %f>\n", old_pixel.x, old_pixel.y, old_pixel.z);
-    }
     old_pixel =
       (float4)(
         mix(
@@ -498,15 +362,13 @@ __kernel void DTOADQ_Kernel (
           old_pixel.xyz,
           (old_pixel.w/(old_pixel.w+1.0f))),
         old_pixel.w+1.0f);
-    if ( Is_Debug_Print() ) {
-      printf("Aft: <%f, %f, %f>\n", old_pixel.x, old_pixel.y, old_pixel.z);
-    }
   }
 
   write_imagef(output_image, out, old_pixel);
 
-  if ( get_global_id(0) == 5 && get_global_id(1) == 5 )
+  if ( get_global_id(0) == 0 && get_global_id(1) == 0 ) {
     *rng_ptr = rng;
+  }
 }};
 
 

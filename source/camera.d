@@ -36,13 +36,13 @@ bool Update_Camera ( ref Camera camera ) {
 
   if ( RKey_Input(65) || RKey_Input(68) ) { // AD
     cam_update = true;
-    float angle = PI - lookvec[0]*2.0*PI;
+    float angle = PI - lookvec[0]*2.0f*PI;
     float vel_k = ((RKey_Input(65)?1:-1)*vel);
     pos[0] +=  angle.cos*vel_k;
     pos[2] += -angle.sin*vel_k;
   }
   if ( RKey_Input(87) || RKey_Input(83) ) { // WS
-    float angle = PI - lookvec[0]*2.0*PI;
+    float angle = PI - lookvec[0]*2.0f*PI;
     cam_update = true;
     float vel_k = ((RKey_Input(87)?1:-1)*vel);
     pos[0] +=  angle.sin*vel_k;

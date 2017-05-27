@@ -33,7 +33,8 @@ private const GLchar* fragment_shader =  `
   in vec2 Texcoord;
   uniform sampler2D Tex;
   void main() {
-    gl_FragColor = texture(Tex, Texcoord);
+    gl_FragColor.rgb = texture(Tex, Texcoord).rgb;
+    gl_FragColor.a = 1.0;
   }
 `;
 
@@ -111,6 +112,7 @@ void Render ( GLuint texture, cl_event image_event ) {
 
   // -- render texture --
 
+  import derelict.opengl3.arb;
   glUseProgram(shader_id);
   glBindVertexArray(VAO);
 

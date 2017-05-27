@@ -33,6 +33,7 @@ void Initialize ( ) {
 
 	glfwMakeContextCurrent(window);
   DerelictGL3.reload();
+  glClampColor(GL_CLAMP_READ_COLOR, GL_FALSE);
   igImplGlfwGL3_Init(window, true);
 
   import input;

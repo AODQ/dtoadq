@@ -209,13 +209,13 @@ public void Update_Node_Graph ( ) {
       }
     } else {
       if ( igBeginPopup("context_menu") ) {
-        if ( gdMenuItem("Load Graph") ) {
-          import gui.node_parser;
-          Load_Graph();
-        }
         if ( gdMenuItem("Save Graph") ) {
           import gui.node_parser;
           Save_Graph();
+        }
+        if ( gdMenuItem("Load Graph") ) {
+          import gui.node_parser;
+          Load_Graph();
         }
         if ( gdMenuItem("Parse Graph") ) {
           import gui.node_parser;
