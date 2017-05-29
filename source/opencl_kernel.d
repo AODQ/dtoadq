@@ -341,6 +341,7 @@ __kernel void DTOADQ_Kernel (
   if ( !*reset_image ) {
     old_pixel = read_imagef(input_image, out);
   }
+  if ( old_pixel.w > 1024 ) return;
   // -- set up camera and stack
 
   if ( old_pixel.w < 1.0f ) {

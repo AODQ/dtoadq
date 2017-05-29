@@ -63,6 +63,7 @@ static:
 int err;
 
 private void Initialize_Kernel ( ) {
+  writeln("initializing kernel . . .");
   {
     import derelict.opengl3.glx;
     alias CLCP = cl_context_properties;

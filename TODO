@@ -1,10 +1,10 @@
 --- IMMEDIATE
-render to video
-REQUIRre files
+!require
+Texture mapping
 
 --- NECESSARY
 Some form of light glare
-Texture mapping
+render to video
 Procedurally generate textures
 Bump mapping with textures
 instead of avoiding materials, avoid ID

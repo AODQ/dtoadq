@@ -29,6 +29,7 @@ void Initialize ( ) {
 }
 
 void Compile ( ) {
+  import parser;
   OCL.Compile(Parse_Kernel());
 }
 
