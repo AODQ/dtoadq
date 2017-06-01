@@ -19,7 +19,6 @@ bool Update_Model ( ref bool open ) {
       switch ( dat.type ) {
         default: assert(0);
         case KI.ModelInfo.Data.TFloat:
-          writeln("IT: ", it);
           gdInputFloat("low", it, 0, low[it][0]); igSameLine();
           gdInputFloat("hi", it, 0, high[it][0]);
           change |= gdSlider(dat.label, dat.tfloat, low[it][0], high[it][0]);

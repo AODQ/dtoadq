@@ -49,8 +49,10 @@ void Unstick ( ) {
 }
 
 /** Inputs .. http://www.glfw.org/docs/latest/group__keys.html */
-bool RKey_Input ( size_t key ) in {
+bool RKey_Input ( size_t key, bool silent = true ) in {
   assert(key >= 0 && key <= keystate.length, "Invalid key input");
 } body {
-  return keystate[key];
+  auto ks = keystate[key];
+  keystate[key] = silent&&ks;
+  return ks;
 }

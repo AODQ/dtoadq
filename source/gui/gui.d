@@ -28,7 +28,7 @@ private void Render_Materials ( ref Material[] materials, ref bool change ) {
     igEnd();
 }
 
-bool Imgui_Render ( ref Material[] materials, ref Camera camera ) @trusted {
+bool Imgui_Render ( ref Material[] materials, ref Camera camera ) {
   bool change;
   igBegin("Project Details");
     import functional;
@@ -102,10 +102,14 @@ bool Imgui_Render ( ref Material[] materials, ref Camera camera ) @trusted {
           import gui.modeleditor;
           change |= Update_Model(open_editor);
         break;
-        case KI.ProceduralType.Scene:
-          Update_Node_Graph();
-        break;
+        case KI.ProceduralType.Scene: break;
       }
+    }
+
+    static bool open_node_graph = false;
+    igCheckbox("Node Graph", &open_node_graph);
+    if ( open_node_graph ) {
+      Update_Node_Graph();
     }
   igEnd();
 
@@ -121,6 +125,10 @@ private string Accumulator(T...)(T t) {
 }
 void gdText(T...)(T t) {
   igText(t.Accumulator.toStringz);
+}
+
+void gdTextColour(T...)(T t, float r, float g, float b) {
+  igTextColored(ImVec4(r, g, b, 1.0f), t.Accumulator.toStringz);
 }
 
 
@@ -143,18 +151,18 @@ bool gdInputInt(T...)(T t, ref int f) {
   return igInputInt(t.Accumulator.toStringz, &f);
 }
 
-bool gdInputText(T...)(T t, ref string f) {
-  return igInputText(t.Accumulator.toStringz, f.ptr);
-}
-
 bool gdNewWindow(T...)(T id) {
   bool t = true;
   igBegin(Accumulator(id).toStringz, &t);
   return t;
 }
 
-void gdInputText(T...)(T t, char* input_ptr, size_t input_length) {
-  igInputText(t.Accumulator.toStringz, input_ptr, input_length, 0);
+bool gdInputText(T...)(T t, ref string input) {
+  char[] iptr = input.dup ~ '\0';
+  iptr.length = 20;
+  auto change = igInputText(t.Accumulator.toStringz, iptr.ptr, iptr.length, 0);
+  input = iptr.ptr.fromStringz.idup;
+  return change;
 }
 
 auto gdCalcTextSize ( string str ) {

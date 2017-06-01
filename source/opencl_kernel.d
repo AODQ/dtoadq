@@ -144,10 +144,12 @@ float noise ( float2 n ) {
 }
 
 //---MAP GEOMETRY INSERTION POINT---
-//%MODEL
+//%MAPFUNCDECLARATIONS
+//----------------------------------
+//%MAPFUNCDEFINITIONS
 //----------------------------------
 
-float2 opU( int avoid, float2 d1, float2 d2 ) {
+float2 MapUnionG( int avoid, float2 d1, float2 d2 ) {
   if ( d2.y == avoid ) return d1;
   return (d1.x<d2.x) ? d1 : d2;
 }
@@ -168,7 +170,7 @@ float2 Map ( int a, float3 origin ) {
   float2 res = (float2)(FLT_MAX, -1);
 
   //---MAP INSERTION POINT---
-  //%MAP
+  //%MAPINSERT
   //-------------------------
 
   return res;

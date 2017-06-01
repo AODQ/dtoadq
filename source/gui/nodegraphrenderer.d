@@ -147,6 +147,7 @@ void Update_Node ( ImDrawList* draw_list, ImVec2 screen_offset, Node node,
 
 public void Update_Node_Graph ( ) {
   static bool opened = true;
+  static bool fuzzy_file_opened = false;
   igSetNextWindowSize(ImVec2(400, 400), ImGuiSetCond_FirstUseEver);
   if ( !igBegin("SDF Node Graph", &opened) ) {
     igEnd();
@@ -211,29 +212,19 @@ public void Update_Node_Graph ( ) {
       if ( igBeginPopup("context_menu") ) {
         if ( gdMenuItem("Save Graph") ) {
           import gui.node_parser;
-          Save_Graph();
+          Save_Graph("");
         }
         if ( gdMenuItem("Load Graph") ) {
           import gui.node_parser;
-          Load_Graph();
+          Load_Graph("");
         }
         if ( gdMenuItem("Parse Graph") ) {
           import gui.node_parser;
           Parse_Graph();
         }
 
-        void Menu ( string label, string[] names ) {
-          if ( !igBeginMenu(label.toStringz) ) return;
-          foreach ( name; names )
-            if ( gdMenuItem(name) )
-              New_Node(name, Sub(saved_mouse_pos, scrolling));
-          igEndMenu();
-        }
-
-        if ( igBeginMenu("New Node") ) {
-          import gui.opencl_funcs;
-          Apply_Function(&Menu);
-          igEndMenu();
+        if ( gdMenuItem("New Node") ) {
+          fuzzy_file_opened = true;
         }
 
         igEndPopup();
@@ -253,4 +244,10 @@ public void Update_Node_Graph ( ) {
   igPopStyleVar();
   igEndGroup();
   igEnd();
+
+  static import gui.fuzzyinput;
+  auto str = gui.fuzzyinput.Update(fuzzy_file_opened);
+  if ( str != "" ) {
+    New_Node(str, Sub(saved_mouse_pos, scrolling));
+  }
 }

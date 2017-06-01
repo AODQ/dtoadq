@@ -15,16 +15,23 @@ struct KernelInfo {
   enum Flag { Show_Normals,           }
   enum Var  { March_Dist, March_Reps, }
 
+  string filename;
+
   Type type;
   bool[Flag] flags;
   int [Var ] vars;
-  string filename;
   ProceduralType procedural_type;
   FileType       file_type;
+
+  this ( Type type_, bool[Flag] flags_, int[Var] vars_ ) {
+    flags = flags_; vars = vars_; type = type_;
+    filename = "~/programming/dtoadq/projects/globals/models/sdBox.cl";
+  }
 }
 
 private KernelInfo kernel_info;
-private bool        recompile = true;
+private bool       recompile     = true,
+                   reparse_files = true;
 
 auto Set_Kernel_Type ( KernelInfo.Type type ) {
   recompile = true;
@@ -43,6 +50,7 @@ auto Set_Kernel_Var  ( KernelInfo.Var var, int value ) {
 
 void Set_Map_Function ( ProceduralType ptype, FileType ftype, string filename ){
   recompile = true;
+  reparse_files = true;
   kernel_info.filename        = filename;
   kernel_info.procedural_type = ptype;
   kernel_info.file_type       = ftype;
@@ -58,6 +66,12 @@ auto RFile_Type ( )  { return kernel_info.file_type; }
 auto Should_Recompile ( bool silent = true ) {
   auto ret = recompile;
   recompile = recompile&silent;
+  return ret;
+}
+
+auto Should_Reparse_Files ( bool silent = true ) {
+  auto ret = reparse_files;
+  reparse_files = reparse_files&silent;
   return ret;
 }
 
@@ -106,8 +120,6 @@ struct ModelInfo {
     this ( string type_, string label_ ) {
       label = label_;
       import std.stdio;
-      writeln("TYPE: ", type_);
-      writeln("LABEL: ", label_);
       switch ( type_ ) {
         default: assert(0, "Unsupported type: " ~ type_);
         case "float":  type = TFloat;  tfloat = 0.0f;        break;

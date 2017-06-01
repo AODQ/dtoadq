@@ -33,7 +33,17 @@ auto LPut_Data(T)( T load_data ) {
   return results;
 }
 
-void Save_Graph ( ) {
+void Create_Default_Graph ( string filename ) {
+  import std.json;
+  JSONValue save = ["Version" : "0.0"];
+  save.object["nodes"] = JSONValue(["0"]);
+  save.object["connections"] = JSONValue(["0"]);
+  static import std.file;
+  std.file.write(filename, save.toString);
+  writeln("SAVED ", filename);
+}
+
+void Save_Graph ( string filename ) {
   import std.json;
   // I convert everything to strings to avoid headaches from converting from
   // floats to ints etc, I just remember it always being a hassle otherwise
@@ -74,19 +84,15 @@ void Save_Graph ( ) {
   }
 
   static import std.file;
-  std.file.write("temp-node-graph.json", save.toString);
+  std.file.write(filename, save.toString);
 }
 
-void Clear_Graph ( ) {
-  Clear_Nodes();
-  Clear_Node_Connections();
-}
-
-void Load_Graph ( ) {
+void Load_Graph ( string filename ) {
   Clear_Graph();
   import std.json;
   static import std.file;
-  JSONValue load = parseJSON(std.file.read("temp-node-graph.json").to!string);
+  writeln("Loading ", filename);
+  JSONValue load = parseJSON(std.file.read(filename).to!string);
 
   { // -- load nodes --
     auto load_nodes = load["nodes"];
@@ -116,6 +122,10 @@ void Load_Graph ( ) {
   }
 }
 
+void Clear_Graph ( ) {
+  Clear_Nodes();
+  Clear_Node_Connections();
+}
 
 struct GraphParseInfo {
   bool compiled;

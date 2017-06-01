@@ -95,6 +95,7 @@ void Compile ( string source ) {
     clGetProgramBuildInfo(CL.program, device.device_id, CL_PROGRAM_BUILD_LOG,
                           len, log.ptr, null);
     writeln("LOG: ", log);
+    writeln("-- could not compile --");
     return;
   }
   CL.kernel = clCreateKernel(CL.program, CL.kernel_name.toStringz, &err);

@@ -17,8 +17,6 @@ private struct CLImage {
       glBindTexture(GL_TEXTURE_2D, 0);
 
       cl_handle[it] = OCL.Create_CLGL_Texture(gl_texture[it]);
-      writeln("GL_HANDLE: ", gl_texture[it], " CL_HANDLE: ", cl_handle[it]._mem,
-              "  ", width, "x", height);
     }
   }
 

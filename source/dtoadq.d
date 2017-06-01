@@ -1,5 +1,6 @@
 module dtoadq;
-import globals, scene, kernelinfo;
+import globals, scene;
+static import KI   = kernelinfo;
 static import DIMG = dtoadqimage;
 static import OCL  = opencl;
 static import GL   = gl_renderer;
@@ -26,6 +27,9 @@ void Initialize ( ) {
                                    [image_buffer.x, image_buffer.y]);
   material_buffer = [ Default_Material() ];
   Set_Image_Buffer(DIMG.Resolution.r640_360, true);
+  KI.Set_Map_Function(KI.ProceduralType.Model,
+                      KI.FileType.CL,
+                      "projects/globals/models/sdSphere.cl");
 }
 
 void Compile ( ) {
@@ -48,9 +52,9 @@ cl_event image_unlock_event;
 void Update ( float timer ) {
   // -- camera/gui/etc --
   img_reset_buffer |= Update_Camera(camera_buffer);
-  img_reset_buffer |= Should_Recompile();
+  img_reset_buffer |= KI.Should_Recompile();
   // -- kernel --
-  if ( Should_Recompile(false) ) {
+  if ( KI.Should_Recompile(false) ) {
     Compile();
   }
   image_buffer.Lock();
