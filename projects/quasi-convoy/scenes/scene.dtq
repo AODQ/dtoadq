@@ -1,0 +1,140 @@
+CAMERASTART
+void Update_Camera ( Camera* camera, float time ) {
+  if ( camera->flags > 0 ) return; // override
+
+  if ( time < 3.255f ) {
+    camera->fov = 90.0f;
+    camera->position = (float3)(14.8f, 2.39f, 2.43f);
+    camera->lookat = (float3)(0.77f, 0.33f, -1.0f);
+
+    camera->position.x -= time*2.4f;
+    camera->lookat.y -= time*0.01f;
+  } else if ( time < 10.25f ) {
+    float ztime = smoothstep(3.225f, 10.25f, time);
+    camera->position = mix(
+      (float3)(17.647f, 6.29f, 18.253f),
+      (float3)(-1.379f, -2.7f, 12.082f),
+      ztime
+    );
+    camera->fov = mix(90.0f, 20.0f, ztime);
+    camera->lookat = mix(
+      (float3)(0.89f, 0.31f, -1.0f),
+      (float3)(1.01f, 0.48f, -1.0f),
+      ztime
+    );
+  } else {
+    camera->position = (float3)(17.152f, 0.89f, 0.243f);
+    camera->position.y += noise1D(time)*1.25f - 1.25f/2.0f;
+    camera->lookat = (float3)(0.75f, 0.37f, -1.0f);
+    camera->fov = 50.0f - noise1D(time)*2.0f;
+  }
+}
+CAMERAEND
+
+MATERIALSSTART
+0 projects/globals/textures/txCheckerboard.txt
+MATERIALSEND
+
+UPDATEMAPSTART
+void Torus82 ( int avoid, float3 origin, MapInfo* minfo, float time,
+               __read_only image2d_array_t textures ) {
+  origin.xz = -opRotate(origin.xz, time);
+  float dist = sdScienceRotator(origin, (float2)(0.498f, 0.324f), time*2.5f);
+
+  float sphere = sdSphere(origin, 0.9f);
+
+  dist = opUnionRound(dist, sphere, 0.9f);
+
+
+  // -- colouring --
+  float3 colour = (float3)(0.3f, 0.4f, 0.9f);
+  float2 fpos = fmod(fabs(origin.xy)*64.0f, (float2)(1024.0f));
+  int2 pos = (int2)(fpos.x, fpos.y);
+  float4 res = read_imagef(textures, (int4)(pos, 0, 0));
+  colour.y += res.x;
+  MapUnionG(avoid, minfo, Create_Map_Info(dist, 0, colour));
+}
+
+void Primitives ( int avoid, float3 origin, MapInfo* minfo, float time,
+                  __read_only image2d_array_t textures ) {
+  // origin = fabs(origin+3.0f);
+  // origin += 3.0f;
+  origin.xz = opRotate(origin.xz, time);
+  origin.yx = opRotate(origin.yx, 0.15f*cos(time)*2.2f);
+  origin.xz = opMirrorOctant(origin.xz, (float2)(2.0f, 2.0f), 0);
+  origin.xz = opRotate(origin.xz, 15.0f);
+  origin.xz = opMirrorOctant(origin.xz, (float2)(1.0f, 1.0f), 0);
+
+  float dist =  sdHexPrism(origin, (float2)(0.626f, 0.252f));
+  dist = max(dist, -sdSphere(origin, 0.5f));
+
+  float torus = sdTorus82(origin, (float2)(0.6f, 0.2f));
+  dist = opUnionRound(dist, torus, 0.1f);
+
+  float3 colour = (float3)(0.8f, 0.6f, 0.2f);
+  float2 fpos = fmod(fabs(origin.xy)*64.0f, (float2)(1024.0f));
+  int2 pos = (int2)(fpos.x, fpos.y);
+  float4 res = read_imagef(textures, (int4)(pos, 0, 0));
+  colour.y += res.x;
+  MapUnionG(avoid, minfo, Create_Map_Info(dist, 0, colour));
+}
+
+void Room ( int avoid, float3 origin, MapInfo* minfo, float time ) {
+  origin.y += 3.0f;
+  float ht = 63.0f;
+  float dist = sdBox(origin, (float3)(ht));
+  dist = max(dist, -sdBox(origin, (float3)(ht-0.2f)));
+  dist = opUnionRound(dist, sdPlane(origin, (float3)(0.0f, 1.0f, 0.0f), 5.0f), 17.3f);
+
+  origin += 50.0f;
+  float3 colour = (float3)(0.2f);
+  // colour.z += origin.y/ht;
+
+  origin.xy = opMirrorOctant(origin.xz, (float2)(time, time), 0);
+  origin.xy = opMirrorOctant(origin.xy, (float2)(time, time), 0);
+  colour.x = smoothstep(0.0f, 1.0f, fmod(floor(origin.x/5.0f), 2.0f));
+  colour.y = smoothstep(0.0f, 1.0f, fmod(floor(origin.y/5.0f), 2.0f));
+  colour.z = smoothstep(0.0f, 1.0f, fmod(floor(origin.z/5.0f), 2.0f));
+  colour = (float3)((float)((int)(colour.x)^(int)(colour.y)^(int)(colour.z)));
+
+  colour.x -= time/5.0f;;
+  colour.y -= time/5.0f;;
+  colour.z -= time/5.0f;;
+
+
+  MapUnionG(avoid, minfo, Create_Map_Info(dist, 0, colour));
+}
+
+void Walls ( int avoid, float3 origin, MapInfo* minfo, float time ) {
+  float dist
+       =           sdPlane(origin, (float3)( 0.0f, 1.0f, 0.0f),  5.0f);
+  // dist = min(dist, sdPlane(origin, (float3)( 0.0f,-1.0f, 0.0f),  5.0f));
+  // dist = min(dist, sdPlane(origin, (float3)( 1.0f, 0.0f, 0.0f),  5.0f));
+  // dist = min(dist, sdPlane(origin, (float3)(-1.0f, 0.0f, 0.0f),  5.0f));
+  // dist = min(dist, sdPlane(origin, (float3)( 0.0f, 0.0f, 1.0f), 25.0f));
+  // dist = min(dist, sdPlane(origin, (float3)( 0.0f, 0.0f,-1.0f),  9.0f));
+  if ( dist >=  9.0f ) return;
+  float3 colour = (float3)(0.03f, 0.2f, 0.2f);
+
+  float cdist = 2.0f;
+  origin += 50.0f;
+  colour = (float3)(smoothstep(0.0f, 1.0f, colour.x));
+  // colour = (float3)(colour.x);
+
+  MapUnionG(avoid, minfo, Create_Map_Info(dist, 1, colour));
+}
+
+void Update_Map ( int avoid, float3 origin, MapInfo* minfo, float time,
+                    __read_only image2d_array_t textures, float3 debug_values ) {
+  // -- modeling --
+  if ( time < 6.5f ) { }
+  else if ( time < 10.25f ) {
+    time = 6.5f - (time - 6.5f)*2.5f;
+  } else {
+    time = (time-10.25f)*3.0f;
+  }
+  Torus82(avoid, origin, minfo, time, textures);
+  Room(avoid, origin, minfo, time);
+  Primitives(avoid, origin, minfo, time, textures);
+}
+UPDATEMAPEND

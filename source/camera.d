@@ -5,6 +5,7 @@ struct Camera {
   cl_float3 position, lookat, up;
   cl_int2 dimensions;
   cl_float fov;
+  cl_int flags;
 }
 
 
@@ -32,7 +33,6 @@ bool Update_Camera ( ref Camera camera ) {
   }
 
   float vel = 0.1f + RKey_Input(82)*0.3f - RKey_Input(70)*0.09f;
-  import gln;
 
   if ( RKey_Input(65) || RKey_Input(68) ) { // AD
     cam_update = true;

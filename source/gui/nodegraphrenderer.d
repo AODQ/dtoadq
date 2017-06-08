@@ -70,7 +70,7 @@ void Update_Node ( ImDrawList* draw_list, ImVec2 screen_offset, Node node,
         user_value.value = val.to!string;
       break;
       case String:
-        // gdInputText("Text", user_value.value);
+        gdInputText("Text", user_value.value);
       break;
     }
   }
@@ -223,7 +223,21 @@ public void Update_Node_Graph ( ) {
           Parse_Graph();
         }
 
-        if ( gdMenuItem("New Node") ) {
+        void Menu ( string label, string[] names ) {
+          if ( !igBeginMenu(label.toStringz) ) return;
+          foreach ( name; names )
+            if ( gdMenuItem(name) )
+              New_Node(name, Sub(saved_mouse_pos, scrolling));
+            igEndMenu();
+        }
+
+        if ( igBeginMenu("New Node") ) {
+          import gui.opencl_funcs;
+          Apply_Function(&Menu);
+          igEndMenu();
+        }
+
+        if ( gdMenuItem("New File Node") ) {
           fuzzy_file_opened = true;
         }
 
@@ -248,6 +262,6 @@ public void Update_Node_Graph ( ) {
   static import gui.fuzzyinput;
   auto str = gui.fuzzyinput.Update(fuzzy_file_opened);
   if ( str != "" ) {
-    New_Node(str, Sub(saved_mouse_pos, scrolling));
+    New_Node_From_File(str, Sub(saved_mouse_pos, scrolling));
   }
 }

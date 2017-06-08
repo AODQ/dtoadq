@@ -1,5 +1,6 @@
 module gui.modeleditor;
 import globals, derelict.imgui.imgui, gui.gui;
+import KI = kernelinfo;
 
 private float[3][200] low, high;
 
@@ -16,6 +17,13 @@ bool Update_Model ( ref bool open ) {
     igSeparator();
     foreach ( it, ref dat; model.params ) {
       gdText(" --- ", dat.label);
+      if ( dat.label_special ) {
+        change |= gdCheckbox("Override ", dat.label, dat.override_special);
+        gdText(dat.To_String(true));
+        if ( !dat.override_special ) {
+          continue;
+        }
+      }
       switch ( dat.type ) {
         default: assert(0);
         case KI.ModelInfo.Data.TFloat:

@@ -8,8 +8,8 @@ static import DTOADQ = dtoadq;
 static import GLFW   = glfw;
 static import Files  = gui.files;
 
-void Init ( ) {
-  GLFW.Initialize();
+void Init ( bool window = true ) {
+  GLFW.Initialize(window);
   DTOADQ.Initialize();
   Files.Initialize();
 }
@@ -19,7 +19,12 @@ void Update () {
   ImGuiIO* io = igGetIO();
   glfwPollEvents();
   igImplGlfwGL3_NewFrame();
-  DTOADQ.Update(glfwGetTime());
+  static float curr_time = 0.0f, prev_time = 0.0f;
+  curr_time = glfwGetTime();
+  DTOADQ.Add_Time(curr_time - prev_time);
+  prev_time = curr_time;
+  float[] dumbydata;
+  DTOADQ.Update(false, dumbydata);
 }
 
 void Render ( ) {
@@ -32,7 +37,7 @@ void Render ( ) {
 
 bool running = true;
 
-void main() {
+void main(string[] arguments) {
   scope ( exit ) {
     writeln("Terminating glfw...");
     glfwTerminate();
@@ -42,7 +47,22 @@ void main() {
     writeln("ended");
   }
 
-  Init();
+  if ( arguments.length > 1 ) {
+    Init(false);
+    string scene = arguments[1],
+           file  = arguments[2],
+           spp   = arguments[3],
+           time  = arguments[4],
+           fps   = arguments[5];
+    writeln("SCENE: ", scene);
+    writeln("FILE: ", file);
+    writeln("SPP: ", spp);
+    writeln("TIME: ", time);
+    writeln("FPS: ", fps);
+    import VI = videorender;
+    VI.Render(scene, file, spp.to!int, time.to!float, fps.to!int);
+  } else
+    Init();
 
   while ( !GLFW.Should_Close_Window() && running ) {
     Update();

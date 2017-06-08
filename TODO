@@ -1,11 +1,9 @@
 --- IMMEDIATE
-!require
-Texture mapping
+MapUnion, constructs map info
 
 --- NECESSARY
 Some form of light glare
 render to video
-Procedurally generate textures
 Bump mapping with textures
 instead of avoiding materials, avoid ID
 

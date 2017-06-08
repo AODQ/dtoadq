@@ -102,13 +102,12 @@ void Renderer_Initialize() {
 import derelict.opencl.cl : cl_event;
 void Render ( GLuint texture, cl_event image_event ) {
   import globals;
-  import gl3n.linalg;
 
   // -- make sure OpenCL work on target is done --
-  {
-    import opencl;
-    Sync_GL_Event(image_event);
-  }
+  // {
+  //   import opencl;
+  //   Sync_GL_Event(image_event);
+  // }
 
   // -- render texture --
 
@@ -134,10 +133,10 @@ void Error_Check ( string desc ) {
 }
 string glErrorString(GLenum err) {
   switch(err) {
-    case GL_INVALID_ENUM: return "Invalid Enum";
-    case GL_INVALID_VALUE: return "Invalid Value";
+    case GL_INVALID_ENUM:      return "Invalid Enum";
+    case GL_INVALID_VALUE:     return "Invalid Value";
     case GL_INVALID_OPERATION: return "Invalid Operation";
-    case GL_OUT_OF_MEMORY: return "Out of Memory";
+    case GL_OUT_OF_MEMORY:     return "Out of Memory";
     default: return "Unknown Error";
   }
 }

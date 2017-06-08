@@ -5,6 +5,7 @@ import scene, camera : Camera;
 import gui.nodegraphrenderer : Update_Node_Graph;
 static import Kernel = kernelinfo;
 static import DTOADQ = dtoadq;
+static import KI = kernelinfo;
 
 private void Render_Materials ( ref Material[] materials, ref bool change ) {
     igBegin("Materials");
@@ -39,6 +40,7 @@ bool Imgui_Render ( ref Material[] materials, ref Camera camera ) {
       change |= gdInputFloat("X", camera.position[0]);
       change |= gdInputFloat("Y", camera.position[1]);
       change |= gdInputFloat("Z", camera.position[2]);
+      gdInputInt("Override", camera.flags);
       gdText("Camera Angle    ", camera.lookat[0..3]
                                 .map!(n => cast(int)(n*100.0f)/100.0f));
       change |= gdSlider("FOV", camera.fov, 50.0f, 140.0f);
@@ -49,6 +51,7 @@ bool Imgui_Render ( ref Material[] materials, ref Camera camera ) {
       static int kernel_type = 0, resolution = 0, pkernel_type,
                 march_dist = 64,
                 march_reps = 128;
+      static float march_acc = 0.001f;
 
       pkernel_type = kernel_type;
       igRadioButton("Raycast",  &kernel_type, 0); igSameLine();
@@ -65,11 +68,16 @@ bool Imgui_Render ( ref Material[] materials, ref Camera camera ) {
         Kernel.Set_Kernel_Flag(Kernel_Flag.Show_Normals, Show_Normals);
       }
 
-      if ( igSliderInt("March Distance", &march_dist, 1, 2048) ) {
+      if ( igSliderInt("March Distance", &march_dist, 1, 64) ) {
         Kernel.Set_Kernel_Var(Kernel_Var.March_Dist, march_dist);
       }
       if ( igSliderInt("March Repetitions", &march_reps, 1, 256) ) {
         Kernel.Set_Kernel_Var(Kernel_Var.March_Reps, march_reps);
+      }
+      if ( igSliderFloat("March Accuracy", &march_acc, 0.00f, 0.2f) ) {
+        int acc_var = cast(int)(march_acc*1000);
+        acc_var.writeln;
+        Kernel.Set_Kernel_Var(Kernel_Var.March_Acc, acc_var);
       }
 
       static import DIMG = dtoadqimage;
@@ -98,18 +106,28 @@ bool Imgui_Render ( ref Material[] materials, ref Camera camera ) {
       final switch ( KI.RProcedural_Type ) {
         case KI.ProceduralType.Function: break;
         case KI.ProceduralType.Texture: break;
+        case KI.ProceduralType.Scene:
         case KI.ProceduralType.Model:
           import gui.modeleditor;
           change |= Update_Model(open_editor);
         break;
-        case KI.ProceduralType.Scene: break;
       }
     }
-
-    static bool open_node_graph = false;
-    igCheckbox("Node Graph", &open_node_graph);
-    if ( open_node_graph ) {
-      Update_Node_Graph();
+    igSeparator();
+    float timer = 0.0f;
+    timer = DTOADQ.RTime();
+    if ( gdDragFloat("Timer", timer, 0.01f, 0.0f, 120.0f,
+                     timer.to!string, 1.0f) ) {
+      DTOADQ.Set_Time(timer);
+    }
+    igCheckbox("Update Time", &DTOADQ.allow_time_change);
+    change |= DTOADQ.allow_time_change;
+    if ( DTOADQ.allow_time_change ) {
+      static float start_timer = 0.0f, end_timer = 120.0f;
+      gdInputFloat("START", start_timer);
+      gdInputFloat("END", end_timer);
+      if ( timer > end_timer || timer < start_timer )
+        DTOADQ.Set_Time(start_timer);
     }
   igEnd();
 
@@ -136,6 +154,10 @@ bool gdButton(T...)(T t) {
   return igButton(t.Accumulator.toStringz);
 }
 
+bool gdCheckbox(T...)(T t, ref bool check) {
+  return igCheckbox(t.Accumulator.toStringz, &check);
+}
+
 bool gdSlider(T...)(T t, ref float f, float low, float hi) {
   return igSliderFloat(t.Accumulator.toStringz, &f, low, hi);
 }
@@ -149,6 +171,12 @@ bool gdInputFloat(T...)(T t, ref float f) {
 
 bool gdInputInt(T...)(T t, ref int f) {
   return igInputInt(t.Accumulator.toStringz, &f);
+}
+
+auto gdDragFloat(T...)(T t, ref float val, float speed, float min, float max,
+                       string display_format, float power) {
+  return igDragFloat(t.Accumulator.toStringz, &val, speed, min, max,
+                     display_format.toStringz, power);
 }
 
 bool gdNewWindow(T...)(T id) {
@@ -176,6 +204,7 @@ auto gdRMousePos ( ) {
   igGetMousePos(&vec);
   return vec;
 }
+
 
 auto gdRMouseDelta ( ) {
   ImVec2 vec;

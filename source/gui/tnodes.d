@@ -60,6 +60,31 @@ auto RNodeType       ( string name ) in {
   assert(name in g_node_types, "RNodeType from invalid name: " ~ name);
 } body { return g_node_types[name];     }
 
+auto To_Proper_Type ( int type ) {
+  switch ( type ) {
+    default: assert(0);
+    case 0: return SubnodeDescription.Float;
+    case 1: return SubnodeDescription.Float2;
+    case 2: return SubnodeDescription.Float3;
+    case 3: return SubnodeDescription.Int;
+  }
+}
+
+auto New_Node_From_File ( string filename, ImVec2 vec ) {
+  import functional, parser : Parse_File, Create_Model_Info;
+  auto info = filename.Parse_File.Create_Model_Info;
+  NodeType nodetype = new NodeType(
+    info.name,
+    info.params.map!(n => SubnodeType(n.label, To_Proper_Type(n.type)))
+        .array,
+    [SubnodeType("out", SubnodeDescription.Float)],
+    ParseNodeType.Function
+  );
+  auto node = new Node(nodetype, g_node_id_counter, vec);
+  g_nodes[g_node_id_counter ++] = node;
+  return node;
+}
+
 auto New_Node ( string name, ImVec2 vec, int id ) {
   auto node = new Node(name.RNodeType, id, vec);
   g_nodes[id] = node;
@@ -246,7 +271,7 @@ private:
         case Float2: size.y = max(size.y,  70.0f); goto case;
         case Int: case Float : size.y = max(size.y,  50.0f);
           size.x =  80.0f; break;
-        case String: break;
+        case String: size.x = 100.0f; break;
       }
     }
   }

@@ -2,10 +2,8 @@ module gui.opencl_funcs;
 import gui.tnodes : SubnodeDescription, SubnodeType, ParseNodeType, NodeType;
 // module to generate node types and other meta funcs
 private:
-alias SD  = SubnodeDescription,
-              ST  = SubnodeType,
-              PNT = ParseNodeType,
-              NT  = NodeType;
+alias SD  = SubnodeDescription, ST = SubnodeType,
+      PNT = ParseNodeType,      NT = NodeType;
 
 ST STV  ( string name ) { return ST (name, SD.Varying); }
 ST STF3 ( string name ) { return ST (name, SD.Float3);  }
@@ -38,9 +36,16 @@ static NodeCategory[] node_types = [
     NNT("Int",    [], [STI(" "  )], SD.Int    ),
     NNT("String", [], [STS(" "  )], SD.String ),
   ]),
-  NodeCategory("Variables", [
+  NodeCategory("User Values", [
+    NNT("User Float3", [], [STF3(" ")], SD.String),
+    NNT("User Float2", [], [STF2(" ")], SD.String),
+    NNT("User Float",  [], [STF (" ")], SD.String),
+    NNT("User Int",    [], [STI (" ")], SD.String)
+  ]),
+  NodeCategory("Map", [
     NNT("Origin", [], [STF3(" " )], PCo ),
     NNT("Time"  , [], [STF(" "  )], PCo ),
+    NNT("MapUnionG", [STV("Func"), STV("Model")], [], PFn)
   ]),
   NodeCategory("Mathematics", [
     NNT("+",   [STV("In0"  ), STV("In1"   )], [STV("Out" )], POp ),

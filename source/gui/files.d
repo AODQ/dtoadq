@@ -27,22 +27,6 @@ auto RFiles ( string directory ) {
     .array;
 }
 
-auto Truncate_Directory ( string filename ) {
-  auto index = filename.lastIndexOf('/');
-  if ( index == -1 ) return filename;
-  return filename[index+1 .. $];
-}
-
-auto Truncate_Extension ( string filename ) {
-  auto index = filename.indexOf('.');
-  if ( index == -1 ) return filename;
-  return filename[0 .. index];
-}
-
-auto Truncate_DirExt ( string filename ) {
-  return filename.Truncate_Directory.Truncate_Extension;
-}
-
 auto RProject_Dir ( ) { return project_dir; }
 auto RGlobals_Dir ( ) { return "projects/globals"; }
 
@@ -63,16 +47,16 @@ void Update_Directory ( string dir_prestr ) {
   auto Display_Dir(int dir_type) {
     import gui.gui : gdInputText, gdButton;
     static string def_filename = "";
-    gdInputText("New File", def_filename);
-    if ( def_filename != "" && gdButton("Create ", cast(Dir)dir_type) ) {
-      static import NP = gui.node_parser;
-      string filename = dir_prestr ~ directories[dir_type] ~ "/" ~
-                        def_filename ~ ".json";
-      writeln("Creating filename: ", filename);
-      import gui.node_parser;
-      Create_Default_Graph(filename);
-      Load_Graph(filename);
-    }
+    // gdInputText("New File", def_filename);
+    // if ( def_filename != "" && gdButton("Create ", cast(Dir)dir_type) ) {
+    //   static import NP = gui.node_parser;
+    //   string filename = dir_prestr ~ directories[dir_type] ~ "/" ~
+    //                     def_filename ~ ".json";
+    //   writeln("Creating filename: ", filename);
+    //   import gui.node_parser;
+    //   Create_Default_Graph(filename);
+    //   Load_Graph(filename);
+    // }
     static int open_file = 0, open_dir = 0;
     auto files = dirs[dir_type].RFiles;
     files.sort!("a.name < b.name");
@@ -80,10 +64,11 @@ void Update_Directory ( string dir_prestr ) {
       // so open_fil index of each entry isn't highlighted
       int t_open_file = open_file;
       if ( dir_type != open_dir ) t_open_file = -1;
-      auto name = Truncate_Directory(fil.name);
+      auto name = Util.Truncate_Directory(fil.name);
       if ( igRadioButton(name.toStringz, &t_open_file, cast(int)it) ) {
         open_dir = dir_type;
-        auto filetype = KI.String_To_FileType(Ext(name, ".cl", ".json")[1..$]);
+        auto filetype = KI.String_To_FileType(Ext(name, ".cl", ".dtq", ".txt")
+                           [1..$]);
         KI.Set_Map_Function(cast(Dir)dir_type, filetype, fil.name);
       }
       open_file = t_open_file;
@@ -97,7 +82,10 @@ void Update_Directory ( string dir_prestr ) {
   // -- render --
   zip(directories, iota(0, Dir.max+1).map!(n => cast(Dir)n))
   .each!(delegate void(DirTuple dir) {
-    if ( igTreeNode(dir[0].toStringz) ) { Display_Dir(dir[1]); igTreePop(); }
+    if ( igTreeNode((dir_prestr ~ dir[0]).toStringz) ) {
+      Display_Dir(dir[1]);
+      igTreePop();
+    }
   });
 }
 

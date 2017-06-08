@@ -3,8 +3,11 @@ module opencl_kernel; immutable(string) DTOADQ_kernel = q{
 #define MARCH_DIST //%MARCH_DIST.0f
 #define MARCH_REPS //%MARCH_REPS
 //#define SHOW_NORMALS
+
+__constant float MARCH_ACC = //%MARCH_ACC.0f/1000.0f;
 // -----------------------------------------------------------------------------
 // --------------- DEBUG -------------------------------------------------------
+// Variadic functions not supported, so this is best you get :-(
 bool Is_Debug_Print ( ) {
   return get_global_id(0) == 200 &&
          get_global_id(1) == 200;
@@ -22,6 +25,7 @@ typedef struct T_Camera {
   float3 position, lookat, up;
   int2 dim;
   float fov;
+  int flags;
 } Camera;
 
 typedef struct RNG {
@@ -115,7 +119,7 @@ float3 refract(float3 V, float3 N, float refraction) {
 }
 
 // -----------------------------------------------------------------------------
-// --------------- RAY ---------------------------------------------------------
+// --------------- GENERAL STRUCTS ---------------------------------------------
 typedef struct T_Ray {
   float3 origin, dir;
 } Ray;
@@ -132,16 +136,23 @@ typedef struct T_IntersectionInfo {
   Material material;
   float3 origin, dir, normal;
 } IntersectionInfo;
+
+
+typedef struct T_MapInfo {
+  float3 colour;
+  float dist;
+  int material_index;
+} MapInfo;
+
+MapInfo Create_Map_Info ( float d, int mi, float3 c ) {
+  MapInfo info;
+  info.dist = d;
+  info.colour = c;
+  info.material_index = mi;
+  return info;
+}
 // -----------------------------------------------------------------------------
 // --------------- MAP GEOMETRY FUNCTIONS --------------------------------------
-float noise ( float2 n ) {
-  const float2 d = (float2)(0.0f, 1.0f);
-  float2 b = floor(n),
-         f = smoothstep((float2)(0.0f), (float2)(1.0f), fract2f(n));
-  return mix(mix(rand(b), rand(b + d.yx), f.x),
-             mix(rand(b + d.xy), rand(b + d.yy), f.x),
-             f.y);
-}
 
 //---MAP GEOMETRY INSERTION POINT---
 //%MAPFUNCDECLARATIONS
@@ -149,25 +160,20 @@ float noise ( float2 n ) {
 //%MAPFUNCDEFINITIONS
 //----------------------------------
 
-float2 MapUnionG( int avoid, float2 d1, float2 d2 ) {
-  if ( d2.y == avoid ) return d1;
-  return (d1.x<d2.x) ? d1 : d2;
-}
-
-
-float3 opTwist( float3 p ) {
-    float  c = cos(10.0f*p.y+10.0f);
-    float  s = sin(10.0f*p.y+10.0f);
-    return p;
-    // mat2   m = mat2(c,-s,s,c);
-    // return (float3)(m*p.xz,p.y);
+void MapUnionG( int avoid, MapInfo* d1, MapInfo d2 ) {
+  if ( d2.material_index != avoid && d1->dist > d2.dist )
+    *d1 = d2;
 }
 
 // -----------------------------------------------------------------------------
+// --------------- SCENE -------------------------------------------------------
+//%SCENEINSERT
+//------------------------
+// -----------------------------------------------------------------------------
 // --------------- MAP ---------------------------------------------------------
-float2 Map ( int a, float3 origin ) {
-  // -- spheres --
-  float2 res = (float2)(FLT_MAX, -1);
+MapInfo Map ( int a, float3 origin, float time,
+             __read_only image2d_array_t textures ) {
+  MapInfo res = Create_Map_Info(FLT_MAX, -1, (float3)(0.3f));
 
   //---MAP INSERTION POINT---
   //%MAPINSERT
@@ -178,12 +184,12 @@ float2 Map ( int a, float3 origin ) {
 
 // -----------------------------------------------------------------------------
 // --------------- GRAPHIC FUNCS THAT NEED MAP ---------------------------------
-float3 Normal ( float3 p ) {
+float3 Normal ( float3 p, float time, __read_only image2d_array_t t ) {
   float2 eps = (float2)(0.001f,0.0);
 	return normalize((float3)(
-    (Map(-1, p+eps.xyy).x - Map(-1, p-eps.xyy).x),
-    (Map(-1, p+eps.yxy).x - Map(-1, p-eps.yxy).x),
-    (Map(-1, p+eps.yyx).x - Map(-1, p-eps.yyx).x)
+    (Map(-1, p+eps.xyy, time, t).dist - Map(-1, p-eps.xyy, time, t).dist),
+    (Map(-1, p+eps.yxy, time, t).dist - Map(-1, p-eps.yxy, time, t).dist),
+    (Map(-1, p+eps.yyx, time, t).dist - Map(-1, p-eps.yyx, time, t).dist)
   ));
 }
 
@@ -212,19 +218,20 @@ float3 Tangent ( float3 normal ) {
 
 // -----------------------------------------------------------------------------
 // --------------- RAYTRACING/MARCH --------------------------------------------
-float2 March ( int avoid, Ray ray ) {
+MapInfo March ( int avoid, Ray ray, float time,
+                __read_only image2d_array_t textures ) {
   float distance = 0.0f;
-  float2 t_info;
+  MapInfo t_info;
   for ( int i = 0; i < MARCH_REPS; ++ i ) {
-    t_info = Map(avoid, ray.origin + ray.dir*distance);
-    if ( t_info.x < 0.01f || t_info.x > MARCH_DIST ) break;
-    distance += t_info.x;
+    t_info = Map(avoid, ray.origin + ray.dir*distance, time, textures);
+    if ( t_info.dist < MARCH_ACC || t_info.dist > MARCH_DIST ) break;
+    distance += t_info.dist;
   }
-  if ( t_info.x > MARCH_DIST ) {
-    t_info.x = -1.0f;
+  if ( t_info.dist > MARCH_DIST ) {
+    t_info.dist = -1.0f;
     return t_info;
   }
-  t_info.x = distance;
+  t_info.dist = distance;
   return t_info;
 }
 
@@ -291,13 +298,14 @@ float3 Jitter ( float3 d, float phi, float sina, float cosa ) {
   return (u*cos(phi) + v*sin(phi))*sina + w*cosa;
 }
 
-RayInfo RPixel_Colour ( RNG* rng, const __global Material* material, Ray ray ) {
+RayInfo RPixel_Colour ( RNG* rng, const __global Material* material, Ray ray,
+                        float time, __read_only image2d_array_t textures ) {
   //%KERNELTYPE
 }
 
 // -----------------------------------------------------------------------------
 // --------------- CAMERA ------------------------------------------------------
-Ray Camera_Ray(RNG* rng, __global Camera* camera) {
+Ray Camera_Ray(RNG* rng, Camera* camera) {
   float2 coord = (float2)((float)get_global_id(0), (float)get_global_id(1));
   coord += (float2)(Uniform(rng, -1.0f, 1.0f),
                     Uniform(rng, -1.0f, 1.0f));
@@ -332,10 +340,12 @@ __kernel void DTOADQ_Kernel (
         __global RNG* rng_ptr,
         __global Camera* camera,
         __global float* time_ptr,
-        __global Material* material, __global uint* material_size
+        __global Material* material, __global uint* material_size,
+        __read_only image2d_array_t textures
       ) {
   int2 out = (int2)(get_global_id(0), get_global_id(1));
   int image_rw_index = camera->dim.y*out.y + out.x;
+  float time = *time_ptr;
   RNG rng = *rng_ptr;
   // -- get old pixel, check if there are samples to be done
   //    (counter is stored in alpha channel)
@@ -343,6 +353,9 @@ __kernel void DTOADQ_Kernel (
   if ( !*reset_image ) {
     old_pixel = read_imagef(input_image, out);
   }
+
+  Camera local_camera = *camera;
+  Update_Camera(&local_camera, time);
   if ( old_pixel.w > 1024 ) return;
   // -- set up camera and stack
 
@@ -353,9 +366,8 @@ __kernel void DTOADQ_Kernel (
   }
 
 
-  float time = *time_ptr;
-  Ray ray = Camera_Ray(&rng, camera);
-  RayInfo result = RPixel_Colour(&rng, material, ray);
+  Ray ray = Camera_Ray(&rng, &local_camera);
+  RayInfo result = RPixel_Colour(&rng, material, ray, time, textures);
 
   if ( result.hit ) {
     old_pixel =
@@ -383,7 +395,7 @@ string MLT_kernel_function = q{
   float3 radiance = (float3)(0.0f),
          weight   = (float3)(1.0f);
   for ( depth = 0; depth != MAX_DEPTH; ++ depth ) {
-    float2 marchinfo = March(-1, ray);
+    MapInfo marchinfo = March(-1, ray);
     // store info
     IntersectionInfo info;
     info.dist = marchinfo.x;
@@ -417,16 +429,57 @@ string Raytrace_kernel_function = q{
 
 string Raycast_kernel_function = q{
   Ray cray = ray;
-  float2 marchinfo = March(-1, ray);
+  MapInfo marchinfo = March(-1, ray, time, textures);
   RayInfo rinfo;
-  rinfo.hit = marchinfo.x >= 0.0f;
+  rinfo.hit = marchinfo.dist >= 0.0f;
   rinfo.colour = (float3)(0.2f);
   if ( rinfo.hit ) {
     #ifdef SHOW_NORMALS
-      rinfo.colour = normalize(Normal(ray.origin + ray.dir*marchinfo.x));
+      rinfo.colour =
+        Normal(ray.origin + ray.dir*marchinfo.dist, time, textures);
     #else
-      rinfo.colour = material[(int)(marchinfo.y)].base_colour;
+      rinfo.colour = marchinfo.colour;
     #endif
   }
+  // temporary fog
+  // rinfo.colour += marchinfo.dist/MARCH_DIST;
   return rinfo;
+};
+
+
+
+immutable(string) Texture_kernel = q{
+
+  __constant float PI = 3.1415926535f;
+
+
+  // ---------------------------------------------------------------------------
+  // --------------- MAP GEOMETRY FUNCTIONS ------------------------------------
+
+  //---MAP GEOMETRY INSERTION POINT---
+  //%MAPFUNCDECLARATIONS
+  //----------------------------------
+  //%MAPFUNCDEFINITIONS
+  //----------------------------------
+
+  // ---------------------------------------------------------------------------
+  // --------------- MAP -------------------------------------------------------
+  float4 TextureMap ( float2 origin ) {
+    //---MAP INSERTION POINT---
+    //%MAPINSERT
+    //-------------------------
+  }
+
+  __kernel void Texture_kernel (
+    __global float* img_buffer, __global float* dimensions
+  ) {
+    float dims = *dimensions;
+    int2 out = (int2)(get_global_id(0), get_global_id(1));
+    float4 results = TextureMap((float2)(out.x/dims, out.y/dims));
+    int index = dims*out.y*4 + out.x*4;
+    img_buffer[index+0] = results.x;
+    img_buffer[index+1] = results.y;
+    img_buffer[index+2] = results.z;
+    img_buffer[index+3] = results.w;
+  }
 };

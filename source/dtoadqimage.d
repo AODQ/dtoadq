@@ -1,21 +1,26 @@
 module dtoadqimage;
 import globals, opencl, scene;
 static import OCL = opencl;
+static import DIMG = dtoadqimage;
+static import KI = kernelinfo;
 
-private struct CLImage {
+private void Allocate_GL_Texture ( ref uint gl_texture, int width, int height ){
+  import derelict.opengl3.gl3;
+  glGenTextures(1, &gl_texture);
+  glBindTexture(GL_TEXTURE_2D, gl_texture);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height,
+                              0, GL_RGBA, GL_FLOAT, null);
+  glBindTexture(GL_TEXTURE_2D, 0);
+}
+
+private struct CLGLImage {
   OCL.CLPredefinedMem[2] cl_handle;
   uint[2] gl_texture;
   this ( int width, int height ) {
     foreach ( it; 0 .. 2 ) {
-      import derelict.opengl3.gl3;
-      glGenTextures(1, &gl_texture[it]);
-      glBindTexture(GL_TEXTURE_2D, gl_texture[it]);
-      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-      glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height,
-                                  0, GL_RGBA, GL_FLOAT, null);
-      glBindTexture(GL_TEXTURE_2D, 0);
-
+      Allocate_GL_Texture(gl_texture[it], width, height);
       cl_handle[it] = OCL.Create_CLGL_Texture(gl_texture[it]);
     }
   }
@@ -42,38 +47,149 @@ struct Image {
   ImageInfo _image_info;
   alias _image_info this;
 
-  private CLImage image;
+  private CLGLImage image;
   private int rw_access = 0;
 
-  this ( ImageInfo _image_info_, CLImage image_ ) {
+  this ( ImageInfo _image_info_, CLGLImage image_ ) {
     _image_info = _image_info_;
     image = image_;
   }
 
   void Lock ( ) {
     import derelict.opengl3.gl3;
-    glFlush();
     static import OCL = opencl;
     OCL.Lock_CLGL_Images(image.cl_handle);
   }
 
-  auto Unlock ( ) {
+  void Unlock ( ) {
     static import OCL = opencl;
-    auto event = OCL.Unlock_CLGL_Images(image.cl_handle);
-    OCL.Flush();
+    OCL.Unlock_CLGL_Images(image.cl_handle);
     rw_access ^= 1;
-    return event;
   }
 
   auto RRead   ( ) { return image.cl_handle [rw_access  ]; }
   auto RWrite  ( ) { return image.cl_handle [rw_access^1]; }
   auto RRender ( ) { return image.gl_texture[rw_access  ]; }
+  auto RFloatData ( ref float[] data ) {
+    import derelict.opengl3.gl3;
+    auto tex = RRender();
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, tex);
+    import gl_renderer;
+    // glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_FLOAT, data.ptr);
+    Error_Check("glGetTexImage");
+    data.length.writeln;
+    glBindTexture(GL_TEXTURE_2D, 0);
+  }
+}
+
+
+public class GLImage {
+  int width, height;
+  uint gl_texture;
+  this ( int width_, int height_ ) {
+    width = width_; height = height_;
+    Allocate_GL_Texture(gl_texture, width, height);
+  }
+
+  void Update(inout float[] img) {
+    import derelict.opengl3.gl3;
+    glBindTexture(GL_TEXTURE_2D, gl_texture);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0,
+                GL_RGBA, GL_FLOAT, cast(void*)img.ptr);
+    glBindTexture(GL_TEXTURE_2D, 0);
+  }
+}
+
+public struct CLImage {
+  cl_mem memory;
+  this ( int width, int height, int amt, void* data ) {
+    memory = OCL.Create_CL_Image(CL_MEM_READ_ONLY,
+      cl_image_format(CL_RGBA, CL_FLOAT),
+      cl_image_desc  (CL_MEM_OBJECT_IMAGE2D, width, height, 1,
+                       0,  0, 0, 0, 0, null), data);
+  }
+}
+
+private cl_mem cl_image_array;
+private string[] cl_image_names;
+
+/// Sets cl_image_array
+private void Create_Images(int width, int height, int len, inout float[] data){
+  if ( cl_image_array !is null ) {
+    clReleaseMemObject(cl_image_array);
+  }
+  cl_image_array = OCL.Create_CL_Image(CL_MEM_READ_ONLY,
+    cl_image_format(CL_RGBA, CL_FLOAT),
+    cl_image_desc  (CL_MEM_OBJECT_IMAGE2D_ARRAY, width, height, 1, len,
+                    0, 0, 0, 0, null), cast(void*)data.ptr);
+}
+
+void Create_Images ( string[] filenames ) {
+  // check if change in files (there's order, whatever)
+  if ( filenames.length == cl_image_names.length ) {
+    bool same_files = true;
+    for ( size_t i = 0; i != filenames.length; ++ i )
+      same_files &= cl_image_names[i] == filenames[i];
+    if ( same_files ) return;
+  }
+  cl_image_names = filenames;
+  // recreate images... might take some time :-[
+  float[] data;
+  foreach ( fil; filenames ) {
+    if ( !std.file.exists(fil) ) {
+      writeln("ERROR: TEXTURE FILE '", fil, "' DOES NOT EXIST");
+      return;
+    }
+    data ~= Kernel_Run_Texture(1024, fil);
+  }
+
+  Create_Images(1024, 1024, cast(int)filenames.length, data);
+}
+
+/// Compiles, runs kernel & returns the texture as a DIMG.GLImage
+float[] Kernel_Run_Texture ( int dim, string filename ) {
+  static import DIMG = dtoadqimage;
+  // save current state
+  auto prev_proc_type = KI.RProcedural_Type(),
+       prev_file_type = KI.RFile_Type(),
+       prev_filename  = KI.RFilename();
+  KI.Set_Map_Function(KI.ProceduralType.Texture, KI.FileType.TXT, filename);
+  {
+    import parser;
+    OCL.Compile(Parse_Kernel(), "Texture_kernel");
+  }
+  float[] t_img;
+  t_img.length = 4*dim*dim;
+  DIMG.GLImage gl_image = new DIMG.GLImage(dim, dim);
+
+  float fl_dim = dim;
+  OCL.Run(OCL.CLStoreMem(t_img), fl_dim, dim, dim);
+  // restore previous state
+  KI.Set_Map_Function(prev_proc_type, prev_file_type, prev_filename);
+  return t_img;
+}
+
+cl_mem RImages ( ) {
+  // sort of like a singleton, we always want cl_image_array to be a valid
+  // cl_mem object
+  if ( cl_image_array is null ) {
+    writeln("Creating default images");
+    Create_Images(["projects/globals/textures/txCheckerboard.txt"]);
+  }
+  return cl_image_array;
 }
 
 private Resolution [string] resolution_string;
 
 private ImageInfo[Resolution] image_info;
 private Image    [Resolution] images;
+
+auto RImage_Info ( Resolution resolution ) {
+  return image_info[resolution];
+}
 
 auto RImage ( Resolution resolution ) {
   return images[resolution];
@@ -114,7 +230,7 @@ static this ( ) {
 
 void Initialize() {
   foreach ( res; image_info )
-    images[res.resolution] = Image(res, CLImage(res.x, res.y));
+    images[res.resolution] = Image(res, CLGLImage(res.x, res.y));
 }
 
 void Clean_Up ( ) {

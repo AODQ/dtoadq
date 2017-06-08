@@ -26,14 +26,21 @@ struct CLPredefinedMem { // so memory can be allocated to OpenCL before Run
   }
 }
 
+static import std.traits;
+
 struct CLStoreMem { // store buffer into this after run
   CLMem _mem;
   alias _mem this;
   void* data;
   size_t size;
   this (T) ( ref T data_ ) {
-    data = cast(void*)&data_;
-    size = T.sizeof;
+    static if ( std.traits.isArray!T ) {
+      data = cast(void*)data_.ptr;
+      size = (data_[0]).sizeof*data_.length;
+    } else {
+      data = cast(void*)&data_;
+      size = T.sizeof;
+    }
   }
 }
 
@@ -58,7 +65,6 @@ static:
   CLCommandQueue      command_queue;
   CLProgram           program;
   CLKernel            kernel;
-  string              kernel_name;
 }
 int err;
 
@@ -80,11 +86,14 @@ private void Initialize_Kernel ( ) {
 }
 
 static bool working_program = true;
-void Compile ( string source ) {
+void Compile ( inout string source, string kernel_name ) {
   import std.string : toStringz;
   auto sourcestr = source.toStringz;
   CL.program = clCreateProgramWithSource(CL.context, 1, &sourcestr, null, &err);
   CLAssert(err, "clCreateProgramWithSource");
+  static import std.file;
+  std.file.write("BUILD", source);
+  writeln("Building");
   working_program =
     clBuildProgram(CL.program, 0, null, null, null, null) == CL_SUCCESS;
   if ( !working_program ) {
@@ -98,7 +107,9 @@ void Compile ( string source ) {
     writeln("-- could not compile --");
     return;
   }
-  CL.kernel = clCreateKernel(CL.program, CL.kernel_name.toStringz, &err);
+  if ( CL.kernel !is null )
+    clReleaseKernel(CL.kernel);
+  CL.kernel = clCreateKernel(CL.program, kernel_name.toStringz, &err);
   CLAssert(err, "clCreateKernel");
 }
 
@@ -110,6 +121,13 @@ auto Create_CLGL_Texture ( uint gl_texture ) {
   return cl_handle;
 }
 
+auto Create_CL_Image ( cl_mem_flags flags, cl_image_format format,
+                       cl_image_desc desc, void* data ) {
+  auto mem = clCreateImage(CL.context, flags, &format, &desc, data, &err);
+  CLAssert(err, "clCreateImage");
+  return mem;
+}
+
 private auto RHandles ( CLPredefinedMem[] cl_predefined_mem ) {
   import functional;
   return cl_predefined_mem.map!(n => n._mem).array;
@@ -117,22 +135,17 @@ private auto RHandles ( CLPredefinedMem[] cl_predefined_mem ) {
 void Lock_CLGL_Images ( CLPredefinedMem[] cl_predefined_mem ) {
   if ( !working_program ) return;
   import derelict.opengl3.gl3;
-  glFinish(); // TODO remove this if possible
   auto handles = cl_predefined_mem.RHandles;
   CLAssert(clEnqueueAcquireGLObjects(CL.command_queue, cast(int)handles.length,
             &handles[0], 0, null, null), "clEnqueueAcquireGLObjects");
 }
 
-cl_event Unlock_CLGL_Images ( CLPredefinedMem[]  cl_predefined_mem ) {
-  if ( !working_program ) return null;
+void Unlock_CLGL_Images ( CLPredefinedMem[]  cl_predefined_mem ) {
+  if ( !working_program ) return;
   auto handles = cl_predefined_mem.RHandles;
-  cl_event event;
   import derelict.opengl3.gl3;
-  clFinish(CL.command_queue);
-  glFinish();
   CLAssert(clEnqueueReleaseGLObjects(CL.command_queue, cast(int)handles.length,
-            &handles[0], 0, null, &event), "clEnqueueReleaseGLObjects");
-  return event;
+            &handles[0], 0, null, null), "clEnqueueReleaseGLObjects");
 }
 
 void Sync_GL_Event ( cl_event event ) {
@@ -162,8 +175,9 @@ private auto Load_Argument(T)(ref T data, int it) {
   } else static if ( is(T == CLStoreMem) ) {
     data._mem = cl_handle =
       clCreateBuffer(CL.context, flgs, data.size, data.data, &err);
-  } else
+  } else {
     cl_handle = clCreateBuffer(CL.context, flgs, T.sizeof, &data, &err);
+  }
   CLAssert(err, "clCreateBuffer");
 
   static if ( isArray!(T) ) {
@@ -264,8 +278,7 @@ auto Set_Current_Device(CLPlatformID platform_id) {
   return device_id;
 }
 
-void Initialize ( string kernel_name_ ) {
-  CL.kernel_name = kernel_name_;
+void Initialize ( ) {
   DerelictCL.load();
   auto platform_id = Set_Current_Platform();
   auto device_id = Set_Current_Device(platform_id);

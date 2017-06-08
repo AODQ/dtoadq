@@ -31,7 +31,7 @@ auto Set_Fuzzy_Files ( ) {
   auto files = RFiles(RProject_Dir) ~ RFiles(RGlobals_Dir);
   // iterate through all files and record score
   foreach ( fil; files ) {
-    string filename = Truncate_DirExt(fil.name);
+    string filename = Util.Truncate_DirExt(fil.name);
     import std.algorithm.comparison : levenshteinDistance;
     auto dist = levenshteinDistance!((a, b) => toLower(a) == toLower(b))
                                     (filename, curr_filename);

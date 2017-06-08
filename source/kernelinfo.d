@@ -1,11 +1,15 @@
 module kernelinfo;
+import globals;
+static import OCL = opencl;
+
 enum ProceduralType { Function, Texture, Model, Scene }
-enum FileType       { CL, JSON }
+enum FileType       { CL, DTQ, TXT }
 FileType String_To_FileType ( string str ) {
   switch ( str ) {
     default: assert(0, str ~ " filetype not supported");
-    case "cl":   return FileType.CL;
-    case "json": return FileType.JSON;
+    case "cl":  return FileType.CL;
+    case "dtq": return FileType.DTQ;
+    case "txt": return FileType.TXT;
   }
 }
 
@@ -13,7 +17,7 @@ FileType String_To_FileType ( string str ) {
 struct KernelInfo {
   enum Type { Raycast, Raytrace, MLT, }
   enum Flag { Show_Normals,           }
-  enum Var  { March_Dist, March_Reps, }
+  enum Var  { March_Dist, March_Reps, March_Acc }
 
   string filename;
 
@@ -25,7 +29,6 @@ struct KernelInfo {
 
   this ( Type type_, bool[Flag] flags_, int[Var] vars_ ) {
     flags = flags_; vars = vars_; type = type_;
-    filename = "~/programming/dtoadq/projects/globals/models/sdBox.cl";
   }
 }
 
@@ -49,8 +52,8 @@ auto Set_Kernel_Var  ( KernelInfo.Var var, int value ) {
 }
 
 void Set_Map_Function ( ProceduralType ptype, FileType ftype, string filename ){
-  recompile = true;
-  reparse_files = true;
+  recompile                   = true;
+  reparse_files               = true;
   kernel_info.filename        = filename;
   kernel_info.procedural_type = ptype;
   kernel_info.file_type       = ftype;
@@ -91,7 +94,7 @@ static this ( ) {
     kernel_info = KernelInfo(
       Type.Raycast,
       [ Flag.Show_Normals : false ],
-      [ Var.March_Dist : 64, Var.March_Reps : 128 ]
+      [ Var.March_Dist : 64, Var.March_Reps : 128, Var.March_Acc : 1 ]
     );
   }
 }
@@ -104,22 +107,36 @@ struct ModelInfo {
       float[] tfloatarr;
       int     tint;
     }
-    string label;
+    string label, rlabel;
     int type;
-    auto To_String ( ) {
+    string str_type; // TODO replace type with str_type
+    bool label_special, override_special;
+
+    auto To_String ( bool no_override = false ) {
       import std.conv : to;
-      import opencl : To_OpenCL_Float, To_OpenCL_Float_Array;
+      if ( !no_override && label_special && !override_special ) return rlabel;
       switch ( type ) {
         default: assert(0, "Unknown type");
-        case TInt:    return tint   .to!string;
-        case TFloat:  return tfloat.To_OpenCL_Float;
+        case TInt:     return tint   .to!string;
+        case TFloat:   return OCL.To_OpenCL_Float(tfloat);
         case TFloat2: case TFloat3:
-          return tfloatarr.To_OpenCL_Float_Array;
+          return OCL.To_OpenCL_Float_Array(tfloatarr);
       }
     }
     this ( string type_, string label_ ) {
-      label = label_;
+      rlabel = label = label_;
       import std.stdio;
+      switch ( label ) {
+        default: break;
+        case "otime":
+          rlabel = "time";
+        goto case;
+        case "time":
+          label_special    = true;
+          override_special = true;
+        break;
+      }
+      str_type = type_;
       switch ( type_ ) {
         default: assert(0, "Unsupported type: " ~ type_);
         case "float":  type = TFloat;  tfloat = 0.0f;        break;
