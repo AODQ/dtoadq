@@ -31,62 +31,49 @@ auto RProject_Dir ( ) { return project_dir; }
 auto RGlobals_Dir ( ) { return "projects/globals"; }
 
 void Update_Directory ( string dir_prestr ) {
-  dir_prestr ~= "/";
-  // I may have overengineered this function . . .
-  import functional, std.string;
-  static import KI = kernelinfo;
-  alias Dir = KI.ProceduralType;
-  // -- dir info --
-  static string[] directories =
-    iota(0, Dir.max+1).map!(n =>
-      (cast(Dir)n).to!(string).toLower ~ "s"
-  ).array;
-  auto dirs = iota(0, Dir.max+1).map!(n => dir_prestr ~ directories[n]);
+  class Dir {
+    string dir_name;
+    Dir[string] dirs;
+    string[] files;
 
-  // display all files in a directory
-  auto Display_Dir(int dir_type) {
-    import gui.gui : gdInputText, gdButton;
-    static string def_filename = "";
-    // gdInputText("New File", def_filename);
-    // if ( def_filename != "" && gdButton("Create ", cast(Dir)dir_type) ) {
-    //   static import NP = gui.node_parser;
-    //   string filename = dir_prestr ~ directories[dir_type] ~ "/" ~
-    //                     def_filename ~ ".json";
-    //   writeln("Creating filename: ", filename);
-    //   import gui.node_parser;
-    //   Create_Default_Graph(filename);
-    //   Load_Graph(filename);
-    // }
-    static int open_file = 0, open_dir = 0;
-    auto files = dirs[dir_type].RFiles;
-    files.sort!("a.name < b.name");
-    foreach ( it, fil; files ) {
-      // so open_fil index of each entry isn't highlighted
-      int t_open_file = open_file;
-      if ( dir_type != open_dir ) t_open_file = -1;
-      auto name = Util.Truncate_Directory(fil.name);
-      if ( igRadioButton(name.toStringz, &t_open_file, cast(int)it) ) {
-        open_dir = dir_type;
-        auto filetype = KI.String_To_FileType(Ext(name, ".cl", ".dtq", ".txt")
-                           [1..$]);
-        KI.Set_Map_Function(cast(Dir)dir_type, filetype, fil.name);
+    this ( string dir_name_ ) { dir_name = dir_name_; }
+
+    void Add ( bool is_file, string fname, string name ) {
+      auto ind = name.indexOf("/");
+      if ( ind == -1 ) {
+        if ( is_file ) files ~= fname;
+        else dirs[name] = new Dir(name);
+      } else {
+        string dir = name[0..ind];
+        dirs[dir].Add(is_file, fname, name[ind+1..$]);
       }
-      open_file = t_open_file;
+    }
+
+    void Render ( ) {
+      foreach ( dir; dirs ) {
+        // put igTreeNode here so the parent directory isn't displayed
+        if ( igTreeNode(dir.dir_name.toStringz) ) {
+          dir.Render();
+          igTreePop();
+        }
+      }
+      foreach ( fil; files ) {
+        static import KI = kernelinfo;
+        bool open = KI.RFilename == fil;
+        if ( igCheckbox(fil[fil.lastIndexOf('/')+1..$].toStringz, &open) ) {
+          KI.Set_Map_Function(fil);
+        }
+      }
     }
   }
 
-  import std.typecons : Tuple;
-
-  alias DirTuple = Tuple!(string, Dir);
-
-  // -- render --
-  zip(directories, iota(0, Dir.max+1).map!(n => cast(Dir)n))
-  .each!(delegate void(DirTuple dir) {
-    if ( igTreeNode((dir_prestr ~ dir[0]).toStringz) ) {
-      Display_Dir(dir[1]);
-      igTreePop();
-    }
-  });
+  static import Fil = std.file;
+  import functional;
+  string dir = dir_prestr;
+  auto base_dir = new Dir(dir);
+  Fil.dirEntries(dir, Fil.SpanMode.breadth)
+     .each!(n => base_dir.Add(n.isFile, n.name, n.name.replace(dir~"/", "")));
+  base_dir.Render();
 }
 
 void Update ( ref bool open ) {

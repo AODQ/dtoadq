@@ -1,1 +1,0 @@
-float opUnion ( float d1, float d2 ) { return fmin(d2, d1); }

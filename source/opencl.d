@@ -69,7 +69,6 @@ static:
 int err;
 
 private void Initialize_Kernel ( ) {
-  writeln("initializing kernel . . .");
   {
     import derelict.opengl3.glx;
     alias CLCP = cl_context_properties;
@@ -93,7 +92,6 @@ void Compile ( inout string source, string kernel_name ) {
   CLAssert(err, "clCreateProgramWithSource");
   static import std.file;
   std.file.write("BUILD", source);
-  writeln("Building");
   working_program =
     clBuildProgram(CL.program, 0, null, null, null, null) == CL_SUCCESS;
   if ( !working_program ) {
@@ -132,20 +130,20 @@ private auto RHandles ( CLPredefinedMem[] cl_predefined_mem ) {
   import functional;
   return cl_predefined_mem.map!(n => n._mem).array;
 }
-void Lock_CLGL_Images ( CLPredefinedMem[] cl_predefined_mem ) {
+void Lock_CLGL_Image ( CLPredefinedMem cl_predefined_mem ) {
   if ( !working_program ) return;
   import derelict.opengl3.gl3;
-  auto handles = cl_predefined_mem.RHandles;
-  CLAssert(clEnqueueAcquireGLObjects(CL.command_queue, cast(int)handles.length,
-            &handles[0], 0, null, null), "clEnqueueAcquireGLObjects");
+  auto handle = cl_predefined_mem._mem;
+  CLAssert(clEnqueueAcquireGLObjects(CL.command_queue, 1, &handle,
+            0, null, null), "clEnqueueAcquireGLObjects");
 }
 
-void Unlock_CLGL_Images ( CLPredefinedMem[]  cl_predefined_mem ) {
+void Unlock_CLGL_Image ( CLPredefinedMem cl_predefined_mem ) {
   if ( !working_program ) return;
-  auto handles = cl_predefined_mem.RHandles;
   import derelict.opengl3.gl3;
-  CLAssert(clEnqueueReleaseGLObjects(CL.command_queue, cast(int)handles.length,
-            &handles[0], 0, null, null), "clEnqueueReleaseGLObjects");
+  auto handle = cl_predefined_mem._mem;
+  CLAssert(clEnqueueReleaseGLObjects(CL.command_queue, 1, &handle,
+            0, null, null), "clEnqueueReleaseGLObjects");
 }
 
 void Sync_GL_Event ( cl_event event ) {

@@ -1,8 +1,7 @@
-module opencl_kernel; immutable(string) DTOADQ_kernel = q{
+module dtoadqkernel; immutable(string) DTOADQ_kernel = q{
 #define MAX_DEPTH 16
 #define MARCH_DIST //%MARCH_DIST.0f
 #define MARCH_REPS //%MARCH_REPS
-//#define SHOW_NORMALS
 
 __constant float MARCH_ACC = //%MARCH_ACC.0f/1000.0f;
 // -----------------------------------------------------------------------------
@@ -385,101 +384,3 @@ __kernel void DTOADQ_Kernel (
     *rng_ptr = rng;
   }
 }};
-
-
-string MLT_kernel_function = q{
-  Ray cray = ray;
-  // Trace a path from camera origin to some end
-  int depth;
-  bool hit = false;
-  float3 radiance = (float3)(0.0f),
-         weight   = (float3)(1.0f);
-  for ( depth = 0; depth != MAX_DEPTH; ++ depth ) {
-    MapInfo marchinfo = March(-1, ray);
-    // store info
-    IntersectionInfo info;
-    info.dist = marchinfo.x;
-    info.dir = ray.dir;
-    info.origin = ray.origin + ray.dir*info.dist;
-    info.normal = normalize(Normal(info.origin));
-    info.material = material[(int)(marchinfo.y)];
-    ray = TODO_BRDF_Reflect(rng, &info);
-
-    // calculate direct lighting
-
-    float E = 1.0f; // float(depth==0) ?
-    weight *= info.material.base_colour;
-    radiance += info.material.emission*weight;
-
-    // calculate indirect lighting
-    if ( info.material.emission > 0.01f ) {
-      hit = true;
-      break;
-    }
-  }
-
-  RayInfo rinfo;
-  rinfo.hit = hit;
-  rinfo.colour = radiance;
-  return rinfo;
-};
-
-string Raytrace_kernel_function = q{
-};
-
-string Raycast_kernel_function = q{
-  Ray cray = ray;
-  MapInfo marchinfo = March(-1, ray, time, textures);
-  RayInfo rinfo;
-  rinfo.hit = marchinfo.dist >= 0.0f;
-  rinfo.colour = (float3)(0.2f);
-  if ( rinfo.hit ) {
-    #ifdef SHOW_NORMALS
-      rinfo.colour =
-        Normal(ray.origin + ray.dir*marchinfo.dist, time, textures);
-    #else
-      rinfo.colour = marchinfo.colour;
-    #endif
-  }
-  // temporary fog
-  // rinfo.colour += marchinfo.dist/MARCH_DIST;
-  return rinfo;
-};
-
-
-
-immutable(string) Texture_kernel = q{
-
-  __constant float PI = 3.1415926535f;
-
-
-  // ---------------------------------------------------------------------------
-  // --------------- MAP GEOMETRY FUNCTIONS ------------------------------------
-
-  //---MAP GEOMETRY INSERTION POINT---
-  //%MAPFUNCDECLARATIONS
-  //----------------------------------
-  //%MAPFUNCDEFINITIONS
-  //----------------------------------
-
-  // ---------------------------------------------------------------------------
-  // --------------- MAP -------------------------------------------------------
-  float4 TextureMap ( float2 origin ) {
-    //---MAP INSERTION POINT---
-    //%MAPINSERT
-    //-------------------------
-  }
-
-  __kernel void Texture_kernel (
-    __global float* img_buffer, __global float* dimensions
-  ) {
-    float dims = *dimensions;
-    int2 out = (int2)(get_global_id(0), get_global_id(1));
-    float4 results = TextureMap((float2)(out.x/dims, out.y/dims));
-    int index = dims*out.y*4 + out.x*4;
-    img_buffer[index+0] = results.x;
-    img_buffer[index+1] = results.y;
-    img_buffer[index+2] = results.z;
-    img_buffer[index+3] = results.w;
-  }
-};

@@ -6,45 +6,50 @@ import DTOADQ = dtoadq;
 import KI = kernelinfo;
 import DIMG = dtoadqimage;
 
-void Render (string scene, string outname, int spp, float end_time, int fps) {
-  float time = 0.0f;
+Progress progress;
+YFM.Y4MWriter output;
+string output_name;
+
+float time, end_time;
+int fps, spp;
+
+void Render (string scene, string out_, int spp_, float end_time_, int fps_) {
+  time = 0.0f;
+  end_time = end_time_;
+  fps = fps_;
+  spp = spp_;
 
   // -- set up video emitter --
-  auto output = new YFM.Y4MWriter(outname, 1920, 1080,
-                  YFM.Rational(cast(int)fps, 1));
-  float[] floatdata;
-  floatdata.length = 1920*1080*4;
+  output_name = out_;
+  output = new YFM.Y4MWriter(out_, 1920, 1080, YFM.Rational(cast(int)fps, 1),
+                YFM.Rational(32, 27), YFM.Interlacing.Progressive,
+                YFM.Subsampling.C444);
 
   // -- set up progress bar --
-  Progress p = new Progress(cast(int)(end_time*fps));
-  p.title = "Rendering";
+  progress = new Progress(cast(int)(end_time*fps));
+  progress.title = "Rendering";
 
   // -- set up scene/renderer --
-  DTOADQ.Initialize(false);
   DTOADQ.Set_Image_Buffer(DIMG.Resolution.r1920_1080);
-  KI.Set_Map_Function(KI.ProceduralType.Scene, KI.FileType.DTQ, scene);
+  KI.Set_Map_Function(scene);
+  KI.Set_Kernel_Type(KI.KernelType.VideoRender);
+}
 
-
-  // -- render loop --
-  while ( time < end_time ) {
-    DTOADQ.Set_Time(time);
-    DTOADQ.Update(true, floatdata);
-    { // write results
-      import functional;
-      output.writeFrame(floatdata.map!(n => cast(ubyte)(n*255.0f)).array);
-    }
-    { // done with frame, set time, update progress, sleep
-      time += 1.0f/fps;
-      p.next();
-      import core.time, core.thread;
-      Thread.sleep(dur!("msecs")(50));
-    }
+// Returns true when render is finished
+bool Update ( ubyte[] data ) {
+  time += 1.0f/fps;
+  DTOADQ.Set_Time(time);
+  progress.next();
+  output.writeFrame(data);
+  if ( time >= end_time ) {
+    delete output;
+    import std.process;
+    auto mp4proc = spawnShell("ffmpeg -i " ~ output_name ~ " " ~
+        output_name.replace("y4m", "mp4") ~ " -y");
+    wait(mp4proc);
+    static import std.file;
+    std.file.remove(output_name);
+    return true;
   }
-
-  writeln();
-  writeln("Converting to mp4");
-  import std.process;
-  auto mp4proc = spawnShell("ffmpeg -i "~outname~" out.mp4");
-  wait(mp4proc);
-  writeln("FINISHED! :)");
+  return false;
 }

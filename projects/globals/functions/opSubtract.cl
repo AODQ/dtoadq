@@ -1,1 +1,0 @@
-float opSubtract ( float d1, float d2 ) { return fmax(-d1, d2); }

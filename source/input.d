@@ -2,7 +2,6 @@ module input;
 
 import derelict.glfw3;
 
-
 private bool mouse_left, mouse_right, mouse_middle, mouse_x1;
 private float mouse_x, mouse_y, mouse_x_stick, mouse_y_stick;
 

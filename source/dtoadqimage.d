@@ -1,5 +1,5 @@
 module dtoadqimage;
-import globals, opencl, scene;
+import globals, opencl;
 static import OCL = opencl;
 static import DIMG = dtoadqimage;
 static import KI = kernelinfo;
@@ -16,12 +16,12 @@ private void Allocate_GL_Texture ( ref uint gl_texture, int width, int height ){
 }
 
 private struct CLGLImage {
-  OCL.CLPredefinedMem[2] cl_handle;
-  uint[2] gl_texture;
+  OCL.CLPredefinedMem cl_handle;
+  uint gl_texture;
   this ( int width, int height ) {
     foreach ( it; 0 .. 2 ) {
-      Allocate_GL_Texture(gl_texture[it], width, height);
-      cl_handle[it] = OCL.Create_CLGL_Texture(gl_texture[it]);
+      Allocate_GL_Texture(gl_texture, width, height);
+      cl_handle = OCL.Create_CLGL_Texture(gl_texture);
     }
   }
 
@@ -58,29 +58,16 @@ struct Image {
   void Lock ( ) {
     import derelict.opengl3.gl3;
     static import OCL = opencl;
-    OCL.Lock_CLGL_Images(image.cl_handle);
+    OCL.Lock_CLGL_Image(image.cl_handle);
   }
 
   void Unlock ( ) {
     static import OCL = opencl;
-    OCL.Unlock_CLGL_Images(image.cl_handle);
-    rw_access ^= 1;
+    OCL.Unlock_CLGL_Image(image.cl_handle);
   }
 
-  auto RRead   ( ) { return image.cl_handle [rw_access  ]; }
-  auto RWrite  ( ) { return image.cl_handle [rw_access^1]; }
-  auto RRender ( ) { return image.gl_texture[rw_access  ]; }
-  auto RFloatData ( ref float[] data ) {
-    import derelict.opengl3.gl3;
-    auto tex = RRender();
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, tex);
-    import gl_renderer;
-    // glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_FLOAT, data.ptr);
-    Error_Check("glGetTexImage");
-    data.length.writeln;
-    glBindTexture(GL_TEXTURE_2D, 0);
-  }
+  auto RWrite  ( ) { return image.cl_handle ; }
+  auto RRender ( ) { return image.gl_texture; }
 }
 
 
@@ -128,6 +115,7 @@ private void Create_Images(int width, int height, int len, inout float[] data){
 }
 
 void Create_Images ( string[] filenames ) {
+  if ( filenames.length == 0 ) return;
   // check if change in files (there's order, whatever)
   if ( filenames.length == cl_image_names.length ) {
     bool same_files = true;
@@ -153,10 +141,9 @@ void Create_Images ( string[] filenames ) {
 float[] Kernel_Run_Texture ( int dim, string filename ) {
   static import DIMG = dtoadqimage;
   // save current state
-  auto prev_proc_type = KI.RProcedural_Type(),
-       prev_file_type = KI.RFile_Type(),
-       prev_filename  = KI.RFilename();
-  KI.Set_Map_Function(KI.ProceduralType.Texture, KI.FileType.TXT, filename);
+  auto prev_filename  = KI.RFilename,
+       prev_recompile = KI.Should_Recompile;
+  KI.Set_Map_Function(filename);
   {
     import parser;
     OCL.Compile(Parse_Kernel(), "Texture_kernel");
@@ -168,7 +155,10 @@ float[] Kernel_Run_Texture ( int dim, string filename ) {
   float fl_dim = dim;
   OCL.Run(OCL.CLStoreMem(t_img), fl_dim, dim, dim);
   // restore previous state
-  KI.Set_Map_Function(prev_proc_type, prev_file_type, prev_filename);
+  KI.Set_Map_Function(prev_filename);
+  if ( !prev_recompile ) {
+    KI.Clear_Recompile();
+  }
   return t_img;
 }
 
@@ -176,7 +166,6 @@ cl_mem RImages ( ) {
   // sort of like a singleton, we always want cl_image_array to be a valid
   // cl_mem object
   if ( cl_image_array is null ) {
-    writeln("Creating default images");
     Create_Images(["projects/globals/textures/txCheckerboard.txt"]);
   }
   return cl_image_array;
@@ -236,8 +225,7 @@ void Initialize() {
 void Clean_Up ( ) {
   foreach ( img; images ) {
     import derelict.opencl.cl, derelict.opengl3.gl3;
-    clReleaseMemObject(img.image.cl_handle[0].cl_mem);
-    clReleaseMemObject(img.image.cl_handle[1].cl_mem);
-    glDeleteTextures(2, &img.image.gl_texture[0]);
+    clReleaseMemObject(img.image.cl_handle);
+    glDeleteTextures(1, &img.image.gl_texture);
   }
 }

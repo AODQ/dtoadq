@@ -1,6 +1,6 @@
 module globals;
 public static import math = std.math;
-public static import cl = opencl;
+public static import OCL = opencl;
 public static import input;
 public static import Util = utility;
 public static import std.file;

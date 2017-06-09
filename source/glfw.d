@@ -5,17 +5,13 @@ static import Config = config;
 
 GLFWwindow* window;
 
-void Initialize ( bool create_window = true ) {
-  writeln("GL3");
+void Initialize ( ) {
   DerelictGL3.load();
-  writeln("GLfw3");
   DerelictGLFW3.load();
-  writeln("imgui");
   DerelictImgui.load();
   if (!glfwInit()) {
     assert(false, "glfwinit failed");
   }
-
 
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
@@ -27,7 +23,6 @@ void Initialize ( bool create_window = true ) {
 	glfwInit();
 
   auto win_size = Config.RWindow_Size();
-  if ( !create_window ) win_size = [4, 4];
   window = glfwCreateWindow(win_size[0], win_size[1], "DTOADQ", null, null);
   auto win_pos  = Config.RWindow_Pos();
   if ( win_pos[0] != -1 && win_pos[1] != -1 )

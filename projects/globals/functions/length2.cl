@@ -1,1 +1,0 @@
-float length2 ( float2 p ) { return sqrt(p.x*p.x + p.y*p.y); }
