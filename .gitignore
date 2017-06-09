@@ -10,3 +10,10 @@ raytracer
 __*
 raytracer-test-library
 KERNEL_OUTPUT
+dtoadq
+*.mp4
+*.y4m
+BUILD
+*.swp
+*.y4m
+*.mp4
