@@ -85,7 +85,7 @@ private void Initialize_Kernel ( ) {
 }
 
 static bool working_program = true;
-void Compile ( inout string source, string kernel_name ) {
+bool Compile ( inout string source, string kernel_name ) {
   import std.string : toStringz;
   auto sourcestr = source.toStringz;
   CL.program = clCreateProgramWithSource(CL.context, 1, &sourcestr, null, &err);
@@ -101,14 +101,16 @@ void Compile ( inout string source, string kernel_name ) {
     char[] log; log.length = len;
     clGetProgramBuildInfo(CL.program, device.device_id, CL_PROGRAM_BUILD_LOG,
                           len, log.ptr, null);
-    writeln("LOG: ", log);
-    writeln("-- could not compile --");
-    return;
+    import std.algorithm : min;
+    writeln("----------------------------------------------------------------");
+    writeln("LOG: ", log[0..min($, 350)]);
+    return false;
   }
   if ( CL.kernel !is null )
     clReleaseKernel(CL.kernel);
   CL.kernel = clCreateKernel(CL.program, kernel_name.toStringz, &err);
   CLAssert(err, "clCreateKernel");
+  return true;
 }
 
 auto Create_CLGL_Texture ( uint gl_texture ) {

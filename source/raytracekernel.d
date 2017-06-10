@@ -20,7 +20,8 @@ typedef struct T_Camera {
   int flags;
 } Camera;
 
-__constant float PI = 3.1415926535f;
+__constant float PI  = 3.141592654f;
+__constant float TAU = 6.283185307f;
 // -----------------------------------------------------------------------------
 // --------------- GENERAL STRUCTS ---------------------------------------------
 typedef struct T_Ray {
@@ -69,21 +70,20 @@ MapInfo Map ( int a, float3 origin, float time,
 
 // -----------------------------------------------------------------------------
 // --------------- GRAPHIC FUNCS -----------------------------------------------
-float3 Normal ( float3 p, float time, __read_only image2d_array_t t,
-                float3 dval ) {
-  float2 e = (float2)(0.01f, 0.0f);
-	return normalize(
-     e.yxx*Map(-1, p+e.yxx, time, t, dval).dist +
-     e.xxy*Map(-1, p+e.xxy, time, t, dval).dist +
-     e.xyx*Map(-1, p+e.xyx, time, t, dval).dist +
-     e.yyy*Map(-1, p+e.yyy, time, t, dval).dist);
+float3 Normal ( float3 p, float tm, __read_only image2d_array_t t, float3 d) {
+  float2 e = (float2)(1.0f, -1.0f)*0.5773f*0.0005f;
+  return normalize(
+    e.xyy*Map(-1, p + e.xyy, tm, t, d).dist +
+    e.yyx*Map(-1, p + e.yyx, tm, t, d).dist +
+    e.yxy*Map(-1, p + e.yxy, tm, t, d).dist +
+    e.xxx*Map(-1, p + e.xxx, tm, t, d).dist);
 }
 
-float3 Reflect ( float3 V, float3 N ) {
+float3 reflect ( float3 V, float3 N ) {
   return V - 2.0f*dot(V, N)*N;
 }
 
-float3 Refract(float3 V, float3 N, float refraction) {
+float3 refract(float3 V, float3 N, float refraction) {
   float cosI = -dot(N, V);
   float cosT = 1.0f - refraction*refraction*(1.0f - cosI*cosI);
   return (refraction*V) + (refraction*cosI - sqrt(cosT))*N;
@@ -111,11 +111,11 @@ MapInfo March ( int avoid, Ray ray, float time,
 //----POSTPROCESS---
 //%POSTPROCESS
 
-MapInfo Colour_Pixel(Ray ray, float time, __read_only image2d_array_t textures,
+MapInfo Colour_Pixel(Ray ray, float time, __read_only image2d_array_t texts,
                      float3 dval){
-  MapInfo result = March(-1, ray, time, textures, dval);
+  MapInfo result = March(-1, ray, time, texts, dval);
   float3 origin = ray.origin + ray.dir*result.dist;
-  result.colour = Post_Process(ray.origin, ray.dir, result, time, textures);
+  result.colour = Post_Process(ray.origin, ray.dir, result, time, texts, dval);
   return result;
 }
 

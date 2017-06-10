@@ -45,9 +45,9 @@ private class DTOADQ {
     }
   }
 
-  void Compile ( string kernel_name ) {
+  bool Compile ( string kernel_name ) {
     import parser;
-    OCL.Compile(Parse_Kernel(), kernel_name);
+    return OCL.Compile(Parse_Kernel(), kernel_name);
   }
 
   void Update_DTOADQ ( ) {
@@ -58,8 +58,12 @@ private class DTOADQ {
     image_reset |= camera.Update|KI.Should_Recompile()|should_reparse;
     // -- kernel --
     if ( KI.Should_Recompile(false) || should_reparse ) {
-      Compile("DTOADQ_Kernel");
-      writeln("Recompiled");
+      import std.datetime;
+      if ( Compile("DTOADQ_Kernel") ) {
+        writeln("Recompiled @ ", Clock.currTime);
+      } else {
+        writeln("Failed to compiled @ ", Clock.currTime);
+      }
       return;
     }
     image.Lock();

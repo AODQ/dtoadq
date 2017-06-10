@@ -5,192 +5,163 @@ MATERIALSEND
 CAMERASTART
 void Update_Camera ( Camera* camera, float time ) {
   if ( camera->flags > 0 ) return; // override
-
-  if ( time < 3.255f ) {
-    camera->fov = 90.0f;
-    camera->position = (float3)(14.8f, 2.39f, 2.43f);
-    camera->lookat = (float3)(0.77f, 0.33f, -1.0f);
-
-    camera->position.x -= time*2.4f;
-    camera->lookat.y -= time*0.01f;
-  } else if ( time < 10.25f ) {
-    float ztime = smoothstep(3.225f, 10.25f, time);
-    camera->position = mix(
-      (float3)(17.647f, 6.29f, 18.253f),
-      (float3)(-1.379f, -2.7f, 12.082f),
-      ztime
-    );
-    camera->fov = mix(90.0f, 20.0f, ztime);
-    camera->lookat = mix(
-      (float3)(0.89f, 0.31f, -1.0f),
-      (float3)(1.01f, 0.48f, -1.0f),
-      ztime
-    );
-  } else if ( time < 12.0f ) {
-    camera->position = (float3)(17.152f, 0.89f, 0.243f);
-    camera->position.y += noise1D(time)*1.25f - 1.25f/2.0f;
-    camera->lookat = (float3)(0.75f, 0.37f, -1.0f);
-    camera->fov = 50.0f - noise1D(time)*2.0f;
-  } else if ( time < 18.0f ) {
-    float rtime = time-12.0f;
-    camera->position = (float3)(3.882f, 18.6f, -39.496f);
-    camera->position.y += rtime*2.5f;
-    camera->lookat = (float3)(0.52, 0.21f, -1.0f);
-    camera->fov = 60.0f;
-  } else if ( time < 30.0f ) {
-    float rtime = time-18.0f;
-    camera->position = (float3)(29.82f, 24.8f, -0.089f);
-    camera->position.y += clamp(rtime-3.0f, -3.5f, -0.2f)*5.0f;
-    camera->lookat = (float3)(0.74, 0.12f, -1.0f);
-    camera->fov = 130.7f - rtime*32.0f;
-    camera->fov += sqrt(fabs(cos(time)))*60.0f;
-  } else {
-  }
 }
 CAMERAEND
 
 UPDATEMAPSTART
-void Centerpiece ( int avoid, float3 origin, MapInfo* minfo, float time,
-               __read_only image2d_array_t textures, float3 dbg) {
-  origin.zx = opRotate(origin.zx, time*0.25f);
-  origin.zy = opRotate(origin.zy, time*0.25f);
-  float3 bounds = (float3)(1.0f, 1.0f, 0.5f);
-  bounds.x += 0.1f*cos((origin.y + time*0.5f)*9.0f);
-  bounds.y += cos(origin.x);
-  float dist = sdBox(origin, bounds);
-
-
-  // -- colouring --
-  float3 colour = (float3)(0.3f, 0.4f, 0.9f);
-  float2 fpos = fmod(fabs(origin.xy)*64.0f, (float2)(1024.0f));
-  int2 pos = (int2)(fpos.x, fpos.y);
-  float4 res = read_imagef(textures, (int4)(pos, 0, 0));
-  colour.y += res.x;
-  colour.xyz -= (float3)(distance(bounds.x, origin.x*2.0f)*0.4f);
-  MapUnionG(avoid, minfo, dist, 0, colour);
-}
-
 void Primitives ( int avoid, float3 origin, MapInfo* minfo, float time,
-                  __read_only image2d_array_t textures ) {
-  // origin = fabs(origin+3.0f);
-  // origin += 3.0f;
-  origin.xz = opRotate(origin.xz, time);
-  origin.yx = opRotate(origin.yx, 0.15f*cos(time)*2.2f);
-  origin.xz = opMirrorOctant(origin.xz, (float2)(2.0f, 2.0f), 0);
-  origin.xz = opRotate(origin.xz, 15.0f);
-  origin.xz = opMirrorOctant(origin.xz, (float2)(1.0f, 1.0f), 0);
+                  __read_only image2d_array_t textures, float3 dval ) {
+  float3 ori = origin;
+  ori.xz = opRotate(ori.xz, time*1.5f);
+  ori.xy = opMirrorOctant(ori.xy, (float2)(1.27f, 1.1f), 0);
+  ori.xz = opRotate(ori.xz, time*1.5f);
+  float torus = 
+    length((float2)(length6(ori.xz) - 2.0f, ori.y)) - 0.5f;
 
-  float dist =  sdHexPrism(origin, (float2)(0.626f, 0.252f));
+  ori = origin;
+  ori.zx = opRotate(ori.zx, time);
+  float center = sdHexagonIncircle(ori, (float2)(1.347f, 1.959f));
+  ori.x += sin(time)*1.5f;
+  ori.y += cos(time);
+  center = max(center, sdSphere(ori, 1.5f));
 
-  float torus = sdTorus82(origin, (float2)(0.6f, 0.2f));
-  dist = opUnionRound(dist, torus, 0.1f);
 
-  float3 colour = (float3)(0.2f, 0.1f, 0.2f);
-  float2 fpos = fmod(fabs(origin.xy)*64.0f, (float2)(1024.0f));
-  int2 pos = (int2)(fpos.x, fpos.y);
-  float4 res = read_imagef(textures, (int4)(pos, 0, 0));
-  colour.y += res.x;
+  float dist = min(torus, center);
+
+
+  float3 colour = (float3)(0.8f, 0.6f, 0.8f);
   MapUnionG(avoid, minfo, dist, 0, colour);
 }
 
-void Room ( int avoid, float3 origin, MapInfo* minfo, float time ) {
-  origin.y += 3.0f;
-  float ht = 63.0f;
-  float dist = sdBox(origin, (float3)(ht));
-  dist = max(dist, -sdBox(origin, (float3)(ht-0.2f)));
-  dist = opUnionRound(dist, sdPlane(origin, (float3)(0.0f, 1.0f, 0.0f), 5.0f), 17.3f);
 
-  float3 colour = (float3)(0.0f);
+void NodeSphere ( int avoid, float3 origin, MapInfo* minfo, float time,
+                  __read_only image2d_array_t textures, float3 dval ) {
+  // -- main sphere --
+  float3 ori = origin;
+  float mainball;
+  mainball = sdSphere(ori, 2.5f);
+  { // bump map
+    float n = txCells(ori*2.0f)*0.25f;
+    ori = origin + (float3)(n);
+  }
+  mainball = sdSphere(ori, 2.0f);
 
-  float tim = round(fmod(time, 6.0f)*1.25f)*10.5f;
-  float box = sdBox2(origin.xz + (float2)(tim, 0.0f), (float2)(2.0f, 125.0f));
+  // -- eye --
+  ori = origin;
+  float eye = sdHexagonIncircle(ori+(float3)(-1.568f, -0.563f, -0.033f),
+                                (float2)(0.8f, 0.2f));
+  mainball = opGroove(mainball, eye, 1.907f, 0.268f);
 
-  colour.x -= box;
+  // -- shade sphere --
+  {
+    float dist = mainball;
+    float2 img_pos = fmod(fabs(ori.xy)*12.0f, (float2)(1024.0f));
+    float4 img = read_imagef(textures, (int4)(img_pos.x, img_pos.y, 0, 0));
+    float3 colour = (float3)(0.2f, 0.1f, 0.2f);
+    colour.x += (img.x)*0.2f;
+    MapUnionG(avoid, minfo, dist, 0, colour);
+  }
 
-  MapUnionG(avoid, minfo, dist, 0, colour);
+  // -- shade eye --
+  eye = sdBox(ori+(float3)(-1.06f, -0.568f, -0.00f),
+                  (float3)(0.161f, 0.504f, 1.082f));
+  {
+    float dist = eye;
+    float3 colour = (float3)(0.8f, 0.1f, 0.8f);
+    MapUnionG(avoid, minfo, dist, 0, colour);
+  }
 }
 
-void MonkRoom ( int avoid, float3 origin, MapInfo* minfo, float time,
-                __read_only image2d_array_t textures, float3 dval ) {
-  float3 orig_origin = origin;
-  float breath = sqrt(fabs(cos(time)));
-  origin.xy = opRotate(origin.xy, time*0.05f);
-  origin.xy = opMirrorOctant(origin.xy, 1.5f, 0);
-  origin.yz = opRotate(origin.yz, time*0.025f);
-  float dist = sdBox(origin, (float3)(5.5f, 5.5f, 5.5f));
+void FuckingMagnets ( int avoid, float3 origin, MapInfo* minfo, float time,
+                    __read_only image2d_array_t textures, float3 dval ) {
+  float3 ori = origin;
+  ori.xy = opRotate(ori.xy, 2.846f);
+  float c = cos(20.0f*ori.y);
+  float s = sin(20.0f*ori.y);
+  // |c -s| |ori.x|
+  // |s c | |ori.y|
+  ori.xy = (float2)(ori.x*c - ori.y*s, ori.x*s + ori.y*c);
+  float mag = sdBox(ori, (float3)(4.482f, 16.648f, 3.686f));
+  float dist = mag;
+  MapUnionG(avoid, minfo, dist, 0, (float3)(0.6f, 0.4f, 0.1f));
+}
 
-  float2 prismbounds = (float2)(7.06f, 5.33f);
-  prismbounds.y += -breath;
-  float prism = sdHexPrism(origin, prismbounds);
+void Room ( int avoid, float3 origin, MapInfo* minfo, float time,
+                    __read_only image2d_array_t textures, float3 dval ) {
+  float3 ori = origin;
+  ori.xz += (float2)(100.0f, 73.78f);
+  ori.y -= 35.0f;
+  float building = sdBox(ori, (float3)(7.0f, 50.0f, 7.0f));
+  building = opUnionChamfer(building, sdBox(ori, (float3)(2.125f, 41.0f, 11.6f)), 2.0f);
+  building = opSubtractColumns(building, sdBox(ori, (float3)(8.926f, 32.49f, 3.53f)),
+                               0.589f, 2.497f);
+  float interval;
+  ori.y -= 9.0f;
+  ori.y += fabs(exp(sin(time)))*3.0f;
+  ori.y = opModInterval1(ori.y, 14.0f, 0.0f, 3.0f, &interval);
+  interval += 1.0f;
+  building = min(building, sdTorus(ori, 0.605f, 15.289f));
+  ori.x += sin(time*noise1D(interval))*15.289f;
+  ori.z += cos(time*noise1D(interval))*15.289f;
+  building = fmax(building, -sdCapsule(ori, 1.924f, 0.109f));
 
-  origin = orig_origin;
-  origin.x = opMirror(origin.x, 2.5f, 0);
-  origin.xz = opRotate(origin.xz, time*0.5f);
-  origin.zy = opRotate(origin.zy, time*0.5f);
-  origin.yz = opRotate(origin.yz, 2.5f);
-  origin.y = opMirror(origin.y, 2.5f, 0);
-  float2 toredge = (float2)(2.88f, 0.38f);
-  toredge.x -= breath*0.5f;
-  float diamond = sdTorus(origin, toredge);
+  float dist = building;
+  MapUnionG(avoid, minfo, dist, 0, (float3)(0.2f));
 
-  origin = orig_origin;
-  float2 balldim = (float2)(1.14f + 0.4f*breath, 1.15f - breath*0.3f);
-  float ball = sdCylinder(origin, balldim);
+  ori = origin;
+  dist = sdPlane(ori, (float3)(0.0f, 1.0f, 0.0f), 12.0f);
+  MapUnionG(avoid, minfo, dist, 0, (float3)(0.1f, 0.4f, 0.1f));
 
-  dist = max(dist, -prism);
-  dist = min(dist, diamond);
-  dist = opUnionRound(dist, ball, 2.5f);
-
-  float3 colour = (float3)(0.2f);
-  float2 fpos = fmod(fabs(origin.xy)*3.4f, (float2)(1024.0f));
-  int2 pos = (int2)(fpos.x, fpos.y);
-  float4 res = read_imagef(textures, (int4)(pos, 0, 0));
-  colour.z += res.x;
-  colour.x += sqrt(colour.z)*0.5f;
-
-  MapUnionG(avoid, minfo, dist, 0, colour);
+  FuckingMagnets(avoid, origin+(float3)(100.0f, -35.0f, 73.78f),
+                minfo, time, textures, dval);
 }
 
 void Update_Map ( int avoid, float3 origin, MapInfo* minfo, float time,
                     __read_only image2d_array_t textures, float3 dval ) {
   // -- modeling --
-  if ( time < 6.5f ) { }
-  else if ( time < 10.25f ) {
-    time = 6.5f - (time - 6.5f)*2.5f;
-  } else if ( time < 12.0f ) {
-    time = (time-10.25f)*3.0f;
-  } else {
-  }
-
-  if ( time < 12.0f ) {
-    Centerpiece(avoid, origin, minfo, time, textures, dval);
-    Room(avoid, origin, minfo, time);
-    Primitives(avoid, origin, minfo, time, textures);
-  } else {
-    MonkRoom(avoid, origin, minfo, time, textures, dval);
-  }
+  Room(avoid, origin, minfo, time, textures, dval);
+  Primitives(avoid, origin, minfo, time, textures, dval);
+  // NodeSphere(avoid, origin+(float3)(25.0f, 5.0f, 5.0f), minfo, time, textures, dval);
 }
 UPDATEMAPEND
 
 POSTPROCESSSTART
+
+typedef struct t_Illuminater {
+  float3 ro, rd, normal, colour;
+  float dist;
+} Illuminator;
+
+float3 Phong ( Illuminator i, float3 lo, float3 lc, float3 dval ) {
+  float3 ld = normalize((i.ro+i.rd*i.dist) - lo);
+  float cosa = pow(0.5f + 0.5f*dot(i.normal, -ld), 4.8f);
+  float refl = max(dot(-i.rd, reflect(ld, i.normal)), 0.0f);
+  float3 ambient = i.colour;
+  float3 diffuse = (float3)(1.369f*cosa);
+  float3 specular = (float3)(0.2f + pow(refl, 26.62f));
+
+  return lc*(ambient+diffuse+specular);
+}
+
 float3 Post_Process ( float3 ro, float3 rd, MapInfo info, float time,
-                      __read_only image2d_array_t textures ) {
-  if ( time < 12.0f ) return info.colour;
-  else {
-    float3 p = ro + rd*info.dist;
-    float3 lpos = (float3)(4.5f);
-    lpos.x += cos(time)*4.5f;
-    lpos.z += sin(time)*4.5f;
-    // float3 n = Normal(ro + rd*info.dist, time, textures, (float3)(0.0f));
-    float3 n = ro + rd*info.dist;
-    float3 r = Reflect(rd, n);
-    float3 light = normalize(lpos - p)*25.5f;
-    float atn = distance(lpos, p);
-    float refl = pow(dot(rd, r)*0.25f + 0.45f, 1.0f);
-    float dif = clamp(dot(n, light), 0.0f, 0.3f);
-    float bac = clamp(dot(n, (float3)(-light)), 0.0f, 1.0f);
-    float3 col = info.colour*bac*0.2f + info.colour*dif*3.0f + dif*refl*0.2f;
-    return col;
-  }
+                      __read_only image2d_array_t textures, float3 dval ) {
+  // -- primitive
+  Illuminator illum;
+  illum.ro     = ro;
+  illum.rd     = rd;
+  illum.dist   = info.dist;
+  illum.normal = //Normal(ro+rd*info.dist, time, textures, dval);
+  // illum.normal = Normal(ro+rd*info.dist, time, textures, dval);
+  illum.colour = info.colour;
+  float3 col = (float3)(0.0f);
+  // -- light
+   col = Phong(illum, (float3)(3.5f, 5.0f, 6.0f), (float3)(0.2), dval);
+  col += Phong(illum, (float3)(3.5f, 5.0f, -6.0f), (float3)(0.1), dval);
+  col += Phong(illum, (float3)(32.5f, -15.0f, -6.0f), (float3)(0.1), dval);
+  col += Phong(illum, (float3)(-33.32f, -3.4f, -11.54f), (float3)(0.1), dval);
+
+  // float3 fog_amount = 1.0f - exp(-info.dist*0.025f);
+  // float3 fog = mix(colour, (float3)(0.5f, 0.6f, 0.7f), fog_amount);
+  return col;
 }
 POSTPROCESSEND

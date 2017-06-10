@@ -42,7 +42,7 @@ bool Imgui_Render ( ref Material[] materials, ref Camera camera ) {
         Kernel.Set_Kernel_Type(cast(Kernel_Type)kernel_type);
       }
 
-      if ( igSliderInt("March Distance", &march_dist, 1, 64) ) {
+      if ( igSliderInt("March Distance", &march_dist, 1, 256) ) {
         Kernel.Set_Kernel_Var(Kernel_Var.March_Dist, march_dist);
       }
       if ( igSliderInt("March Repetitions", &march_reps, 1, 256) ) {
@@ -77,12 +77,38 @@ bool Imgui_Render ( ref Material[] materials, ref Camera camera ) {
     static bool open_editor = false;
     igCheckbox("Editor", &open_editor);
     if ( open_editor ) {
+      Editor(change);
     }
     igSeparator();
+
+    static bool small_stats_open = false;
+    igCheckbox("SmallStats", &small_stats_open);
+    if ( small_stats_open ) {SmallStats(camera);}
+    igSeparator();
+  igEnd();
+
+  return change;
+}
+
+private void SmallStats ( ref Camera camera ) {
+  string TS ( float r ) {
+    import std.math : round;
+    return (round(r*100.0f)/100.0f).to!string;
+  }
+  igBegin("SmallStats");
+    auto p = camera.position,
+         a = camera.lookat;
+    igText(igAccum("P %s, %s, %s".format(TS(p[0]), TS(p[1]), TS(p[2]))));
+    igText(igAccum("A %s, %s".format(TS(a[0]), TS(a[1]))));
+  igEnd();
+}
+
+private void Editor ( ref bool change ) {
+  igBegin("Editor");
     float timer = 0.0f;
     timer = DTOADQ.RTime();
     if ( igDragFloat("Timer", &timer, 0.01f, 0.0f, 120.0f,
-                     timer.to!string.toStringz, 1.0f) ) {
+                    timer.to!string.toStringz, 1.0f) ) {
       DTOADQ.Set_Time(timer);
     }
     auto allow_time_change_ptr = DTOADQ.RAllow_Time_Change_Ptr;
@@ -96,13 +122,11 @@ bool Imgui_Render ( ref Material[] materials, ref Camera camera ) {
         DTOADQ.Set_Time(start_timer);
     }
     foreach ( dbg; 0 .. 3 ) {
-      auto dbgstr = ("DBG " ~ ('X'+dbg).to!string).toStringz;
-      igDragFloat(dbgstr, &DTOADQ.RDebug_Vals_Ptr[dbg], 0.01f, -1000.0f,1000.0f,
-                  DTOADQ.RDebug_Vals_Ptr[dbg].to!string.toStringz, 1.0f);
+      auto dbgstr = ("DBG " ~ (cast(char)('X'+dbg)).to!string).toStringz;
+      igDragFloat(dbgstr, &DTOADQ.RDebug_Vals_Ptr[dbg], 0.01f, -100.0,100.0,
+                  DTOADQ.RDebug_Vals_Ptr[dbg].to!string.toStringz, 2.0f);
     }
-  igEnd();
-
-  return change;
+    igEnd();
 }
 
 // -- allow variadic calls to igFN, ei, igText(igAccum("lbl: ", l), ..);
