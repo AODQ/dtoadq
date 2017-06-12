@@ -5,6 +5,8 @@ MATERIALSEND
 CAMERASTART
 void Update_Camera ( Camera* camera, float time ) {
   if ( camera->flags > 0 ) return; // override
+  camera->position = (float3)(-85.39f, 90.86f, -140.46f);
+  camera->lookat = (float3)(-2.55f, 0.31f, -1.0f);
 }
 CAMERAEND
 
@@ -74,16 +76,6 @@ void NodeSphere ( int avoid, float3 origin, MapInfo* minfo, float time,
 
 void FuckingMagnets ( int avoid, float3 origin, MapInfo* minfo, float time,
                     __read_only image2d_array_t textures, float3 dval ) {
-  float3 ori = origin;
-  ori.xy = opRotate(ori.xy, 2.846f);
-  float c = cos(20.0f*ori.y);
-  float s = sin(20.0f*ori.y);
-  // |c -s| |ori.x|
-  // |s c | |ori.y|
-  ori.xy = (float2)(ori.x*c - ori.y*s, ori.x*s + ori.y*c);
-  float mag = sdBox(ori, (float3)(4.482f, 16.648f, 3.686f));
-  float dist = mag;
-  MapUnionG(avoid, minfo, dist, 0, (float3)(0.6f, 0.4f, 0.1f));
 }
 
 void Room ( int avoid, float3 origin, MapInfo* minfo, float time,
@@ -91,10 +83,21 @@ void Room ( int avoid, float3 origin, MapInfo* minfo, float time,
   float3 ori = origin;
   ori.xz += (float2)(100.0f, 73.78f);
   ori.y -= 35.0f;
+  ori.x = opModInterval1(ori.x, 100.0f, 0.0f, 1.0f, 0);
+  ori.z = opModInterval1(ori.z,  70.0f, 0.0f, 3.0f, 0);
   float building = sdBox(ori, (float3)(7.0f, 50.0f, 7.0f));
   building = opUnionChamfer(building, sdBox(ori, (float3)(2.125f, 41.0f, 11.6f)), 2.0f);
   building = opSubtractColumns(building, sdBox(ori, (float3)(8.926f, 32.49f, 3.53f)),
                                0.589f, 2.497f);
+  float3 tori = ori;
+  ori.y += 36.0f + exp(fabs(sin(time*2.3f)))*3.5f;
+  { // bump map
+    float n = txCells(ori*0.5f)*0.25f;
+    ori = ori + (float3)(n);
+  }
+  float shaker = sdBox(ori, (float3)(12.0f, 10.3f, 15.8f));
+  shaker = opSubtractChamfer(shaker, sdTorus(ori, 3.497f, 27.248f), 12.889f);
+  ori = tori;
   float interval;
   ori.y -= 9.0f;
   ori.y += fabs(exp(sin(time)))*3.0f;
@@ -105,15 +108,16 @@ void Room ( int avoid, float3 origin, MapInfo* minfo, float time,
   ori.z += cos(time*noise1D(interval))*15.289f;
   building = fmax(building, -sdCapsule(ori, 1.924f, 0.109f));
 
-  float dist = building;
+
+  float dist = min(building, shaker);
   MapUnionG(avoid, minfo, dist, 0, (float3)(0.2f));
 
   ori = origin;
   dist = sdPlane(ori, (float3)(0.0f, 1.0f, 0.0f), 12.0f);
   MapUnionG(avoid, minfo, dist, 0, (float3)(0.1f, 0.4f, 0.1f));
 
-  FuckingMagnets(avoid, origin+(float3)(100.0f, -35.0f, 73.78f),
-                minfo, time, textures, dval);
+  // FuckingMagnets(avoid, origin+(float3)(100.0f, -35.0f, 73.78f),
+  //               minfo, time, textures, dval);
 }
 
 void Update_Map ( int avoid, float3 origin, MapInfo* minfo, float time,
@@ -150,8 +154,8 @@ float3 Post_Process ( float3 ro, float3 rd, MapInfo info, float time,
   illum.ro     = ro;
   illum.rd     = rd;
   illum.dist   = info.dist;
-  illum.normal = //Normal(ro+rd*info.dist, time, textures, dval);
-  // illum.normal = Normal(ro+rd*info.dist, time, textures, dval);
+  illum.normal = 0;
+  illum.normal = Normal(ro+rd*info.dist, time, textures, dval);
   illum.colour = info.colour;
   float3 col = (float3)(0.0f);
   // -- light
@@ -159,6 +163,7 @@ float3 Post_Process ( float3 ro, float3 rd, MapInfo info, float time,
   col += Phong(illum, (float3)(3.5f, 5.0f, -6.0f), (float3)(0.1), dval);
   col += Phong(illum, (float3)(32.5f, -15.0f, -6.0f), (float3)(0.1), dval);
   col += Phong(illum, (float3)(-33.32f, -3.4f, -11.54f), (float3)(0.1), dval);
+  col += Phong(illum, ro, (float3)(0.1), dval);
 
   // float3 fog_amount = 1.0f - exp(-info.dist*0.025f);
   // float3 fog = mix(colour, (float3)(0.5f, 0.6f, 0.7f), fog_amount);
