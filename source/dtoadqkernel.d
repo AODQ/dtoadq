@@ -41,15 +41,23 @@ typedef struct T_Ray {
 } Ray;
 
 typedef struct T_BSDF_Sample_Info {
-  float3 ray, brdf, pdf, dir_cos;
+  float3 omega_i, omega_o, brdf, pdf, dir_cos;
 } BSDF_Sample_Info;
 
 typedef struct T_MapInfo {
-  float3 colour, origin;
+  float3 colour, origin, dir;
   float dist;
   BSDF_Sample_Info bsdf_info;
   int material_index;
 } MapInfo;
+
+typedef struct T_SceneInfo {
+  float time;
+  __read_only image2d_array_t textures;
+  __global Material* materials;
+  float3 debug_values;
+  __global int* rng;
+} SceneInfo;
 // -----------------------------------------------------------------------------
 // --------------- GENERAL FUNCTIONS      --------------------------------------
 // http://www0.cs.ucl.ac.uk/staff/ucacbbl/ftp/papers/langdon_2009_CIGPU.pdf
@@ -95,8 +103,7 @@ void MapUnionG( int avoid, MapInfo* d1, float d, int mi, float3 c ) {
 //------------------------
 // -----------------------------------------------------------------------------
 // --------------- MAP ---------------------------------------------------------
-MapInfo Map ( int a, float3 origin, float time,
-             __read_only image2d_array_t textures, float3 dval ) {
+MapInfo Map ( int a, float3 origin, SceneInfo* scene_info ) {
   MapInfo res;
   res.dist = FLT_MAX;
 
@@ -109,13 +116,11 @@ MapInfo Map ( int a, float3 origin, float time,
 
 // -----------------------------------------------------------------------------
 // --------------- GRAPHIC FUNCS -----------------------------------------------
-float3 Normal ( float3 p, float tm, __read_only image2d_array_t t, float3 d) {
+float3 Normal ( float3 p, SceneInfo* si ) {
   float2 e = (float2)(1.0f, -1.0f)*0.5773f*0.0005f;
   return normalize(
-    e.xyy*Map(-1, p + e.xyy, tm, t, d).dist +
-    e.yyx*Map(-1, p + e.yyx, tm, t, d).dist +
-    e.yxy*Map(-1, p + e.yxy, tm, t, d).dist +
-    e.xxx*Map(-1, p + e.xxx, tm, t, d).dist);
+    e.xyy*Map(-1, p + e.xyy, si).dist + e.yyx*Map(-1, p + e.yyx, si).dist +
+    e.yxy*Map(-1, p + e.yxy, si).dist + e.xxx*Map(-1, p + e.xxx, si).dist);
 }
 
 float3 reflect ( float3 V, float3 N ) {
@@ -137,19 +142,43 @@ float3 Hemisphere_Direction ( __global int* rng, float3 normal ) {
   return (float3)(cos(phi)*sin_theta, sin(phi)*sin_theta, cos_theta);
 }
 
-BSDF_Sample_Info BSDF_Sample ( Ray ray, float3 pt, float3 normal,
-          Material material, float3 albedo, __global int* rng ) {
+BSDF_Sample_Info BSDF ( float3 P, float3 omega_i, float3 omega_o,
+     Material material, float3 albedo, Scene_Info* scene_info ) {
   BSDF_Sample_Info info;
+  info.omega_i = omega_i;
+  info.omega_o = omega_o;
+  float3 normal = Normal(P, scene_info);
+  info.dir_cos = dot(info.omega_o, normal);
   if ( material.specular > FLT_MIN ) {
-    info.ray  = reflect(ray.dir, normal);
-    info.dir_cos = dot(info.ray, normal);
+    info.brdf = albedo*dot(info.omega_i, normal);
+    info.pdf  = 1.0f;
+  }
+  if ( material.diffuse > FLT_MIN ) {
+    info.brdf = info.dir_cos*albedo*IPI*material.diffuse;
+    info.pdf  = 1.0f/(2.0f*PI);
+  }
+  if ( material.transmittive > FLT_MIN ) {
+    info.brdf = albedo/dot(ray.dir, normal);
+    info.pdf = 1.0f;
+  }
+  return info;
+}
+
+// BSDF + multi importance sampling
+BSDF_Sample_Info BSDF_Sample ( Ray ray, float3 pt, float3 normal, float3 albedo,
+                               SceneInfo* scene_info ) {
+  BSDF_Sample_Info info;
+  info.omega_i = ray.dir;
+  if ( material.specular > FLT_MIN ) {
+    info.omega_o  = reflect(ray.dir, normal);
+    info.dir_cos = dot(info.omega_o, normal);
     info.brdf = albedo*dot(ray.dir, normal);
     info.pdf  = 1.0f;
     return info;
   }
   if ( material.diffuse > FLT_MIN ) {
-    info.ray = normalize(Hemisphere_Direction(rng, normal));
-    float3 half_vec = normalize(info.ray + ray.dir);
+    info.omega_o = normalize(Hemisphere_Direction(rng, normal));
+    float3 half_vec = normalize(info.omega_o + ray.dir);
     half_vec *= half_vec;
     info.dir_cos = dot(half_vec, normal);
     info.pdf = 1.0f/(2.0f*PI);
@@ -158,29 +187,28 @@ BSDF_Sample_Info BSDF_Sample ( Ray ray, float3 pt, float3 normal,
     return info;
   }
   if ( material.transmittive > FLT_MIN ) {
-    info.ray  = refract(ray.dir, normal, 0.0f + material.retroreflective*5.0f);
-    info.dir_cos = max(0.0f, dot(info.ray, normal));
+    info.omega_o = refract(ray.dir, normal, 0.0f+material.retroreflective*5.0f);
+    info.dir_cos = max(0.0f, dot(info.omega_o, normal));
     info.brdf = albedo/dot(ray.dir, normal);
     info.pdf  = 1.0f;
     return info;
   }
   if ( material.retroreflective > FLT_MIN ) {
-    info.ray = -ray.dir;
-    info.dir_cos = max(0.0f, dot(info.ray, normal));
+    info.omega_o = -ray.dir;
+    info.dir_cos = max(0.0f, dot(info.omega_o, normal));
     info.brdf = albedo/dot(ray.dir, normal);
     info.pdf = 1.0f;
     return info;
   }
   return info;
-} 
+}
 // -----------------------------------------------------------------------------
 // --------------- RAYTRACING/MARCH --------------------------------------------
-MapInfo March ( int avoid, Ray ray, float time,
-                __read_only image2d_array_t textures, float3 dval ) {
+MapInfo March ( int avoid, Ray ray, SceneInfo* scene_info ) {
   float distance = 0.0f;
   MapInfo t_info;
   for ( int i = 0; i < MARCH_REPS; ++ i ) {
-    t_info = Map(avoid, ray.origin + ray.dir*distance, time, textures, dval);
+    t_info = Map(avoid, ray.origin + ray.dir*distance, scene_info);
     if ( t_info.dist < MARCH_ACC || t_info.dist > MARCH_DIST ) break;
     distance += t_info.dist;
     if ( t_info.material_index != avoid ) avoid = -1;
@@ -193,22 +221,20 @@ MapInfo March ( int avoid, Ray ray, float time,
   return t_info;
 }
 
-int Generate_Subpath ( Ray ray, float time,
-          __read_only image2d_array_t texts, __global Material* material_ptr,
-          float3 dval, __global int* rng, MapInfo* subpath ) {
+int Generate_Subpath ( Ray ray, MapInfo* subpath, SceneInfo* scene_info ) {
   int mindex = -1;
   int i;
   for ( i = 0; i != MAX_DEPTH; ++ i ) {
-    MapInfo minfo = March(mindex, ray, time, texts, dval);
+    MapInfo minfo = March(mindex, ray, scene_info);
     if ( minfo.dist < 0.0f ) break;
     mindex = minfo.material_index;
     Material material = material_ptr[minfo.material_index];
     float3 hit = ray.origin + ray.dir*minfo.dist,
-           nor = Normal(hit, time, texts, dval);
+           nor = Normal(hit, scene_info);
     BSDF_Sample_Info bsdf_info = BSDF_Sample(ray, hit, nor,
                                        material, albedo, rng);
     ray.origin = hit;
-    ray.dir = bsdf_info.ray;
+    ray.dir = bsdf_info.omega_o;
 
     minfo.origin = hit;
     minfo.bsdf_info = bsdf_info;
@@ -217,47 +243,61 @@ int Generate_Subpath ( Ray ray, float time,
   return i;
 }
 
-int Generate_Camera_Subpath( Ray ray, float time,
-          __read_only image2d_array_t texts, __global Material* material_ptr,
-          float3 dval, __global int* rng, MapInfo* camera_subpath ) {
+MapInfo Default_Subpath_Info ( float3 origin ) {
   MapInfo minfo;
   minfo.colour = (float3)(1.0f);
-  minfo.origin = ray.origin;
-  minfo.material_index = 0.0f;
-  camera_subpath[0] = minfo;
-  int len = Generate_Subpath(ray, time, texts, material_ptr, dval, rng,
-                             camera_subpath+1);
+  minfo.origin = origin;
+  minfo.material_index = 0;
+  return minfo;
+}
+
+int Generate_Camera_Subpath( Ray ray, MapInfo* subpath, SceneInfo* scene_info ){
+  subpath[0] = Default_Subpath_Info(ray.origin);
+  int len = Generate_Subpath(ray, subpath+1, scene_info);
   return len;
 }
-int Generate_Light_Subpath ( Ray ray, float time,
-          __read_only image2d_array_t texts, __global Material* material_ptr,
-          float3 dval, __global int* rng, MapInfo* light_subpath ) {
+int Generate_Light_Subpath ( Ray ray, MapInfo* subpath, SceneInfo* scene_info ){
   ray.dir = (float3)(Uniform_Sample(rng), Uniform_Sample(rng),
                      Uniform_Sample(rng));
-  MapInfo minfo;
-  minfo.colour = (float3)(1.0f);
-  minfo.origin = ray.origin;
-  minfo.material_index = 0;
-  light_subpath[0] = minfo;
-  int len = Generate_Subpath(ray, time, texts, material_ptr, dval, rng,
-                             light_subpath+1);
+  subpath[0] = Default_Subpath_Info(ray.origin);
+  int len = Generate_Subpath(ray, subpath+1, scene_info);
+  // Reverse incoming and outcoming ray direction. On the last iteration,
+  // the omega_i is bogus;
+  // camera_subpath[$-1].omega_o = light_subpath[$-1].omega_i
+  for ( int i = 1; i < len; ++ i ) {
+    BRDF_Sample_Info* tinfo = &(subpath[i].brdf_info);
+    float3 omega_o = tinfo->omega_o;
+    tinfo->omega_o = tinfo->omega_i;
+    tinfo->omega_i = omega_o;
+  }
   return len;
+}
+
+MapInfo Check_Subpath_Connection(float3 ox, float3 oy, int mx, int my,
+                                 SceneInfo* scene_info) {
+  Ray ray;
+  ray.origin = ox;
+  ray.dir    = normalize(oy - ox);
+  MapInfo minfo = March(mx, ray, scene_info);
+  float dist_pts = sqrt(sqr(ox.x + oy.x) +
+                        sqr(ox.y + oy.y) +
+                        sqr(ox.z + oy.z));
+  minfo.dir = ray.dir;
+  if ( minfo.mindex == my && fabs(minfo.dist - dist_pts) <= MARCH_ACC  )
+    return minfo;
+  minfo.dist = -1.0f;
+  return minfo;
 }
 
 //----POSTPROCESS---
 //%POSTPROCESS
-MapInfo Colour_Pixel ( Ray ray, float time, __read_only image2d_array_t texts,
-                       __global Material* material_ptr, float3 dval,
-                       __global int* rng ) {
-
+MapInfo Colour_Pixel ( Ray ray, float time, SceneInfo* scene_info ) {
   // Bidirectional Path Tracing . .
   // Generate camera and light subpaths
   MapInfo camera_vertices[MAX_DEPTH+2],
           light_vertices [MAX_DEPTH+1];
-  int camera_length = Generate_Camera_Subpath(ray, time, texts, material_ptr,
-                                              dval, rng, camera_vertices);
-  int light_length  = Generate_Light_Subpath(ray, time, texts, material_ptr,
-                                              dval, rng, light_vertices);
+  int camera_length = Generate_Camera_Subpath(ray, camera_vertices, scene_info);
+  int light_length  = Generate_Light_Subpath (ray, light_vertices,  scene_info);
 
   // Execute BDPT connection strategy
   MapInfo result;
@@ -269,18 +309,38 @@ MapInfo Colour_Pixel ( Ray ray, float time, __read_only image2d_array_t texts,
       int depth = t + s - 2;
       if ( (s == 1 && t == 1) || depth < 0 || depth > MAX_DEPTH )
         continue;
-      if ( !/** CONNECTION **/ ) continue;
 
+      // Check validity of connection
+      MapInfo connection_info =
+        Check_Subpath_Connection(   camera_vertices[t].origin,
+          light_vertices[s].origin, camera_vertices[t].mindex,
+          light_vertices[s].mindex, time, texts, material_ptr, dval);
+
+      if ( connection_info.dist < 0.0f ) continue;
+
+      // Connect the two paths
+      camera_vertices[t].bsdf_info =
+        BSDF(camera_vertices[t].origin, camera_vertices[t].bsdf_info.omega_i,
+             connection_info.dir,
+             scene_info.material[camera_vertices[t].material_index],
+             camera_vertices[t].colour, scene_info);
+     light_vertices[s].bsdf_info =
+       BSDF(light_vertices[s].origin, connection_info.dir,
+            light_vertices[s].bsdf_info.omega_o,
+            scene_info.material[light_vertices[s].material_index],
+            light_vertices[s].colour, scene_info);
+
+
+      // Evaluate path
       float mis_weight = 0.0f;
       float3 coeff = (float3)(1.0f);
       for ( int i = 1; i != depth-1; ++ i ) {
-        MapInfo minfo = i < t ? camera_vertices[t] : light_vertices[s];
+        MapInfo minfo = i < t ? camera_vertices[t] :
+                                light_vertices[light_length - s];
         Material material = material_ptr[minfo.material_index];
         float3 albedo = minfo.colour;
         float3 normal = Normal(minfo.origin, time, texts, dval);
-        BSDF_Sample_Info bsdf_info = BSDF_Sample(ray, hit, normal, material,
-                                                 albedo, rng);
-        coeff *= bsdf_info.brdf * bsdf_info.dir_cos/bsdf_info.pdf;
+        coeff *= bsdf_info.brdf * minfo.bsdf_info.dir_cos/bsdf_info.pdf;
       }
 
       t = camera_length+1;
