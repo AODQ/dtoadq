@@ -68,6 +68,8 @@ struct Image {
 
   auto RWrite  ( ) { return image.cl_handle ; }
   auto RRender ( ) { return image.gl_texture; }
+
+  auto RResolution ( ) { return _image_info.resolution; }
 }
 
 
@@ -182,6 +184,10 @@ auto RImage_Info ( Resolution resolution ) {
 
 auto RImage ( Resolution resolution ) {
   return images[resolution];
+}
+
+ulong RResolution_Length(Resolution resolution) {
+  return image_info[resolution].x * image_info[resolution].y;
 }
 
 string[] RResolution_Strings ( ) {

@@ -160,8 +160,7 @@ private string Parse_DTOADQ_Kernel ( ) {
    import globals, dtoadqkernel, std.string : replace;
    // -- grab kernel (either raytrace or MLT)
    string kernel;
-   if ( KI.RKernel_Type == KI.KernelType.Raytrace ||
-        KI.RKernel_Type == KI.KernelType.VideoRender ) {
+   if ( KI.RKernel_Type == KI.KernelType.Raytrace ) {
      import raytracekernel;
      kernel = Raytrace_kernel;
    } else {

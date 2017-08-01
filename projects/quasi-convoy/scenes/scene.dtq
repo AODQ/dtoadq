@@ -33,6 +33,10 @@ void Primitives ( int avoid, float3 origin, MapInfo* minfo, float time,
 
   float3 colour = (float3)(0.8f, 0.6f, 0.8f);
   MapUnionG(avoid, minfo, dist, 0, colour);
+
+  dist = sdSphere(origin + (float3)(0.0f, -320.0f, 0.0f), 50.0f);
+  colour = (float3)(1.0f);
+  MapUnionG(avoid, minfo, dist, 1, colour);
 }
 
 
@@ -149,24 +153,6 @@ float3 Phong ( Illuminator i, float3 lo, float3 lc, float3 dval ) {
 
 float3 Post_Process ( float3 ro, float3 rd, MapInfo info, float time,
                       __read_only image2d_array_t textures, float3 dval ) {
-  // -- primitive
-  Illuminator illum;
-  illum.ro     = ro;
-  illum.rd     = rd;
-  illum.dist   = info.dist;
-  illum.normal = 0;
-  illum.normal = Normal(ro+rd*info.dist, time, textures, dval);
-  illum.colour = info.colour;
-  float3 col = (float3)(0.0f);
-  // -- light
-   col = Phong(illum, (float3)(3.5f, 5.0f, 6.0f), (float3)(0.2), dval);
-  col += Phong(illum, (float3)(3.5f, 5.0f, -6.0f), (float3)(0.1), dval);
-  col += Phong(illum, (float3)(32.5f, -15.0f, -6.0f), (float3)(0.1), dval);
-  col += Phong(illum, (float3)(-33.32f, -3.4f, -11.54f), (float3)(0.1), dval);
-  col += Phong(illum, ro, (float3)(0.1), dval);
-
-  // float3 fog_amount = 1.0f - exp(-info.dist*0.025f);
-  // float3 fog = mix(colour, (float3)(0.5f, 0.6f, 0.7f), fog_amount);
-  return col;
+  return info.colour;
 }
 POSTPROCESSEND

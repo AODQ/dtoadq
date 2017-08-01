@@ -20,6 +20,11 @@ typedef struct T_Camera {
   int flags;
 } Camera;
 
+typedef struct T_Material {
+  float emission; // > 0.0f is a light source
+  float diffuse, specular, retroreflective, transmittive;
+} Material;
+
 __constant float PI  = 3.141592654f;
 __constant float TAU = 6.283185307f;
 // -----------------------------------------------------------------------------
@@ -153,10 +158,13 @@ Ray Camera_Ray(Camera* camera) {
 __kernel void DTOADQ_Kernel (
     __global unsigned char* img, // R G B ITER
     __write_only image2d_t output_image,
+    __global unsigned char*     clear_img,
     __global Camera* camera_ptr,
     __global float* time_ptr,
     __read_only image2d_array_t textures,
-    __global float* debug_val_ptr
+    __global Material* material_ptr,
+    __global float* debug_val_ptr,
+    __global int*   rng
   ) {
   int2 out = (int2)(get_global_id(0), get_global_id(1));
   Camera camera = *camera_ptr;

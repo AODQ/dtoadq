@@ -17,3 +17,13 @@ string Truncate_Extension ( string filename ) {
 string Truncate_DirExt ( string filename ) {
   return filename.Truncate_Directory.Truncate_Extension;
 }
+
+
+/// Eponomyous template that returns all members of T
+template AllMembers(alias T) {
+  private template MemberFilter(string name) {
+    mixin(`alias field = %s.%s;`.format(fullyQualifiedName!T, name));
+    enum MemberFilter = !is(field) && field;
+  }
+  alias AllMembers = Filter!(MemberFilter, __traits(derivedMembers, T));
+}

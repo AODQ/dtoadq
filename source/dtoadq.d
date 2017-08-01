@@ -5,6 +5,7 @@ static import KI   = kernelinfo;
 static import DIMG = dtoadqimage;
 static import OCL  = opencl;
 static import GL   = gl_renderer;
+static import stl;
 import derelict.opencl.cl : cl_event;
 import parser : Reparse_Files;
 
@@ -13,8 +14,8 @@ private class DTOADQ {
   DIMG.Image image;
   DIMG.GLImage gl_image; // only for texture
   ubyte[] rw_image;
-  RNG rng;
-  bool image_reset = true;
+  int[] rng;
+  SharedInfo shared_info;
   Camera camera;
   Material[] material;
   float timer = 0.0f;
@@ -22,22 +23,33 @@ private class DTOADQ {
   cl_event image_unlock_event;
   // -- kernel debug
   float[] debug_vals;
-  bool allow_time_change = true;
+  bool update_timer = false,
+       update_kernel = true;
   bool running = true;
 
   // -- funcs
   this ( ) {
     debug_vals = [ 0.0f, 0.0f, 0.0f ];
-    rng = RNG.Generate_New();
     camera = Construct_Camera([2.5f, 0.0f, 6.0f], [-0.06f, 0.4f, -1.0f],
                                     [image.x, image.y]);
-    material = [ Default_Material() ];
+    shared_info.finished_samples = 0;
+    material = [
+      Material(0.0f, 1.0f, 0.0f, 0.0f, 0.0f),
+      Material(0.0f, 1.0f, 0.0f, 0.0f, 0.0f),
+      Material(0.0f, 1.0f, 0.0f, 0.0f, 0.0f),
+      Material(1.0f, 0.0f, 0.0f, 0.0f, 0.0f),
+      Material(0.0f, 1.0f, 0.0f, 0.0f, 0.0f),
+      Material(0.0f, 1.0f, 0.0f, 0.0f, 0.0f),
+      Material(0.0f, 1.0f, 0.0f, 0.0f, 0.0f),
+      Material(0.0f, 1.0f, 0.0f, 0.0f, 0.0f),
+      Material(0.0f, 1.0f, 0.0f, 0.0f, 0.0f)
+    ];
     Set_Image_Buffer(DIMG.Resolution.r640_360, true);
   }
 
   void Set_Image_Buffer ( DIMG.Resolution resolution, bool force = false ) {
     if ( force || image.resolution != resolution ) {
-      image_reset = true;
+      shared_info.clear_img = true;
       image = DIMG.RImage(resolution);
       rw_image.length = image.x*image.y*4;
       camera.dimensions.x = image.x;
@@ -55,7 +67,10 @@ private class DTOADQ {
     // -- buffer --
     bool should_reparse = Reparse_Files();
     // -- camera/gui/etc --
-    image_reset |= camera.Update|KI.Should_Recompile()|should_reparse;
+    static float previous_timer = 0.0f;
+    shared_info.clear_img |= camera.Update|KI.Should_Recompile()|should_reparse;
+    shared_info.clear_img |= stl.abs(previous_timer - timer) > 0.0f;
+    previous_timer = timer;
     // -- kernel --
     if ( KI.Should_Recompile(false) || should_reparse ) {
       import std.datetime;
@@ -66,24 +81,38 @@ private class DTOADQ {
       }
       return;
     }
+    // -- random numbers --
+    {
+      import stl;
+      rng = iota(0, 32).map!(n => n = uniform(-int.max, int.max)).array;
+    }
+    //
     image.Lock();
     OCL.Run(
       OCL.CLStoreMem(rw_image),
       image.RWrite(),
+      OCL.CLStoreMem(shared_info),
       camera,
       timer,
       OCL.CLPredefinedMem(imgs),
+      material,
       debug_vals,
+      rng,
       // kernel size
       image.x, image.y
     );
     image.Unlock();
-    image_reset = false;
+    shared_info.clear_img = false;
   }
   void Update_Render ( ) {
     Update_DTOADQ();
     static import VI = videorender;
-    running = !VI.Update(rw_image[0..1920*1080*3]);
+    auto len = DIMG.RResolution_Length(VI.RRender_Resolution);
+    if ( shared_info.finished_samples >= len ) {
+      running = !VI.Update(rw_image[0..len*3]);
+      shared_info.finished_samples = 0;
+      shared_info.clear_img = true;
+    }
   }
   void Update_Texture ( ) {
     bool should_reparse = Reparse_Files();
@@ -98,7 +127,7 @@ private class DTOADQ {
   }
   void Render ( ) {
     import gui.gui : Imgui_Render;
-    image_reset |= Imgui_Render(material, camera);
+    shared_info.clear_img |= Imgui_Render(material, camera);
     if ( KI.RProcedural_Type == KI.ProceduralType.Texture ) {
       if ( gl_image !is null )
         GL.Render(gl_image.gl_texture, image_unlock_event);
@@ -119,15 +148,17 @@ void Initialize () {
 }
 
 void Set_Time ( float t ) {dtoadq.timer = t;}
-auto RAllow_Time_Change_Ptr ( ) { return &dtoadq.allow_time_change; }
+auto RUpdate_Timer_Ptr ( ) { return &dtoadq.update_timer; }
+auto RUpdate_Kernel_Ptr     ( ) { return &dtoadq.update_kernel; }
 float RTime ( ) { return dtoadq.timer; }
 void Add_Time ( float t ) {
-  if ( dtoadq.allow_time_change )
+  if ( dtoadq.update_timer )
     dtoadq.timer += t;
 }
 
 void Update () {
   if ( !dtoadq.running ) return;
+  if ( !dtoadq.update_kernel ) return;
   if ( KI.RProcedural_Type == KI.ProceduralType.Texture )
     return dtoadq.Update_Texture();
   if ( KI.RKernel_Type == KI.KernelType.VideoRender )

@@ -88,6 +88,7 @@ void main(string[] arguments) {
         case "-time":  time    = arguments[++i].to!float; break;
       }
     }
+    outfile = outfile.replace(".mp4", ".y4m");
     import VI = videorender;
     VI.Render(scene, outfile, spp.to!int, time.to!float, fps.to!int);
   }
@@ -100,4 +101,5 @@ void main(string[] arguments) {
     running = DTOADQ.RRunning;
     if ( RKey_Input(96) ) running = false;
   }
+  writeln("DTOADQ Exitted");
 }

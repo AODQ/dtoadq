@@ -7,6 +7,25 @@ static import DTOADQ = dtoadq;
 static import KI = kernelinfo;
 
 private void Render_Materials ( ref Material[] materials, ref bool change ) {
+  string RMaterial_Mixin ( ) {
+    import std.traits, std.string : format;
+    auto member_names = [ __traits(derivedMembers, Material) ];
+    string mix = `foreach ( i; 0 .. materials.length ) {`;
+    mix ~= `if ( igTreeNode(igAccum("Material ", i)) ) {`;
+      mix ~= `auto m = materials.ptr + i;`;
+      foreach ( member; member_names ) {
+        mix ~= q{change |= igSliderFloat(
+          igAccum("(", i.to!string, "): %s"),
+                            &m.%s, 0.0f, 1.0f);} .format(member, member);
+      }
+    mix ~= `igTreePop(); }`;
+    return mix ~ `}`;
+  }
+
+  igBegin("Material Properties");
+    import std.conv;
+    mixin(RMaterial_Mixin());
+  igEnd();
 }
 
 bool Imgui_Render ( ref Material[] materials, ref Camera camera ) {
@@ -28,10 +47,11 @@ bool Imgui_Render ( ref Material[] materials, ref Camera camera ) {
     // -- render options --
     if ( igCollapsingHeader("Render Options") ) {
       static bool Show_Normals = false;
-      static int kernel_type = 0, resolution = 0, pkernel_type,
+      static int kernel_type = -1, resolution = 0, pkernel_type,
                 march_dist = 64,
                 march_reps = 128;
       static float march_acc = 0.001f;
+      if ( kernel_type == -1 ) kernel_type = KI.RKernel_Type();
 
       pkernel_type = kernel_type;
       igRadioButton("Raytrace", &kernel_type, 0); igSameLine();
@@ -111,10 +131,12 @@ private void Editor ( ref bool change ) {
                     timer.to!string.toStringz, 1.0f) ) {
       DTOADQ.Set_Time(timer);
     }
-    auto allow_time_change_ptr = DTOADQ.RAllow_Time_Change_Ptr;
-    igCheckbox("Update Time", allow_time_change_ptr);
-    change |= *allow_time_change_ptr;
-    if ( *allow_time_change_ptr ) {
+    auto update_timer  = DTOADQ.RUpdate_Timer_Ptr,
+         update_kernel = DTOADQ.RUpdate_Kernel_Ptr;
+    igCheckbox("Update Time", update_timer);
+    igCheckbox("Update kernel", update_kernel);
+    change |= *update_timer;
+    if ( *update_timer ) {
       static float start_timer = 0.0f, end_timer = 120.0f;
       igInputFloat("START", &start_timer);
       igInputFloat("END",   &end_timer);
@@ -123,7 +145,8 @@ private void Editor ( ref bool change ) {
     }
     foreach ( dbg; 0 .. 3 ) {
       auto dbgstr = ("DBG " ~ (cast(char)('X'+dbg)).to!string).toStringz;
-      igDragFloat(dbgstr, &DTOADQ.RDebug_Vals_Ptr[dbg], 0.01f, -100.0,100.0,
+      change |=
+        igDragFloat(dbgstr, &DTOADQ.RDebug_Vals_Ptr[dbg], 0.01f, -100.0,100.0,
                   DTOADQ.RDebug_Vals_Ptr[dbg].to!string.toStringz, 2.0f);
     }
     igEnd();

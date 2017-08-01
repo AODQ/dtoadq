@@ -63,9 +63,9 @@ static this ( ) {
   with ( KernelInfo ) {
     kernel_info = KernelInfo(
       "projects/globals/defaultscene.dtq",
-      KernelType.Raytrace,
+      KernelType.MLT,
       [ KernelVar.March_Dist : 355, KernelVar.March_Reps : 256,
-       KernelVar.March_Acc : 1 ],
+       KernelVar.March_Acc : 200 ],
       ProceduralType.Scene
     );
     Set_Recompile();
