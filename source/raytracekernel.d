@@ -3,6 +3,9 @@ module raytracekernel; immutable(string) Raytrace_kernel = q{
 #define MARCH_DIST //%MARCH_DIST.0f
 #define MARCH_REPS //%MARCH_REPS
 
+#define TEXTURE_T __read_only image2d_array_t
+#define SCENE_T(S, T) SceneInfo* S , TEXTURE_T T
+
 __constant float MARCH_ACC = //%MARCH_ACC.0f/1000.0f;
 // -----------------------------------------------------------------------------
 // --------------- DEBUG -------------------------------------------------------
@@ -21,9 +24,30 @@ typedef struct T_Camera {
 } Camera;
 
 typedef struct T_Material {
-  float emission; // > 0.0f is a light source
-  float diffuse, specular, retroreflective, transmittive;
+  float diffuse, specular, glossy, retroreflective, transmittive;
 } Material;
+
+typedef struct T_Emitter {
+  float3 origin;
+  float radius, emission;
+} Emitter;
+
+typedef struct T_SceneInfo {
+  float time;
+  // __read_only image2d_array_t textures; IMAGES CANT BE USED AS FIELD TYPES:-(
+  __global Material* materials;
+  float3 debug_values;
+  __global int* rng;
+} SceneInfo;
+SceneInfo New_SceneInfo(float time, __global Material* materials,
+                        float3 debug_values, __global int* rng){
+  SceneInfo si;
+  si.time         = time;
+  si.materials    = materials;
+  si.debug_values = debug_values;
+  si.rng          = rng;
+  return si;
+}
 
 __constant float PI  = 3.141592654f;
 __constant float TAU = 6.283185307f;
@@ -33,11 +57,11 @@ typedef struct T_Ray {
   float3 origin, dir;
 } Ray;
 
-typedef struct T_MapInfo {
-  float3 colour;
+typedef struct T_SampledPt {
+  float3 colour, origin, dir;
   float dist;
   int material_index;
-} MapInfo;
+} SampledPt;
 // -----------------------------------------------------------------------------
 // --------------- MAP GEOMETRY FUNCTIONS --------------------------------------
 
@@ -47,7 +71,7 @@ typedef struct T_MapInfo {
 //%MAPFUNCDEFINITIONS
 //----------------------------------
 
-void MapUnionG( int avoid, MapInfo* d1, float d, int mi, float3 c ) {
+void MapUnionG( int avoid, SampledPt* d1, float d, int mi, float3 c ) {
   if ( mi != avoid && d1->dist > d ) {
     d1->colour = c;
     d1->dist = d;
@@ -61,27 +85,33 @@ void MapUnionG( int avoid, MapInfo* d1, float d, int mi, float3 c ) {
 //------------------------
 // -----------------------------------------------------------------------------
 // --------------- MAP ---------------------------------------------------------
-MapInfo Map ( int a, float3 origin, float time,
-             __read_only image2d_array_t textures, float3 dval ) {
-  MapInfo res;
+SampledPt Map ( int a, float3 origin, SCENE_T(si, Tx) ) {
+  SampledPt res;
   res.dist = FLT_MAX;
 
   //---MAP INSERTION POINT---
   //%MAPINSERT
   //-------------------------
 
+  // approx lighting with emissions
+  for ( int i = 0; i != EMITTER_AMT; ++ i ) {
+    Emitter e = REmission(i);
+    float dist = sdSphere(origin + e.origin, e.radius);
+    MapUnionG(a, &res, dist, 0, (float3)(1.0f, 0.9f, 0.8f)*e.emission);
+  }
+
   return res;
 }
 
 // -----------------------------------------------------------------------------
 // --------------- GRAPHIC FUNCS -----------------------------------------------
-float3 Normal ( float3 p, float tm, __read_only image2d_array_t t, float3 d) {
+float3 Normal ( float3 p, float tm, SCENE_T(si, Tx) ) {
   float2 e = (float2)(1.0f, -1.0f)*0.5773f*0.0005f;
   return normalize(
-    e.xyy*Map(-1, p + e.xyy, tm, t, d).dist +
-    e.yyx*Map(-1, p + e.yyx, tm, t, d).dist +
-    e.yxy*Map(-1, p + e.yxy, tm, t, d).dist +
-    e.xxx*Map(-1, p + e.xxx, tm, t, d).dist);
+    e.xyy*Map(-1, p + e.xyy, si, Tx).dist +
+    e.yyx*Map(-1, p + e.yyx, si, Tx).dist +
+    e.yxy*Map(-1, p + e.yxy, si, Tx).dist +
+    e.xxx*Map(-1, p + e.xxx, si, Tx).dist);
 }
 
 float3 reflect ( float3 V, float3 N ) {
@@ -96,12 +126,11 @@ float3 refract(float3 V, float3 N, float refraction) {
 
 // -----------------------------------------------------------------------------
 // --------------- RAYTRACING/MARCH --------------------------------------------
-MapInfo March ( int avoid, Ray ray, float time,
-                __read_only image2d_array_t textures, float3 dval ) {
+SampledPt March ( int avoid, Ray ray, SCENE_T(si, Tx) ) {
   float distance = 0.0f;
-  MapInfo t_info;
+  SampledPt t_info;
   for ( int i = 0; i < MARCH_REPS; ++ i ) {
-    t_info = Map(avoid, ray.origin + ray.dir*distance, time, textures, dval);
+    t_info = Map(avoid, ray.origin + ray.dir*distance, si, Tx);
     if ( t_info.dist < MARCH_ACC || t_info.dist > MARCH_DIST ) break;
     distance += t_info.dist;
   }
@@ -116,11 +145,10 @@ MapInfo March ( int avoid, Ray ray, float time,
 //----POSTPROCESS---
 //%POSTPROCESS
 
-MapInfo Colour_Pixel(Ray ray, float time, __read_only image2d_array_t texts,
-                     float3 dval){
-  MapInfo result = March(-1, ray, time, texts, dval);
+SampledPt Colour_Pixel(Ray ray, SCENE_T(si, Tx) ){
+  SampledPt result = March(-1, ray, si, Tx);
   float3 origin = ray.origin + ray.dir*result.dist;
-  result.colour = Post_Process(ray.origin, ray.dir, result, time, texts, dval);
+  result.colour = result.colour;
   return result;
 }
 
@@ -162,20 +190,22 @@ __kernel void DTOADQ_Kernel (
     __global Camera* camera_ptr,
     __global float* time_ptr,
     __read_only image2d_array_t textures,
-    __global Material* material_ptr,
-    __global float* debug_val_ptr,
+    __global Material* materials,
+    __global float* debug_val,
     __global int*   rng
   ) {
   int2 out = (int2)(get_global_id(0), get_global_id(1));
   Camera camera = *camera_ptr;
-  float3 dval = (float3)(debug_val_ptr[0], debug_val_ptr[1], debug_val_ptr[2]);
+  float3 dval = (float3)(debug_val[0], debug_val[1], debug_val[2]);
   float time = *time_ptr;
   // -- get old pixel, check if there are samples to be done
   //    (counter is stored in alpha channel)
   Update_Camera(&camera, time);
 
+  SceneInfo scene_info = New_SceneInfo(time, materials, dval, rng);
+
   Ray ray = Camera_Ray(&camera);
-  MapInfo result = Colour_Pixel(ray, time, textures, dval);
+  SampledPt result = Colour_Pixel(ray, &scene_info, textures);
 
   float3 colour;
   if ( result.dist >= 0.0f ) {

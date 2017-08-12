@@ -1,13 +1,16 @@
---- IMMEDIATE
-MapUnion, constructs map info
+mis
+bdpt
+comment
+refactor
+screen pbm
+fix video emit
+universal bsdf
+update proposal
 
---- NECESSARY
-Some form of light glare
-render to video
-Bump mapping with textures
-instead of avoiding materials, avoid ID
 
---- WOULD BE NICE
-Rework random so not all workers use same random seed
-optimize opengl/opencl interop
-better camera movement
+---
+
+eblt
+bssrdf, microfacet, transmission
+config
+break kernel down

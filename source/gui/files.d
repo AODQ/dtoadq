@@ -5,7 +5,9 @@ private string project_dir = "";
 
 void Initialize ( ) {
   import config;
-  project_dir = "projects/" ~ RDefault_Project();
+  project_dir = RDefault_Project();
+  import std.string : lastIndexOf;
+  project_dir = project_dir[0 .. project_dir.lastIndexOf("/")];
 }
 
 string Ext (T...) ( string str, T extensions ) {

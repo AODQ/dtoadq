@@ -36,10 +36,8 @@ bool Imgui_Render ( ref Material[] materials, ref Camera camera ) {
     import functional;
     if ( igCollapsingHeader("Statistics") ) {
       igText("CAMERA POSITION --");
-      change |= igInputFloat("X", &camera.position[0]);
-      change |= igInputFloat("Y", &camera.position[1]);
-      change |= igInputFloat("Z", &camera.position[2]);
-      igInputInt("Override", &camera.flags);
+      foreach ( info; zip(iota(0, 3), ["X", "Y", "Z"]) )
+        change |= igInputFloat(info[1].ptr, &camera.position[info[0]]);
       igText(igAccum("Camera Angle",
         camera.lookat[0..3].map!(n => cast(int)(n*100.0f)/100.0f)));
       change |= igSliderFloat("FOV", &camera.fov, 50.0f, 140.0f);
@@ -47,12 +45,15 @@ bool Imgui_Render ( ref Material[] materials, ref Camera camera ) {
     // -- render options --
     if ( igCollapsingHeader("Render Options") ) {
       static bool Show_Normals = false;
-      static int kernel_type = -1, resolution = 0, pkernel_type,
-                march_dist = 64,
-                march_reps = 128;
-      static float march_acc = 0.001f;
-      if ( kernel_type == -1 ) kernel_type = KI.RKernel_Type();
-
+      static int kernel_type = -1, resolution, pkernel_type,
+                 march_dist, march_reps;
+      static float march_acc;
+      if ( kernel_type == -1 ) {
+        kernel_type = KI.RKernel_Type();
+        march_dist = KI.RVar(KI.KernelVar.March_Dist);
+        march_reps = KI.RVar(KI.KernelVar.March_Reps);
+        march_acc  = KI.RVar(KI.KernelVar.March_Acc)/1000.0f;
+      }
       pkernel_type = kernel_type;
       igRadioButton("Raytrace", &kernel_type, 0); igSameLine();
       igRadioButton("MLT",      &kernel_type, 1);
@@ -62,15 +63,14 @@ bool Imgui_Render ( ref Material[] materials, ref Camera camera ) {
         Kernel.Set_Kernel_Type(cast(Kernel_Type)kernel_type);
       }
 
-      if ( igSliderInt("March Distance", &march_dist, 1, 256) ) {
+      if ( igSliderInt("March Distance", &march_dist, 1, 1024) ) {
         Kernel.Set_Kernel_Var(Kernel_Var.March_Dist, march_dist);
       }
-      if ( igSliderInt("March Repetitions", &march_reps, 1, 256) ) {
+      if ( igSliderInt("March Repetitions", &march_reps, 1, 1024) ) {
         Kernel.Set_Kernel_Var(Kernel_Var.March_Reps, march_reps);
       }
-      if ( igSliderFloat("March Accuracy", &march_acc, 0.00f, 0.2f) ) {
+      if ( igSliderFloat("March Accuracy", &march_acc, 0.00f, 0.1f) ) {
         int acc_var = cast(int)(march_acc*1000);
-        acc_var.writeln;
         Kernel.Set_Kernel_Var(Kernel_Var.March_Acc, acc_var);
       }
 

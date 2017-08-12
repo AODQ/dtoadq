@@ -12,8 +12,8 @@ struct Camera {
 
     if ( RMouse_X1() ) {
       cam_update = true;
-      lookat[0] += (RMouse_X-RMouse_X_Stick)/dimensions.x;
-      lookat[1] -= (RMouse_Y-RMouse_Y_Stick)/dimensions.y;
+      lookat[0] += (RMouse_X-RMouse_X_Stick)/1000.0f;
+      lookat[1] -= (RMouse_Y-RMouse_Y_Stick)/1000.0f;
       Unstick();
     }
 
@@ -53,14 +53,13 @@ auto Construct_Camera(float[3] pos, float[3] dir, int[2] dim) {
 }
 
 struct Material {
-  float emission; // > 0.0f is a light source
-  float diffuse, specular, retroreflective, transmittive;
+  float diffuse, specular, glossy, retroreflective, transmittive;
 }
 
 struct SharedInfo {
   ubyte clear_img = true;
   ulong finished_samples;
-  ubyte spp = 64;
+  ubyte spp = 255;
 }
 
 struct RNG {

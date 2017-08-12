@@ -1,4 +1,27 @@
+TEXTURESSTART
+TEXTURESEND
 MATERIALSSTART
+{
+  "materials": [
+    {
+      "diffuse": "0.2", "specular": "0.0",
+      "glossy": "0.4",  "retroreflective": "0.0",
+      "transmittive": "0.0"
+    }, {
+      "diffuse": "0.2", "specular": "0.0",
+      "glossy": "0.4",  "retroreflective": "0.0",
+      "transmittive": "0.0"
+    }, {
+      "diffuse": "0.2", "specular": "0.0",
+      "glossy": "0.4",  "retroreflective": "0.0",
+      "transmittive": "0.0"
+    }, {
+      "diffuse": "0.2", "specular": "0.0",
+      "glossy": "0.4",  "retroreflective": "0.0",
+      "transmittive": "0.0"
+    }
+  ]
+}
 MATERIALSEND
 
 CAMERASTART
@@ -8,8 +31,16 @@ void Update_Camera ( Camera* camera, float time ) {
 }
 CAMERAEND
 
+EMITTERSTART
+__constant int EMITTER_AMT = 4;
+Emitter REmission ( int index ) {
+  float fd = (float)(index+1);
+  return (Emitter){(float3)(-5.0f + fd*2.0f, -2.0f, 3.5f), fd/4.0f*2.5f, 1.0f/(fd/4.0f)};
+}
+EMITTEREND
+
 UPDATEMAPSTART
-void Primitives ( int avoid, float3 origin, MapInfo* minfo, float time,
+void Primitives ( int avoid, float3 origin, SampledPt* minfo, float time,
                   float3 dval ) {
   float dist;
   float3 colour;
@@ -24,11 +55,9 @@ void Primitives ( int avoid, float3 origin, MapInfo* minfo, float time,
   colour = (float3)(0.8f, 0.4f, 0.8f);
   MapUnionG(avoid, minfo, dist, 2, colour);
 
-  // Light
-  dist = sdBox(origin + (float3)(2.67f, -0.761f, -12.264f),
-               (float3)(1.0f, 1.0f, 1.0));
-  colour = (float3)(1.0f);
-  MapUnionG(avoid, minfo, dist, 3, colour);
+  dist = sdSphere(origin + (float3)(dval), 2.0f);
+  colour = (float3)(0.8f, 0.4f, 0.8f);
+  MapUnionG(avoid, minfo, dist, 2, colour);
 
   // Torus
   origin -= (float3)(5.063f, 2.834f, 2.4f);
@@ -39,7 +68,7 @@ void Primitives ( int avoid, float3 origin, MapInfo* minfo, float time,
   MapUnionG(avoid, minfo, dist, 4, colour);
 }
 
-void Room ( int avoid, float3 origin, MapInfo* minfo, float time, float3 dval){
+void Room ( int avoid, float3 origin, SampledPt* minfo, float time, float3 dval){
   float dist;
   float3 colour;
   // Right wall
@@ -49,19 +78,10 @@ void Room ( int avoid, float3 origin, MapInfo* minfo, float time, float3 dval){
   // Left wall
   dist = sdBox(origin + (float3)(10.0f, -1.0f, -2.0f),
                (float3)(1.0f, 8.0f, 64.0));
-  dist = opSubtractColumns(dist, // mirror
-          sdSphere(origin + (float3)(10.5f, -4.0f, -3.0f), 2.4f), 1.0f, 0.2f);
+  // dist = opSubtractColumns(dist, // mirror
+  //         sdSphere(origin + (float3)(10.5f, -4.0f, -3.0f), 2.4f), 1.0f, 0.2f);
   colour = (float3)(0.9f, 0.4f, 0.4f);
   MapUnionG(avoid, minfo, dist, 0, colour);
-  // Mirror Panel
-  {
-  float3 to = origin;
-  dist = sdCheapBox(origin + (float3)(10.0f, 1.0f, -3.0f),
-            (float3)(0.519f, 6.914f, 0.148f));
-  colour = (float3)(0.6f, 0.4f, 0.25f);
-  MapUnionG(avoid, minfo, dist, 8, colour);
-  origin = to;
-  }
   // Lower wall
   dist = sdPlane(origin, normalize((float3)(0.0f, 1.0f, 0.0f)),  3.5f);
   colour = (float3)(0.7f, 0.7f, 0.75f);
@@ -80,17 +100,10 @@ void Room ( int avoid, float3 origin, MapInfo* minfo, float time, float3 dval){
   MapUnionG(avoid, minfo, dist, 0, colour);
 }
 
-void Update_Map ( int avoid, float3 origin, MapInfo* minfo, float time,
+void Update_Map ( int avoid, float3 origin, SampledPt* minfo, float time,
                     __read_only image2d_array_t textures, float3 debug_values ) {
   // -- modeling --
   Room(avoid, origin, minfo, time, debug_values);
   Primitives(avoid, origin, minfo, time, debug_values);
 }
 UPDATEMAPEND
-
-POSTPROCESSSTART
-float3 Post_Process ( float3 ro, float3 rd, MapInfo info, float time,
-                      __read_only image2d_array_t textures, float3 dval ) {
-  return info.colour;
-}
-POSTPROCESSEND

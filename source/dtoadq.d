@@ -33,18 +33,8 @@ private class DTOADQ {
     camera = Construct_Camera([2.5f, 0.0f, 6.0f], [-0.06f, 0.4f, -1.0f],
                                     [image.x, image.y]);
     shared_info.finished_samples = 0;
-    material = [
-      Material(0.0f, 1.0f, 0.0f, 0.0f, 0.0f),
-      Material(0.0f, 1.0f, 0.0f, 0.0f, 0.0f),
-      Material(0.0f, 1.0f, 0.0f, 0.0f, 0.0f),
-      Material(1.0f, 0.0f, 0.0f, 0.0f, 0.0f),
-      Material(0.0f, 1.0f, 0.0f, 0.0f, 0.0f),
-      Material(0.0f, 1.0f, 0.0f, 0.0f, 0.0f),
-      Material(0.0f, 1.0f, 0.0f, 0.0f, 0.0f),
-      Material(0.0f, 1.0f, 0.0f, 0.0f, 0.0f),
-      Material(0.0f, 1.0f, 0.0f, 0.0f, 0.0f)
-    ];
-    Set_Image_Buffer(DIMG.Resolution.r640_360, true);
+    material = [];
+    Set_Image_Buffer(DIMG.Resolution.r160_140, true);
   }
 
   void Set_Image_Buffer ( DIMG.Resolution resolution, bool force = false ) {
@@ -143,6 +133,8 @@ void Initialize () {
   GL.Renderer_Initialize();
   OCL.Initialize();
   DIMG.Initialize();
+  // kernelinfo configure
+  KI.Configure();
   // initialize DTOADQ
   dtoadq = new DTOADQ();
 }
@@ -176,3 +168,21 @@ void Set_Image_Buffer ( DIMG.Resolution resolution ) {
 bool RRunning ( ) { return dtoadq.running; }
 
 auto RDebug_Vals_Ptr ( ) { return dtoadq.debug_vals.ptr; }
+
+void Set_Material(Material[] material) {
+  dtoadq.material = material.dup;
+}
+
+static import JSON = std.json;
+void Set_Material(string json_value) {
+  Material[] materials;
+  JSON.JSONValue val = JSON.parseJSON(json_value);
+  foreach ( json; val["materials"].array ) {
+    materials ~= Material(json["diffuse"].str.to!float,
+                          json["specular"].str.to!float,
+                          json["glossy"].str.to!float,
+                          json["retroreflective"].str.to!float,
+                          json["transmittive"].str.to!float);
+  }
+  Set_Material(materials);
+}

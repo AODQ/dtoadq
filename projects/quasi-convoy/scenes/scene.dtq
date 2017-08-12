@@ -1,6 +1,6 @@
-MATERIALSSTART
+TEXTURESSTART
 0 projects/globals/textures/txCheckerboard.txt
-MATERIALSEND
+TEXTURESEND
 
 CAMERASTART
 void Update_Camera ( Camera* camera, float time ) {

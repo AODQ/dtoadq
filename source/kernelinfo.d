@@ -59,13 +59,18 @@ auto Should_Recompile ( bool silent = true ) {
   return ret;
 }
 
+auto Configure ( ) {
+  static import config;
+  kernel_info.filename = config.RDefault_Project();
+}
+
 static this ( ) {
   with ( KernelInfo ) {
     kernel_info = KernelInfo(
       "projects/globals/defaultscene.dtq",
       KernelType.MLT,
       [ KernelVar.March_Dist : 355, KernelVar.March_Reps : 256,
-       KernelVar.March_Acc : 200 ],
+       KernelVar.March_Acc : 10 ],
       ProceduralType.Scene
     );
     Set_Recompile();

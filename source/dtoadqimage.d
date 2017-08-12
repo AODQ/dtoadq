@@ -30,6 +30,7 @@ private struct CLGLImage {
 }
 
 enum Resolution {
+  r160_140,
   r640_360,
   r960_540,
   r1366_768,
@@ -191,7 +192,8 @@ ulong RResolution_Length(Resolution resolution) {
 }
 
 string[] RResolution_Strings ( ) {
-  return [ "640x360",
+  return [ "160x140",
+           "640x360",
            "960x540",
            "1366x768",
            "1920x1080",
@@ -204,6 +206,7 @@ static this ( ) {
   with ( Resolution ) {
     alias II = ImageInfo;
     image_info = [
+      r160_140   : II(r160_140,   "160x140",   160,  140,  22_400    ),
       r640_360   : II(r640_360,   "640x360",   640,  360,  230_400    ),
       r960_540   : II(r960_540,   "960x540",   960,  540,  518_400    ),
       r1366_768  : II(r1366_768,  "1366x768",  1366, 768,  1_049_088  ),
@@ -212,6 +215,7 @@ static this ( ) {
       r8192_4608 : II(r8192_4608, "8192x4608", 8192, 4608, 37_748_736 ),
     ];
     resolution_string = [
+      "160x140"   : r160_140,
       "640x360"   : r640_360,
       "960x540"   : r960_540,
       "1366x768"  : r1366_768,

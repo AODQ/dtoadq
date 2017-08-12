@@ -179,17 +179,20 @@ private string Parse_DTOADQ_Kernel ( ) {
     string camera       = RScene_Map_Match("CAMERA"),
            update_map   = RScene_Map_Match("UPDATEMAP"),
            materials    = RScene_Map_Match("MATERIALS"),
-           post_process = RScene_Map_Match("POSTPROCESS");
+           textures     = RScene_Map_Match("TEXTURES"),
+           emitter      = RScene_Map_Match("EMITTER");
     kernel = kernel
       .replace("//%MAPINSERT",
-        `Update_Map(a, origin, &res, time, textures, dval);`)
+        `Update_Map(a, origin, &res, si->time, Tx, si->debug_values);`)
       .replace("//%SCENEINSERT",
-          camera ~ "\n" ~ update_map)
-      .replace("//%POSTPROCESS", post_process);
-    // materials
+          emitter ~ "\n" ~ camera ~ "\n" ~ update_map);
+    // textures
     import functional;
-    DIMG.Create_Images(materials.split("\n").filter!(n => n != "")
-                                .map!(n => n.split(" ").array[1]).array);
+    DIMG.Create_Images(textures.split("\n").filter!(n => n != "")
+                               .map!(n => n.split(" ").array[1]).array);
+    // materials
+    static import DTOADQ = dtoadq;
+    DTOADQ.Set_Material(materials);
   }
 
   // mixin map function definition/declarations
@@ -199,6 +202,7 @@ private string Parse_DTOADQ_Kernel ( ) {
     .replace("//%MAPFUNCDEFINITIONS" , parse_info[1]);
 
   alias KV = KI.KernelVar;
+
   kernel = kernel
     .replace("//%MARCH_DIST", KI.RVar(KV.March_Dist).to!string)
     .replace("//%MARCH_REPS", KI.RVar(KV.March_Reps).to!string)
