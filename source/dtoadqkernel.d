@@ -1,10 +1,11 @@
 module dtoadqkernel; immutable(string) DTOADQ_kernel = q{
-#define MAX_DEPTH 4
+#define MAX_DEPTH 8
 #define MARCH_DIST //%MARCH_DIST.0f
 #define MARCH_REPS //%MARCH_REPS
 
 #define TEXTURE_T __read_only image2d_array_t
 #define SCENE_T(S, T) SceneInfo* S, TEXTURE_T T
+// EMIT_MAT = -120 - light_index
 #define EMIT_MAT -120
 
 #define DFLT2(V) ((V).x), ((V).y)
@@ -30,6 +31,7 @@ bool Is_Debug ( ) {
   return get_global_id(0) == get_global_size(0)/2 &&
          get_global_id(1) == get_global_size(1)/2;
 }
+
 // -----------------------------------------------------------------------------
 // --------------- GPU-CPU STRUCTS ---------------------------------------------
 typedef struct T_Camera {
@@ -44,8 +46,8 @@ typedef struct T_Material {
 } Material;
 
 typedef struct T_Emitter {
-  float3 origin;
-  float radius, emission;
+  float3 origin, emission;
+  float radius;
 } Emitter;
 
 typedef struct T_SharedInfo {
@@ -65,7 +67,7 @@ typedef struct T_Ray {
 } Ray;
 
 typedef struct T_BSDF_Sample_Info {
-  float3 omega_i, omega_o;
+  float3 wi, wo;
 } BSDF_Sample_Info;
 
 typedef struct T_SampledPt {
@@ -177,10 +179,13 @@ SampledPt Map ( int a, float3 origin, SCENE_T(si, Tx))  {
   //-------------------------
 
   // lighting with emissions
+  float3 light_emission = (float3)(1.0f, 0.9f, 0.8f);
   for ( int i = 0; i != EMITTER_AMT; ++ i ) {
-    Emitter e = REmission(i);
-    float dist = sdSphere(origin + e.origin, e.radius);
-    MapUnionG(a, &res, dist, EMIT_MAT, (float3)(1.0f, 0.9f, 0.8f)*e.emission);
+    Emitter e = REmission(i, si->time);
+    float dist = sdSphere(origin - e.origin, e.radius);
+    int ta = a;
+    if ( a == EMIT_MAT + 1 ) ta = EMIT_MAT - i;
+    MapUnionG(a, &res, dist, EMIT_MAT - i, light_emission*e.emission);
   }
 
   return res;
@@ -256,26 +261,19 @@ void Calculate_Binormals ( float3 N, float3* T, float3* B ) {
 }
 // -----------------------------------------------------------------------------
 // --------------- BSDF    FUNCS -----------------------------------------------
-float3 BSDF(BSDF_Sample_Info bsdf, float3 normal, Material* m) {
-  // float3 hv = normalize(bsdf.omega_i + bsdf.omega_o);
-  // hv *= hv;
-  return (float3)(IPI);
+float3 BSDF_Sample ( float3 wi, float3 normal, Material* m, float* out_pdf,
+                     float3* out_bsdf, SCENE_T(si, Tx)) {
+  float3 wo;
+  wo = normalize(Hemisphere_Direction(si->rng, normal));
+
+  *out_pdf = fabs(wo.z)*IPI;
+  *out_bsdf = (float3)(IPI*m->diffuse);
+  return wo;
 }
 
-float BSDF_PDF  ( float3 P, BSDF_Sample_Info bsdf, float3 normal, Material* m ){
-  return 1.0f/(2.0f*PI);
-}
-
-float3 Sample_BSDF ( float3 omega_i, float3 normal, Material* m, float* out_pdf,
-                     SCENE_T(si, Tx)) {
-  float3 omega_o;
-  omega_o = normalize(Hemisphere_Direction(si->rng, normal));
-  return omega_o;
-}
-
-float3 Sample_BSDF_Pt ( SampledPt* pt, Material* m, float* out_pdf,
-                     SCENE_T(si, Tx)) {
-  return Sample_BSDF(pt->dir, pt->normal, m, out_pdf, si, Tx);
+float3 BSDF_Evaluate ( float3 wo, Material* m, float* out_pdf ) {
+  *out_pdf = fabs(wo.z)*IPI;
+  return (float3)(IPI*m->diffuse);
 }
 
 // -----------------------------------------------------------------------------
@@ -290,61 +288,23 @@ float3 Light_Emission(float distance) {
   return (float3)(1.0f, 0.98f, 0.95f)/SQR(distance);
 }
 
-// float3 Integrate_Lighting ( SampledPt* pt, Material* material, float3 omega_i
-//                             SCENE_T(si, Tx)) {
-//   // float3 col = (float3)(0.0f);
-//   // float  pdf_light, pdf_bsdf;
-//   // float3 sample_light, sample_bsdf;
-//   // int light_index = (int)(Uniform_Sample(si->rng)*EMITTER_AMT);
-//   // Emitter light = REmission(light_index);
+float3 Light_Sample ( float3 wi, float3 P, float3 N, Emitter* m, float* pdf,
+                      __global int* rng ) {
+  float3 light_point = m->origin;
+  float3 offset = normalize(Uniform_Sample3(rng));
+  light_point += offset*m->radius*Uniform_Sample(rng);
+  float3 light_dir = normalize(light_point - P);
 
-//   // sample_light = Sample_Light(pt, material, &light, &pdf_light, si, Tx);
-//   // sample_bsdf  = Sample_BSDF (pt, material,         &pdf_bsdf,  si, Tx);
+  float cos_theta = fabs(dot(N, -light_dir));
 
-//   // Ray ray_light = (Ray){pt->origin, sample_light};
-//   // float4 intersect_light = Light_Intersect(ray_light, &light),
-//   //        intersect_bsdf  = Light_Intersect((Ray){pt->origin, bsdf_sample},
-//   //                                      light.origin, light.radius);
+  // if ( cos_theta < 0.001f ) return (float3)(0.0f);
 
-//   // float dist_light = Distance(pt->origin, light.origin);
 
-//   // float visibility_light = Visibility_Ray(ray_light, dist_light,
-//   //                               pt->mat_index, si, Tx);
+  float area = 1.0f/(2*TAU*(m->radius*m->radius));
+  *pdf = area*(sqr(length(light_dir)))/cos_theta;
 
-//   // float3 dot_n_wo_light = fabs(dot(sample, pt->normal));
-
-//   //       // col += (material->specular)*sp*pt->colour*visibility*
-//   //       //         BSDF(omega_i, sample, pt->normal, material);
-
-//   //     //   col += pt->colour*visibility*dot_n_wo*ITAU*material->diffuse;
-//   //   ----- SAMPLE BSDF -----
-//   //   float bsdf_pdf = -1.0f;
-//   //   float3 bsdf_sample = Sample_BSDF(pt, material, &bsdf_pdf, si, Tx);
-//   //   if ( bsdf_pdf > 0.0f ) {
-//   //     float4 r = Light_Intersect((Ray){pt->origin, bsdf_sample},
-//   //                                light.xyz, light.w);
-
-//   //     if ( r.x > 0.0f ) {
-//   //       float light_pdf = Light_PDF(light, pt->origin);
-//   //       float mis_weight = Power_Heuristic(1.0f, bsdf_pdf, 1.0f, light_pdf);
-//   //       float visible = Visibility_Ray((Ray){pt->origin, bsdf_sample},
-//   //                                      r.x, pt->mat_index, si, Tx);
-
-//   //       float3 le = Light_Emission(r.x)*visible;
-//   //       float3 dot_n_wo = fabs(dot(bsdf_sample, pt->normal));
-//   //       float3 sp = le*fabs(dot_n_wo)*(mis_weight/bsdf_pdf);
-
-//   //       // specular
-//   //       col += pt->colour*le*ITAU;
-//   //       col += (2.0f*material->specular)*sp*
-//   //              BSDF(omega_i, bsdf_sample, pt->normal, material);
-//   //       // diffuse is ignored
-//   //     }
-//   //   }
-//   // // }
-
-//   // return col;
-// }
+  return light_dir;
+}
 
 // -----------------------------------------------------------------------------
 // --------------- LIGHT TRANSPORT - BDPT --------------------------------------
@@ -353,27 +313,27 @@ int Generate_Subpath ( Ray ray, SampledPt* subpath, SCENE_T(si, Tx)) {
   int i;
   float roulette = 1.0f;
   for ( i = 0; i != MAX_DEPTH/2; ++ i ) {
-    // roulette
-    roulette -= 1.0f/(float)(MAX_DEPTH);
-    if ( Uniform_Sample(si->rng) > roulette ) break;
-    // march
-    SampledPt minfo = March(mindex, ray, si, Tx);
-    if ( minfo.dist < 0.0f ) break;
-    // importance sampling
-    mindex = minfo.mat_index;
-    Material material = si->materials[minfo.mat_index];
-    float3 hit = ray.origin + ray.dir*minfo.dist;
-    BSDF_Sample_Info bsdf_info = (BSDF_Sample_Info){
-        ray.dir,
-        Sample_BSDF(ray.dir, Normal(hit, si, Tx), &material, 0, si, Tx)
-    };
-    // set minfo/subpath element
-    minfo.origin = hit;
-    minfo.bsdf_info = bsdf_info;
-    subpath[i] = minfo;
-    // set ray
-    ray = (Ray){hit, bsdf_info.omega_o};
-    if ( minfo.mat_index == EMIT_MAT ) break;
+    // // roulette
+    // roulette -= 1.0f/(float)(MAX_DEPTH);
+    // if ( Uniform_Sample(si->rng) > roulette ) break;
+    // // march
+    // SampledPt minfo = March(mindex, ray, si, Tx);
+    // if ( minfo.dist < 0.0f ) break;
+    // // importance sampling
+    // mindex = minfo.mat_index;
+    // Material material = si->materials[minfo.mat_index];
+    // float3 hit = ray.origin + ray.dir*minfo.dist;
+    // BSDF_Sample_Info bsdf_info = (BSDF_Sample_Info){
+    //     ray.dir,
+    //     BSDF_Sample(ray.dir, Normal(hit, si, Tx), &material, 0, si, Tx)
+    // };
+    // // set minfo/subpath element
+    // minfo.origin = hit;
+    // minfo.bsdf_info = bsdf_info;
+    // subpath[i] = minfo;
+    // // set ray
+    // ray = (Ray){hit, bsdf_info.wo};
+    // if ( minfo.mat_index <= EMIT_MAT ) break;
   }
   return i;
 }
@@ -396,8 +356,6 @@ bool Check_Subpath(float3 xorigin, float3 yorigin, float xmat, float ymat,
                       si, Tx).dist;
   float ydist = March(ymat, (Ray){yorigin, normalize(xorigin - yorigin)},
                       si, Tx).dist;
-  writefloat(xdist);
-  writefloat(ydist);
   return true;
   // return ( fabs(ydist - xdist) < MARCH_ACC+0.01f );
 }
@@ -406,7 +364,7 @@ bool Generate_Path ( Ray ray, SampledPath* p, SCENE_T(si, Tx)) {
   SampledPt light_path[MAX_DEPTH/2+1];
   // grab a random light
   int light_index = (int)(Uniform_Sample(si->rng)*EMITTER_AMT);
-  Emitter light_emitter = REmission(light_index);
+  Emitter light_emitter = REmission(light_index, si->time);
   p->light_emitter = light_emitter;
   // generate paths, use p->path as bsdf_path
   int bsdf_length  = Generate_BSDF_Path (ray,              p->path,  si, Tx);
@@ -418,13 +376,13 @@ bool Generate_Path ( Ray ray, SampledPath* p, SCENE_T(si, Tx)) {
     SampledPt* light = &light_path[light_length-1];
     if ( !Check_Subpath(ray.origin, light->origin, -1,light->mat_index, si, Tx))
       return false;
-    light->bsdf_info.omega_o = normalize(ray.origin - light->origin);
+    light->bsdf_info.wo = normalize(ray.origin - light->origin);
   } else if ( light_length == 0 ) {
     SampledPt* bsdf = &p->path[bsdf_length-1];
     if ( !(Check_Subpath(bsdf->origin, light_emitter.origin,
-            bsdf->mat_index, EMIT_MAT, si, Tx)))
+            bsdf->mat_index, EMIT_MAT+1, si, Tx)))
       return false;
-    bsdf->bsdf_info.omega_o = normalize(bsdf->origin - light_emitter.origin);
+    bsdf->bsdf_info.wo = normalize(bsdf->origin - light_emitter.origin);
   } else {
     SampledPt* bsdf  = &p->path   [bsdf_length -1],
              * light = &light_path[light_length-1];
@@ -432,16 +390,16 @@ bool Generate_Path ( Ray ray, SampledPath* p, SCENE_T(si, Tx)) {
     if ( !Check_Subpath(bsdf->origin, light->origin,
                 bsdf->mat_index, light->mat_index, si, Tx) )
       return false;
-    // set bsdf[$].omega_o = light[$].omega_o = |^ - $|
-    bsdf->bsdf_info.omega_o = light->bsdf_info.omega_o =
+    // set bsdf[$].wo = light[$].wo = |^ - $|
+    bsdf->bsdf_info.wo = light->bsdf_info.wo =
           normalize(bsdf->origin - light->origin);
   }
 
   // retro light paths and concatenate
   for ( int i = 0; i != light_length; ++ i ) {
-    float3 t_omega_i = light_path[i].bsdf_info.omega_i;
-    light_path[i].bsdf_info.omega_i = -light_path[i].bsdf_info.omega_o;
-    light_path[i].bsdf_info.omega_o = -t_omega_i;
+    float3 t_wi = light_path[i].bsdf_info.wi;
+    light_path[i].bsdf_info.wi = -light_path[i].bsdf_info.wo;
+    light_path[i].bsdf_info.wo = -t_wi;
     p->path[bsdf_length + light_length - i - 1] = light_path[i];
   }
 
@@ -453,75 +411,162 @@ bool Generate_Path ( Ray ray, SampledPath* p, SCENE_T(si, Tx)) {
 
 // -----------------------------------------------------------------------------
 // --------------- LIGHT TRANSPORT ---------------------------------------------
+float MIS_Weight ( float pdf_i, float pdf_o ) {
+  return pdf_i / ( pdf_i + pdf_o );
+}
 SampledPt Colour_Pixel ( Ray ray, SCENE_T(si, Tx) ) {
-  // Bidirectional Path Tracing . .
-  // Generate camera and light subpaths
-  SampledPath transport;
-  if ( !Generate_Path(ray, &transport, si, Tx) || transport.length == 0 ) {
-    SampledPt result;
-    result.dist = -1.0f;
-    result.colour = (float3)(0.0f);
-    return result;
-  }
-
-  // Evaluate path
+  float3 coeff = (float3)(1.0f);
+  float3 colour = (float3)(0.0f);
+  float bsdf_pdf = 1.0f;
+  int mindex = -1;
   SampledPt result;
-  result.dist = 1.0f;
+  result.dist = -1.0f;
+  for ( int depth = 0; depth != 1; ++ depth ) {
+    SampledPt minfo = March(mindex, ray, si, Tx);
+    if ( minfo.dist < 0.0f ) break;
+    // importance sampling
+    mindex = minfo.mat_index;
+    Material material = si->materials[mindex];
+    float3 hit = ray.origin + ray.dir*minfo.dist;
+    float3 normal = Normal(hit, si, Tx);
+    if ( mindex <= EMIT_MAT ) {
+      Emitter emitter = REmission(abs(mindex - EMIT_MAT), si->time);
+      float light_pdf;
+      Light_Sample(ray.dir, hit, normal, &emitter, &light_pdf, si->rng);
+      float weight = MIS_Weight(bsdf_pdf, (1.0f/EMITTER_AMT)*light_pdf);
+      // colour += coeff * emitter.emission * weight;
+      // result.dist = 1.0f;
+      // break;
+    }
+
+    { // light sample
+      int light_index = (int)(Uniform_Sample(si->rng)*EMITTER_AMT);
+      // if ( light_index == 0 ) light_index = 1;
+      // light_index = 1;
+      Emitter light = REmission(light_index, si->time);
+      float light_pdf;
+      float3 light_sample = Light_Sample(ray.dir, hit, normal, &light,
+                                          &light_pdf, si->rng);
+      SampledPt mt = March(mindex, (Ray){hit, light_sample}, si, Tx);
+      if ( mt.mat_index <= EMIT_MAT ) {
+        float3 factor = BSDF_Evaluate(light_sample, &material, &bsdf_pdf);
+        float weight = MIS_Weight(light_pdf*(1.0f/EMITTER_AMT), bsdf_pdf);
+        float cos_theta = light_sample.z;
+        float3 contrib = (weight * cos_theta/((1.0f/EMITTER_AMT)*light_pdf)
+                         ) * (factor*light.emission);
+        colour += coeff * contrib;
+        result.dist = 1.0f;
+      }
+    }
+
+    BSDF_Sample_Info bsdf_info;
+    {
+      float3 bsdf;
+      bsdf_info = (BSDF_Sample_Info){
+          ray.dir,
+          BSDF_Sample(ray.dir, normal, &material, &bsdf_pdf, &bsdf, si, Tx)
+      };
+
+      float dot_nl = fabs(dot(bsdf_info.wi, bsdf_info.wo));
+      coeff *= minfo.colour/PI * (bsdf/bsdf_pdf) * dot_nl;
+    }
 
 
-  float3 colour = (float3)(0.0f),
-         coeff  = (float3)(1.0f);
-
-  for ( int t = 0; t < transport.length; ++ t ) {
-    SampledPt pt = transport.path[t];
-    Material mat = si->materials[pt.mat_index];
-    float3 albedo = pt.colour;
-    float3 normal = Normal(pt.origin, si, Tx);
-    float3 bsdf = BSDF(pt.bsdf_info, normal, &mat);
-    float  pdf  = BSDF_PDF(pt.origin, pt.bsdf_info, normal, &mat);
-    float3 hv = normalize(pt.bsdf_info.omega_i + pt.bsdf_info.omega_o);
-    hv *= hv;
-    coeff += albedo*bsdf*dot(normal, pt.bsdf_info.omega_o)/pdf;
+    ray.dir = bsdf_info.wo;
+    ray.origin = hit;
   }
-
-  colour += coeff*transport.light_emitter.emission/transport.length;//*transport.light_emitter.emission;
-
   result.colour = colour;
   return result;
-
-  // for ( int t = 1; t <= depth - 1; ++ t ) {
-  //   SampledPt pt = t < transport.bsdf_length ? transport.bsdf_path[t] :
-  //                       transport.light_path[t - transport.light_length];
-  //   Material mat = si->materials[pt.mat_index];
-  //   float3 albedo = pt.colour;
-  //   float3 normal = Normal(pt.origin, si, Tx);
-  //   if ( t < transport.bsdf_length ) {
-  //     coeff *= pt.bsdf_info.brdf * pt.bsdf_info.dir_cos/pt.bsdf_info.pdf;
-  //   } else {
-  //    // BSDF_Sample_Info bsdf = BSDF(pt.origin, pt.bsdf_info.omega_o,
-  //     //                                        pt.bsdf_info.omega_i,
-  //     //                                        mat, albedo, si, Tx);
-  //     // coeff *= pt.bsdf_info.brdf;
-  //   }
-  // }
-  // SampledPt result;
-  // result.dist = -1.0f;
-  // result.colour = (float3)(0.0f);
-  // float3 coeff = (float3)(1.0f);
-  // for ( int i = 0; i != 1; ++ i ) {
-  //   SampledPt pt = March(-1, ray, si, Tx);
-  //   if ( pt.mat_index == EMIT_MAT ) {
-  //     coeff = (float3)(1.0f);
-  //     break;
-  //   }
-  //   Material material = si->materials[pt.mat_index];
-  //   pt.normal = Normal(pt.origin, si, Tx);
-  //   coeff *= Integrate_Lighting(&pt, &material, -pt.dir, si, Tx);
-  // }
-  // result.colour = 10.0f * coeff;
-  // result.dist = 1.0f;
-  // return result;
 }
+//   // Bidirectional Path Tracing . .
+//   // Generate camera and light subpaths
+//   SampledPath transport;
+//   if ( !Generate_Path(ray, &transport, si, Tx) || transport.length == 0 ) {
+//     SampledPt result;
+//     result.dist = -1.0f;
+//     result.colour = (float3)(0.0f);
+//     return result;
+//   }
+
+//   // Evaluate path
+//   SampledPt result;
+//   result.dist = 1.0f;
+
+//   /*
+
+//     l₀ —————> l₁
+//              /
+//            /
+//          /
+//        /
+//       b₁
+//        \
+//         \
+//          \
+//           b₀
+// S^2
+// S²
+//     weight =
+//       Lₑ(l₀, l₀->l₁)
+//          G(l₀, l₁) V(l₀, l₁) Fᵣ(l₁, l₀->l₁, l₁->b₁)
+//          G(l₁, b₁) V(l₁, b₁) Fᵣ(b₁, l₁->b₁, b₁->b₀)
+//          ...
+//       / probability_of_path
+//   */
+
+//   float3 colour = (float3)(0.0f),
+//          coeff  = (float3)(1.0f);
+
+//   for ( int t = 0; t < transport.length; ++ t ) {
+//     SampledPt pt = transport.path[t];
+//     Material mat = si->materials[pt.mat_index];
+//     float3 albedo = pt.colour;
+//     float3 normal = Normal(pt.origin, si, Tx);
+//     float3 bsdf = BSDF(pt.bsdf_info, normal, &mat);
+//     float  pdf  = BSDF_PDF(pt.origin, pt.bsdf_info, normal, &mat);
+//     float3 hv = normalize(pt.bsdf_info.wi + pt.bsdf_info.wo);
+//     hv *= hv;
+//     coeff *= albedo*bsdf*dot(normal, pt.bsdf_info.wo)/pdf;
+//   }
+
+//   colour = coeff*transport.length*transport.length;
+
+//   result.colour = colour;
+//   return result;
+
+//   // for ( int t = 1; t <= depth - 1; ++ t ) {
+//   //   SampledPt pt = t < transport.bsdf_length ? transport.bsdf_path[t] :
+//   //                       transport.light_path[t - transport.light_length];
+//   //   Material mat = si->materials[pt.mat_index];
+//   //   float3 albedo = pt.colour;
+//   //   float3 normal = Normal(pt.origin, si, Tx);
+//   //   if ( t < transport.bsdf_length ) {
+//   //     coeff *= pt.bsdf_info.brdf * pt.bsdf_info.dir_cos/pt.bsdf_info.pdf;
+//   //   } else {
+//   //    // BSDF_Sample_Info bsdf = BSDF(pt.origin, pt.bsdf_info.wo,
+//   //     //                                        pt.bsdf_info.wi,
+//   //     //                                        mat, albedo, si, Tx);
+//   //     // coeff *= pt.bsdf_info.brdf;
+//   //   }
+//   // }
+//   // SampledPt result;
+//   // result.dist = -1.0f;
+//   // result.colour = (float3)(0.0f);
+//   // float3 coeff = (float3)(1.0f);
+//   // for ( int i = 0; i != 1; ++ i ) {
+//   //   SampledPt pt = March(-1, ray, si, Tx);
+//   //   if ( pt.mat_index == EMIT_MAT ) {
+//   //     coeff = (float3)(1.0f);
+//   //     break;
+//   //   }
+//   //   Material material = si->materials[pt.mat_index];
+//   //   pt.normal = Normal(pt.origin, si, Tx);
+//   //   coeff *= Integrate_Lighting(&pt, &material, -pt.dir, si, Tx);
+//   // }
+//   // result.colour = 10.0f * coeff;
+//   // result.dist = 1.0f;
+//   // return result;
+// }
 
 // -----------------------------------------------------------------------------
 // --------------- CAMERA ------------------------------------------------------

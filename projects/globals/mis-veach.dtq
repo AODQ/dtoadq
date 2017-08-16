@@ -29,12 +29,16 @@ CAMERAEND
 
 EMITTERSTART
 __constant int EMITTER_AMT = 4;
-Emitter REmission ( int index ) {
+Emitter REmission ( int index, float time ) {
   float f = (float)(index+1);
-  float3 origin = (float3)(-8.5f + f*2.4f, -6.0f, 4.5f);
-  float radius   = 1.0f/f * 0.25f + (4.0f-f)*0.18f,
-        emission = f*0.5f;
-  return (Emitter){origin, radius, emission};
+  float3 origin = (float3)(8.5f + f*-2.4f, 6.0f, -4.5f);
+  origin.x += sin(time)*2.5f;
+  origin.z += 4.0f + cos(time*f + f)*4.5f;
+  // float radius   = 1.0f/f * 0.25f + (4.0f-f)*0.18f,
+  //       emission = 1.0f;
+  float3 emission = (float3)(fabs(cos(f*2.43f)),
+                             fabs(sin(f*0.2f)), 0.9f);
+  return (Emitter){origin, emission, 1.0f};
 }
 EMITTEREND
 
@@ -42,7 +46,7 @@ UPDATEMAPSTART
 void Room ( int avoid, float3 origin, SampledPt* pt, float time, float3 dval ) {
   float dist;
   dist = sdPlane(origin, normalize((float3)(0.0f, 0.0f, 1.0f)), 7.0f);
-  MapUnionG(avoid, pt, dist, 1, (float3)(0.2f, 0.2f, 0.2f));
+  MapUnionG(avoid, pt, dist, 1, (float3)(0.2f, 0.2f, 0.9f));
   dist = sdPlane(origin, normalize((float3)(0.0f, 1.0f, 0.0f)), 4.0f);
   MapUnionG(avoid, pt, dist, 1, (float3)(0.25f, 0.3f, 0.3f));
 
@@ -55,13 +59,18 @@ void Room ( int avoid, float3 origin, SampledPt* pt, float time, float3 dval ) {
   MapUnionG(avoid, pt, dist, 1, (float3)(0.2f, 0.9f, 0.9f));
   dist = sdPlane(origin, normalize((float3)(-1.0f, 0.0f, 0.0f)), 26.0f);
   MapUnionG(avoid, pt, dist, 1, (float3)(0.2f, 0.0f, 0.9f));
+
+  // dist = sdLineSegment(origin, (float3)(-25.13f, -19.47f, -27.74f),
+  //                              (float3)(0.694059f, 0.371056f, -0.616927f)*200.0f);
+  MapUnionG(avoid, pt, dist, 1, (float3)(0.8f, 0.0f, 0.2f));
 }
 
 void Panel ( float id, int avoid, float3 origin, SampledPt* pt, float3 dval ) {
   origin += (float3)(-2.434f, -1.693f, 3.204f);
-  origin.y += 1.0f*pow(id, 0.9f);
-  origin.z += -0.572f*pow(id, 1.081f);
-  origin.yz = opRotate(origin.yz,  pow((4.0f - id)+1.0f, 2.0f)*0.02f*2.657f);
+  float angle = id/4.0f * PI/2.0f; 
+  origin.y += sin(angle)*-1.9f + cos(angle)*1.0f;
+  origin.z += sin(angle)*2.0f + cos(angle)*-2.0f;
+  origin.yz = opRotate(origin.yz,  angle);
   float dist = sdBox(origin, (float3)(3.0f, 0.116f, 0.4f));
   MapUnionG(avoid, pt, dist, 0, (float3)(0.4f, 0.4f, 0.5f));
 }

@@ -28,8 +28,8 @@ typedef struct T_Material {
 } Material;
 
 typedef struct T_Emitter {
-  float3 origin;
-  float radius, emission;
+  float3 origin, emission;
+  float radius;
 } Emitter;
 
 typedef struct T_SceneInfo {
@@ -95,8 +95,8 @@ SampledPt Map ( int a, float3 origin, SCENE_T(si, Tx) ) {
 
   // approx lighting with emissions
   for ( int i = 0; i != EMITTER_AMT; ++ i ) {
-    Emitter e = REmission(i);
-    float dist = sdSphere(origin + e.origin, e.radius);
+    Emitter e = REmission(i, si->time);
+    float dist = sdSphere(origin - e.origin, e.radius);
     MapUnionG(a, &res, dist, 0, (float3)(1.0f, 0.9f, 0.8f)*e.emission);
   }
 

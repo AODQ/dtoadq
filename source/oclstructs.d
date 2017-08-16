@@ -48,7 +48,7 @@ auto Construct_Camera(float[3] pos, float[3] dir, int[2] dim) {
   return Camera(
     To_CLFloat3(pos), To_CLFloat3(dir), To_CLFloat3([0.0f, 1.0f, 0.0]),
     dimensions,
-    60.0f
+    110.0f
   );
 }
 
