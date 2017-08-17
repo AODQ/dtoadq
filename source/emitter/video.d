@@ -1,10 +1,6 @@
-module videorender;
-import globals;
+module emitter.video;
 import progress : Progress;
-import YFM = y4md;
-import DTOADQ = dtoadq;
-import KI = kernelinfo;
-import DIMG = dtoadqimage;
+import y4md, dtoadq;
 
 Progress progress;
 YFM.Y4MWriter output;

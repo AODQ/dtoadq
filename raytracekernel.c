@@ -1,4 +1,3 @@
-module raytracekernel; immutable(string) Raytrace_kernel = q{
 #define MAX_DEPTH 16
 #define MARCH_DIST //%MARCH_DIST.0f
 #define MARCH_REPS //%MARCH_REPS
@@ -226,4 +225,4 @@ __kernel void DTOADQ_Kernel (
   img[irwx] = (unsigned char)(colour.x);
   img[irwy] = (unsigned char)(colour.y);
   img[irwz] = (unsigned char)(colour.z);
-}};
+}

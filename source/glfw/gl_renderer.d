@@ -1,6 +1,9 @@
 module gl_renderer;
-import globals;
+/***
+  A simple GL3 renderer for the CL-GL interop texture, renders at full-screen
+***/
 import derelict.opengl3.gl3;
+static import stl;
 
 private GLuint shader_id;
 private int def_attr_tex;
@@ -33,8 +36,7 @@ private const GLchar* fragment_shader =  `
   in vec2 Texcoord;
   uniform sampler2D Tex;
   void main() {
-    gl_FragColor.rgb = texture(Tex, Texcoord).rgb;
-    gl_FragColor.a = 1.0;
+    gl_FragColor.rgba = vec4(texture(Tex, Texcoord).rgb, 1.0);
   }
 `;
 
@@ -42,17 +44,18 @@ private void Check_Shader_Error ( int handle, string type ) @trusted {
   GLint compile_status;
   glGetShaderiv(handle, GL_COMPILE_STATUS, &compile_status);
   if ( compile_status == GL_FALSE ) {
-    writeln(type ~ " shader compilation failed");
-    writeln("--------------------------------------");
+    stl.writeln(type ~ " shader compilation failed");
+    stl.writeln("--------------------------------------");
 
   GLchar[256] error_message;
     glGetShaderInfoLog(handle, 256, null, error_message.ptr);
-    writeln(error_message);
-    writeln("--------------------------------------");
+    stl.writeln(error_message);
+    stl.writeln("--------------------------------------");
     assert(0);
   }
 }
 
+/// Initialize OpenGL buffers/objects, texture and shader
 void Renderer_Initialize() {
   // --- create shader ---
   shader_id      = glCreateProgram();
@@ -72,12 +75,12 @@ void Renderer_Initialize() {
   GLint compile_status;
   glGetProgramiv(shader_id, GL_LINK_STATUS, &compile_status);
   if ( compile_status == GL_FALSE ) {
-    writeln("link shader compilation failed");
-    writeln("--------------------------------------");
+    stl.writeln("link shader compilation failed");
+    stl.writeln("--------------------------------------");
     GLchar[256] error_message;
     glGetProgramInfoLog(shader_id, 256, null, error_message.ptr);
-    writeln(error_message);
-    writeln("--------------------------------------");
+    stl.writeln(error_message);
+    stl.writeln("--------------------------------------");
     assert(0);
   }
   def_attr_tex  = glGetAttribLocation (shader_id, "Tex"   );
@@ -100,17 +103,16 @@ void Renderer_Initialize() {
 }
 
 import derelict.opencl.cl : cl_event;
+/// Render a texture, syncing the opencl image_event
 void Render ( GLuint texture, cl_event image_event ) {
-  import globals;
-
   // -- make sure OpenCL work on target is done --
+  // I've found this unnecessary and slows rendering
   // {
   //   import opencl;
   //   Sync_GL_Event(image_event);
   // }
 
   // -- render texture --
-
   import derelict.opengl3.arb;
   glUseProgram(shader_id);
   glBindVertexArray(VAO);
@@ -127,11 +129,11 @@ void Render ( GLuint texture, cl_event image_event ) {
 }
 
 
-void Error_Check ( string desc ) {
+private void Error_Check ( string desc ) {
   auto res = glGetError();
   assert(res == 0, "Found error: " ~ glErrorString(res) ~ " at " ~ desc);
 }
-string glErrorString(GLenum err) {
+private string glErrorString(GLenum err) {
   switch(err) {
     case GL_INVALID_ENUM:      return "Invalid Enum";
     case GL_INVALID_VALUE:     return "Invalid Value";

@@ -1,6 +1,7 @@
-module input;
+module glfw.input;
 
 import derelict.glfw3;
+import stl;
 
 private bool mouse_left, mouse_right, mouse_middle, mouse_x1;
 private float mouse_x, mouse_y, mouse_x_stick, mouse_y_stick;
@@ -54,4 +55,43 @@ bool RKey_Input ( size_t key, bool silent = true ) in {
   auto ks = keystate[key];
   keystate[key] = silent&&ks;
   return ks;
+}
+
+private struct CameraInputInfo {
+  struct InputAxis {
+    float cos_theta, sin_theta;
+  }
+
+  InputAxis position, direction;
+  bool update_camera;
+
+  static auto New ( ) {
+    CameraInputInfo info;
+    bool update_camera;
+    auto Input_Arr()(int u, int l, int r, int d) {
+      float cos_theta = cast(float)(RKey_Input(u) - RKey_Input(d)),
+            sin_theta = cast(float)(RKey_Input(l) - RKey_Input(r));
+      update_camera |= stl.fabs(cos_theta)+stl.fabs(sin_theta) > float.epsilon;
+      return InputAxis(cos_theta, sin_theta);
+    }
+    return CameraInputInfo(Input_Arr(87, 65, 68, 83), Input_Arr(75, 72, 76, 74),
+                           update_camera);
+  }
+}
+
+import ocl : Camera;
+bool Update_Camera ( ref Camera camera ) {
+  bool update_camera = false;
+
+  auto input_info = CameraInputInfo();
+  { // position
+    float angle = stl.PI - camera.lookat[0]*2.0f*PI;
+    camera.position[0] += input_info.position.cos_theta*0.1f;
+    camera.position[2] += input_info.position.sin_theta*0.1f;
+  }
+  { // lookat
+    camera.lookat[0] += input_info.direction.cos_theta*0.001f;
+    camera.lookat[1] += input_info.direction.sin_theta*0.001f;
+  }
+  return input_info.update_camera;
 }

@@ -1,50 +1,29 @@
 module dtoadq;
-import globals;
-import oclstructs;
-static import KI   = kernelinfo;
-static import DIMG = dtoadqimage;
-static import OCL  = opencl;
-static import GL   = gl_renderer;
-static import stl;
 import derelict.opencl.cl : cl_event;
 import parser : Reparse_Files;
+static import core.shared_info;
 
-private class DTOADQ {
-  // -- kernel arguments
-  DIMG.Image image;
-  DIMG.GLImage gl_image; // only for texture
-  ubyte[] rw_image;
-  int[] rng;
-  SharedInfo shared_info;
-  Camera camera;
-  Material[] material;
-  float timer = 0.0f;
-  // -- opengl/opencl events
-  cl_event image_unlock_event;
-  // -- kernel debug
-  float[] debug_vals;
-  bool update_timer = false,
-       update_kernel = true;
-  bool running = true;
+private cl_event image_unlock_event;
+private float[] debug_values;
+private bool update_timer  = false,
+             update_kernel = true;
+private bool running = true;
+
+private void Initialize ( ) {
+  debug_vals = [ 0.0f, 0.0f, 0.0f ];
+  camera = opencl.Construct_Camera([2.5f, 0.0f, 6.0f], [-0.06f, 0.4f, -1.0f],
+                                  [image.x, image.y]);
+  shared_info.finished_samples = 0;
+  material = [];
+  Set_Image_Buffer(DIMG.Resolution.r160_140, true);
+}
 
   // -- funcs
   this ( ) {
-    debug_vals = [ 0.0f, 0.0f, 0.0f ];
-    camera = Construct_Camera([2.5f, 0.0f, 6.0f], [-0.06f, 0.4f, -1.0f],
-                                    [image.x, image.y]);
-    shared_info.finished_samples = 0;
-    material = [];
-    Set_Image_Buffer(DIMG.Resolution.r160_140, true);
   }
 
   void Set_Image_Buffer ( DIMG.Resolution resolution, bool force = false ) {
-    if ( force || image.resolution != resolution ) {
-      shared_info.clear_img = true;
-      image = DIMG.RImage(resolution);
-      rw_image.length = image.x*image.y*4;
-      camera.dimensions.x = image.x;
-      camera.dimensions.y = image.y;
-    }
+    core.shared_info.Set_Image_Buffer(resolution, force);
   }
 
   bool Compile ( string kernel_name ) {
@@ -53,55 +32,44 @@ private class DTOADQ {
   }
 
   void Update_DTOADQ ( ) {
-    auto imgs = DIMG.RImages();
-    // -- buffer --
-    bool should_reparse = Reparse_Files();
-    // -- camera/gui/etc --
-    static float previous_timer = 0.0f;
-    shared_info.clear_img |= camera.Update|KI.Should_Recompile()|should_reparse;
-    shared_info.clear_img |= stl.abs(previous_timer - timer) > 0.0f;
-    previous_timer = timer;
+    auto imgs = core.image.RImages();
+    bool should_reparse = Reparse_Files() | core.shared_info.Update_Buffer();
     // -- kernel --
-    if ( KI.Should_Recompile(false) || should_reparse ) {
+    if ( kernel.info.Should_Recompile(false) || should_reparse ) {
       import std.datetime;
-      if ( Compile("DTOADQ_Kernel") ) {
-        writeln("Recompiled @ ", Clock.currTime);
-      } else {
-        writeln("Failed to compiled @ ", Clock.currTime);
-      }
+      stl.writeln("Compile " ~ (Compile("DTOADQ_Kernel")?"Success":"Failure") ~
+                  ": " ~ Clock.currTime);
       return;
     }
-    // -- random numbers --
-    {
-      import stl;
-      rng = iota(0, 32).map!(n => n = uniform(-int.max, int.max)).array;
+    { // Run kernel
+      static import info = core.shared_info;
+      info.image.Lock();
+      OCL.Run(
+        OCL.CLStoreMem(info.rw_image),
+        info.image.RWrite(),
+        OCL.CLStoreMem(info.image_meta_data),
+        info.camera,
+        info.timer,
+        OCL.CLPredefinedMem(info.imgs),
+        info.material,
+        info.debug_vals,
+        info.rng,
+        // kernel size
+        info.image.x, info.image.y
+      );
+      info.image.Unlock();
+      info.image_meta_data.clear_img = false;
     }
-    //
-    image.Lock();
-    OCL.Run(
-      OCL.CLStoreMem(rw_image),
-      image.RWrite(),
-      OCL.CLStoreMem(shared_info),
-      camera,
-      timer,
-      OCL.CLPredefinedMem(imgs),
-      material,
-      debug_vals,
-      rng,
-      // kernel size
-      image.x, image.y
-    );
-    image.Unlock();
-    shared_info.clear_img = false;
   }
+
   void Update_Render ( ) {
     Update_DTOADQ();
-    static import VI = videorender;
-    auto len = DIMG.RResolution_Length(VI.RRender_Resolution);
-    if ( shared_info.finished_samples >= len ) {
-      running = !VI.Update(rw_image[0..len*3]);
-      shared_info.finished_samples = 0;
-      shared_info.clear_img = true;
+    // static import VI = videorender;
+    // auto len = DIMG.RResolution_Length(VI.RRender_Resolution);
+    // if ( shared_info.finished_samples >= len ) {
+    //   running = !VI.Update(rw_image[0..len*3]);
+    //   shared_info.finished_samples = 0;
+    //   shared_info.clear_img = true;
     }
   }
   void Update_Texture ( ) {
@@ -130,11 +98,11 @@ private DTOADQ dtoadq;
 
 void Initialize () {
   // initialize opengl, opencl, images
-  GL.Renderer_Initialize();
-  OCL.Initialize();
-  DIMG.Initialize();
+  glfw.Renderer_Initialize();
+  ocl.Initialize();
+  core.image.Initialize();
   // kernelinfo configure
-  KI.Configure();
+  kernel.info.Configure();
   // initialize DTOADQ
   dtoadq = new DTOADQ();
 }

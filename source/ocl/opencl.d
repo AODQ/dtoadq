@@ -1,12 +1,12 @@
-module opencl;
+module ocl.opencl;
 /**
   A general-purpose opencl module, though most parts are specific to my
     project. For example, to run the kernel you may only use two-dimensional
     global group, most functions only exist on a per-demand-basis, etc
 */
 public import derelict.opencl.cl;
-import std.stdio;
-import openclmisc;
+import std.stdio : write, writeln;
+import ocl.misc;
 
 alias cl_context              CLContext;
 alias cl_context_properties[] CLContextProperties;

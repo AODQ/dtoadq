@@ -1,4 +1,3 @@
-module dtoadqkernel; immutable(string) DTOADQ_kernel = q{
 #define MAX_DEPTH 8
 #define MARCH_DIST //%MARCH_DIST.0f
 #define MARCH_REPS //%MARCH_REPS
@@ -265,7 +264,7 @@ float3 BSDF_Sample ( float3 wi, float3 normal, Material* m, float* out_pdf,
                      float3* out_bsdf, SCENE_T(si, Tx)) {
   float3 wo;
   wo = normalize(Hemisphere_Direction(si->rng, normal));
-
+ 
   *out_pdf = fabs(wo.z)*IPI;
   *out_bsdf = (float3)(IPI*m->diffuse);
   return wo;
@@ -674,6 +673,3 @@ __kernel void DTOADQ_Kernel (
   // }
 }
 // DTOADQ_kernel string
-};
-
-

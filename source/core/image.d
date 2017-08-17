@@ -1,4 +1,4 @@
-module dtoadqimage;
+module glfw.image;
 import globals, opencl;
 static import OCL = opencl;
 static import DIMG = dtoadqimage;

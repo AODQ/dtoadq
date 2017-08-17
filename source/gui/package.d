@@ -1,4 +1,4 @@
-module gui.gui;
+module gui;
 import globals;
 import derelict.imgui.imgui;
 import oclstructs;

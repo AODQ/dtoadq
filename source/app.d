@@ -1,17 +1,15 @@
 import std.stdio;
-import globals;
 import derelict.imgui.imgui,
        derelict.opengl3.gl3,
-       derelict.glfw3,
-       imgui_glfw;
-static import DTOADQ = dtoadq;
-static import GLFW   = glfw;
-static import Files  = gui.files;
+       derelict.glfw3;
+static import stl, glfw, dtoadq;
 
 void Init () {
-  GLFW.Initialize();
-  DTOADQ.Initialize();
-  Files.Initialize();
+  static import configurations, gui;
+  configurations.Configure();
+  glfw   .Initialize();
+  dtoadq .Initialize();
+  gui    .Initialize();
 }
 
 void Update () {
@@ -21,23 +19,22 @@ void Update () {
   igImplGlfwGL3_NewFrame();
   static float curr_time = 0.0f, prev_time = 0.0f;
   curr_time = glfwGetTime();
-  DTOADQ.Add_Time(curr_time - prev_time);
+  dtoadq.Add_Time(curr_time - prev_time);
   prev_time = curr_time;
-  DTOADQ.Update();
+  dtoadq.Update();
 }
 
 void Render ( ) {
   glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
   glClear(GL_COLOR_BUFFER_BIT);
-  DTOADQ.Render();
+  dtoadq.Render();
   igRender();
-  GLFW.Swap_Buffer();
+  glfw.Swap_Buffer();
 }
 
 bool running = true;
 
 void main(string[] arguments) {
-
   // check for --version and --help
   if ( arguments.length > 1 ) {
     switch ( arguments[1] ) {
@@ -67,7 +64,7 @@ void main(string[] arguments) {
   scope ( exit ) {
     glfwTerminate();
     igImplGlfwGL3_Shutdown();
-    DTOADQ.Clean_Up();
+    dtoadq.Clean_Up();
   }
 
   Init();
@@ -98,8 +95,7 @@ void main(string[] arguments) {
     Render();
     // -- close ? --
     import input;
-    running = DTOADQ.RRunning;
+    running = dtoadq.RRunning;
     if ( RKey_Input(96) ) running = false;
   }
-  writeln("DTOADQ Exitted");
 }

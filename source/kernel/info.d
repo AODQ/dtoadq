@@ -1,27 +1,24 @@
-module kernelinfo;
-import globals;
-static import OCL = opencl;
+module kernel.info;
+static import stl, ocl;
 
-enum ProceduralType { Texture, Scene };
-enum KernelType { Raytrace, MLT, VideoRender };
+enum KernelType { DTQ, Raytrace, Texture, VideoRender };
 enum KernelVar  { March_Dist, March_Reps, March_Acc }
 private struct KernelInfo {
   string filename;
 
   KernelType type;
   int [KernelVar] vars;
-  ProceduralType procedural_type;
   bool recompile;
 }
 
 private KernelInfo kernel_info;
 
 ProceduralType String_To_ProceduralType ( string str ) {
-  auto ind = str.indexOf(".");
+  auto ind = stl.indexOf(str, ".");
   if ( ind != -1 ) str = str[ind+1 .. $];
   switch ( str ) {
     default:
-      writeln("'", str, "' filetype not supported");
+      stl.writeln("'", str, "' filetype not supported");
     return ProceduralType.Scene;
     case "dtq": return ProceduralType.Scene;
     case "txt": return ProceduralType.Texture;
@@ -59,16 +56,11 @@ auto Should_Recompile ( bool silent = true ) {
   return ret;
 }
 
-auto Configure ( ) {
-  static import config;
-  kernel_info.filename = config.RDefault_Project();
-}
-
 static this ( ) {
   with ( KernelInfo ) {
     kernel_info = KernelInfo(
       "projects/globals/defaultscene.dtq",
-      KernelType.MLT,
+      KernelType.DTQ,
       [ KernelVar.March_Dist : 355, KernelVar.March_Reps : 256,
        KernelVar.March_Acc : 10 ],
       ProceduralType.Scene

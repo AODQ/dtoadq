@@ -1,6 +1,7 @@
-﻿module imgui_glfw;
-// -- I didn't write this code, it comes standard for IMGUI, and the port was
-//    done as an example in CIMGUI
+﻿module imgui;
+/// ImGui GLFW binding with OpenGL3 + shaders, from IMGUI's GLFW opensource impl
+/// "You can copy and use unmodified imgui_impl_* files in your project."
+/// This port to D is from https://github.com/Extrawurst/imgui_d_test .
 
 import derelict.imgui.imgui;
 import derelict.opengl3.gl3;

@@ -1,7 +1,13 @@
-import derelict.glfw3.glfw3, imgui_glfw;
-import derelict.imgui.imgui, derelict.opengl3.gl3;
-import globals;
-static import Config = config;
+module glfw;
+/***
+  A minimalistic implementation of my Art of Dwarfiqorn game framework, but
+  trying GLFW instead of SDL and focused on rendering a single cl/gl interop
+  texture.
+***/
+public import glfw.gl_renderer, glfw.input, glfw.image;
+import derelict.imgui.imgui, derelict.opengl3.gl3, derelict.glfw3.glfw3;
+import glfw.imgui;
+static import glfw.config;
 
 GLFWwindow* window;
 
@@ -22,9 +28,9 @@ void Initialize ( ) {
   glfwSwapInterval(30);
 	glfwInit();
 
-  auto win_size = Config.RWindow_Size();
+  auto win_size = glfw.config.RWindow_Size();
   window = glfwCreateWindow(win_size[0], win_size[1], "DTOADQ", null, null);
-  auto win_pos  = Config.RWindow_Pos();
+  auto win_pos  = glfw.config.RWindow_Pos();
   if ( win_pos[0] != -1 && win_pos[1] != -1 )
     glfwSetWindowPos(window, win_pos[0], win_pos[1]);
 
