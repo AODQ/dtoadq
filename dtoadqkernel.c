@@ -474,7 +474,7 @@ SampledPt Colour_Pixel ( Ray ray, SCENE_T(si, Tx) ) {
     ray.dir = bsdf_info.wo;
     ray.origin = hit;
   }
-  result.colour = colour;
+  result.colour = fabs(colour);
   return result;
 }
 //   // Bidirectional Path Tracing . .
@@ -654,7 +654,6 @@ __kernel void DTOADQ_Kernel (
     img[pt+3] = (unsigned char)(old_colour.w);
     //
   }
-
   // convert to Y CB R, from matlab
   // if ( sinfo->finished_samples >= camera.dim.x*camera.dim.y ) {
   //   float3 colour;

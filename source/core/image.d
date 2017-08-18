@@ -1,8 +1,7 @@
-module glfw.image;
-import globals, opencl;
-static import OCL = opencl;
-static import DIMG = dtoadqimage;
-static import KI = kernelinfo;
+module core.image;
+static import stl, ocl;
+import core.kernel : Run_Texture;
+/// TODO: split the opencl related components into ocl module
 
 private void Allocate_GL_Texture ( ref uint gl_texture, int width, int height ){
   import derelict.opengl3.gl3;
@@ -16,12 +15,12 @@ private void Allocate_GL_Texture ( ref uint gl_texture, int width, int height ){
 }
 
 private struct CLGLImage {
-  OCL.CLPredefinedMem cl_handle;
+  ocl.CLPredefinedMem cl_handle;
   uint gl_texture;
   this ( int width, int height ) {
     foreach ( it; 0 .. 2 ) {
       Allocate_GL_Texture(gl_texture, width, height);
-      cl_handle = OCL.Create_CLGL_Texture(gl_texture);
+      cl_handle = ocl.Create_CLGL_Texture(gl_texture);
     }
   }
 
@@ -29,14 +28,47 @@ private struct CLGLImage {
   }
 }
 
+/// Only have to introduce a new enum element here to add a resolution
+/// (You can't have run-time resolutions as all OGL-ocl image buffers must be
+///  constructed before they share contexts)
 enum Resolution {
-  r160_140,
-  r640_360,
-  r960_540,
-  r1366_768,
-  r1920_1080,
-  r4096_2304,
+  r160_140,   r640_360,   r960_540,
+  r1366_768,  r1920_1080, r4096_2304,
   r8192_4608,
+}
+
+/// Returns struct{enum_ "r160_140", str "160x140", x 160, y 140}
+/// Should only be used during compile-time, use map_info for run-time
+private auto Resolution_Info ( Resolution r ) {
+  struct Info { string enum_, str; int x, y; }
+  string enum_ = stl.to!string(r),
+         str   = stl.replace(enum_[1 .. $], "_", "x");
+  auto dims = stl.array(stl.map!(n => stl.to!int(n))(stl.splitter(str, "x")));
+  return Info(enum_, str, dims[0], dims[1]);
+}
+
+/// Returns strings of all resolutions, indexeable by enum
+string[] Resolution_Strings ( ) {
+  import std.traits;
+  string[] results;
+  foreach ( res; [EnumMembers!Resolution] )
+    results ~= stl.to!string(res);
+  return results;
+}
+
+string RResolution_String ( Resolution r ) {
+  string RResolution_String_Switch ( string res_var ) {
+    import std.traits, stl : format;
+    string results = `final switch ( %s ) {`.format(res_var);
+    foreach ( immutable res; [EnumMembers!Resolution] ) {
+      auto info = Resolution_Info(res);
+      results ~= `case Resolution.%s: return "%s";`
+                  .format(info.enum_, info.str);
+    }
+    return results ~ `}`;
+  }
+
+  mixin(RResolution_String_Switch("r"));
 }
 
 private struct ImageInfo {
@@ -58,19 +90,17 @@ struct Image {
 
   void Lock ( ) {
     import derelict.opengl3.gl3;
-    static import OCL = opencl;
-    OCL.Lock_CLGL_Image(image.cl_handle);
+    ocl.Lock_CLGL_Image(image.cl_handle);
   }
 
   void Unlock ( ) {
-    static import OCL = opencl;
-    OCL.Unlock_CLGL_Image(image.cl_handle);
+    ocl.Unlock_CLGL_Image(image.cl_handle);
   }
 
-  auto RWrite  ( ) { return image.cl_handle ; }
-  auto RRender ( ) { return image.gl_texture; }
+  ocl.CLPredefinedMem RWrite  ( ) { return image.cl_handle ; }
+  uint                RRender ( ) { return image.gl_texture; }
 
-  auto RResolution ( ) { return _image_info.resolution; }
+  Resolution RResolution ( ) { return _image_info.resolution; }
 }
 
 
@@ -94,24 +124,25 @@ public class GLImage {
 }
 
 public struct CLImage {
-  cl_mem memory;
+  ocl.cl_mem memory;
   this ( int width, int height, int amt, void* data ) {
-    memory = OCL.Create_CL_Image(CL_MEM_READ_ONLY,
-      cl_image_format(CL_RGBA, CL_FLOAT),
-      cl_image_desc  (CL_MEM_OBJECT_IMAGE2D, width, height, 1,
+    memory = ocl.Create_CL_Image(ocl.CL_MEM_READ_ONLY,
+      ocl.cl_image_format(ocl.CL_RGBA, ocl.CL_FLOAT),
+      ocl.cl_image_desc  (ocl.CL_MEM_OBJECT_IMAGE2D, width, height, 1,
                        0,  0, 0, 0, 0, null), data);
   }
 }
 
-private cl_mem cl_image_array;
+private ocl.cl_mem cl_image_array;
 private string[] cl_image_names;
 
 /// Sets cl_image_array
 private void Create_Images(int width, int height, int len, inout float[] data){
+  import ocl;
   if ( cl_image_array !is null ) {
     clReleaseMemObject(cl_image_array);
   }
-  cl_image_array = OCL.Create_CL_Image(CL_MEM_READ_ONLY,
+  cl_image_array = ocl.Create_CL_Image(CL_MEM_READ_ONLY,
     cl_image_format(CL_RGBA, CL_FLOAT),
     cl_image_desc  (CL_MEM_OBJECT_IMAGE2D_ARRAY, width, height, 1, len,
                     0, 0, 0, 0, null), cast(void*)data.ptr);
@@ -130,42 +161,17 @@ void Create_Images ( string[] filenames ) {
   // recreate images... might take some time :-[
   float[] data;
   foreach ( fil; filenames ) {
-    if ( !std.file.exists(fil) ) {
-      writeln("ERROR: TEXTURE FILE '", fil, "' DOES NOT EXIST");
+    if ( !stl.file.exists(fil) ) {
+      stl.writeln("ERROR: TEXTURE FILE '", fil, "' DOES NOT EXIST");
       return;
     }
-    data ~= Kernel_Run_Texture(1024, fil);
+    data ~= Run_Texture(fil);
   }
 
   Create_Images(1024, 1024, cast(int)filenames.length, data);
 }
 
-/// Compiles, runs kernel & returns the texture as a DIMG.GLImage
-float[] Kernel_Run_Texture ( int dim, string filename ) {
-  static import DIMG = dtoadqimage;
-  // save current state
-  auto prev_filename  = KI.RFilename,
-       prev_recompile = KI.Should_Recompile;
-  KI.Set_Map_Function(filename);
-  {
-    import parser;
-    OCL.Compile(Parse_Kernel(), "Texture_kernel");
-  }
-  float[] t_img;
-  t_img.length = 4*dim*dim;
-  DIMG.GLImage gl_image = new DIMG.GLImage(dim, dim);
-
-  float fl_dim = dim;
-  OCL.Run(OCL.CLStoreMem(t_img), fl_dim, dim, dim);
-  // restore previous state
-  KI.Set_Map_Function(prev_filename);
-  if ( !prev_recompile ) {
-    KI.Clear_Recompile();
-  }
-  return t_img;
-}
-
-cl_mem RImages ( ) {
+ocl.cl_mem RImages ( ) {
   // sort of like a singleton, we always want cl_image_array to be a valid
   // cl_mem object
   if ( cl_image_array is null ) {
@@ -179,11 +185,11 @@ private Resolution [string] resolution_string;
 private ImageInfo[Resolution] image_info;
 private Image    [Resolution] images;
 
-auto RImage_Info ( Resolution resolution ) {
+ImageInfo RImage_Info ( Resolution resolution ) {
   return image_info[resolution];
 }
 
-auto RImage ( Resolution resolution ) {
+Image RImage ( Resolution resolution ) {
   return images[resolution];
 }
 
@@ -191,38 +197,22 @@ ulong RResolution_Length(Resolution resolution) {
   return image_info[resolution].x * image_info[resolution].y;
 }
 
-string[] RResolution_Strings ( ) {
-  return [ "160x140",
-           "640x360",
-           "960x540",
-           "1366x768",
-           "1920x1080",
-           "4096x2304",
-           "8192x4608",
-  ];
-}
-
 static this ( ) {
+  string RImage_Info_Constructor ( string res_var ) {
+    import std.traits, stl : format;
+    string results = `%s = [`.format(res_var);
+    foreach ( immutable res; [EnumMembers!Resolution] ) {
+      auto info = Resolution_Info(res);
+      // r160_140 : ImageInfo(r160_140, "160x140", 160, 140, 22_400)
+      results ~= `%s : ImageInfo(%s, "%s", %d, %d, %d),`
+              .format(info.enum_, info.enum_, info.str, info.x, info.y,
+                      info.x*info.y);
+    }
+    return results ~ `];`;
+  }
+
   with ( Resolution ) {
-    alias II = ImageInfo;
-    image_info = [
-      r160_140   : II(r160_140,   "160x140",   160,  140,  22_400    ),
-      r640_360   : II(r640_360,   "640x360",   640,  360,  230_400    ),
-      r960_540   : II(r960_540,   "960x540",   960,  540,  518_400    ),
-      r1366_768  : II(r1366_768,  "1366x768",  1366, 768,  1_049_088  ),
-      r1920_1080 : II(r1920_1080, "1920x1080", 1920, 1080, 2_073_600  ),
-      r4096_2304 : II(r4096_2304, "4096x2304", 4096, 2304, 9_437_184  ),
-      r8192_4608 : II(r8192_4608, "8192x4608", 8192, 4608, 37_748_736 ),
-    ];
-    resolution_string = [
-      "160x140"   : r160_140,
-      "640x360"   : r640_360,
-      "960x540"   : r960_540,
-      "1366x768"  : r1366_768,
-      "1920x1080" : r1920_1080,
-      "4096x2304" : r4096_2304,
-      "8192x4608" : r8192_4608,
-    ];
+    mixin(RImage_Info_Constructor("image_info"));
   }
 }
 

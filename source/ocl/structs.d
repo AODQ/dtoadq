@@ -8,8 +8,11 @@ struct Camera {
   cl_int flags;
 
   this ( float[3] pos, float[3] dir, int[2] dim ) {
+    static import stl;
     position = To_CLFloat3(pos);
+    stl.writeln(position);
     lookat = To_CLFloat3(dir);
+    stl.writeln(lookat);
     up = To_CLFloat3([0.0f, 1.0f, 0.0f]);
     dimensions.x = dim[0]; dimensions.y = dim[1];
     fov = 110.0f;
@@ -29,8 +32,8 @@ struct RNG {
 
   static RNG New ( ) {
     RNG rng;
-    import functional;
-    rng.seed = iota(0, 16).map!(n => n = n.uniform(0, cl_ulong.max).to!cl_ulong)
+    import functional, std.random, std.conv : to;
+    rng.seed = iota(0, 16).map!(n => uniform(0, cl_ulong.max).to!cl_ulong)
                           .array;
     return rng;
   }

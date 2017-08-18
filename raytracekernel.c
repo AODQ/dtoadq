@@ -181,7 +181,7 @@ Ray Camera_Ray(Camera* camera) {
 }
 
 // -----------------------------------------------------------------------------
-// --------------- KERNEL ------------------------------------------------------
+// --------------- RAYTRACE KERNEL ---------------------------------------------
 __kernel void DTOADQ_Kernel (
     __global unsigned char* img, // R G B ITER
     __write_only image2d_t output_image,

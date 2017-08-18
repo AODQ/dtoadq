@@ -1,5 +1,5 @@
 module parser.scene_parser;
-static import stl, file = parser.file;
+static import stl, core, parser.file;
 
 string RData_Subsection (string subsection)(ref string data) {
   auto rgx = stl.regex.ctRegex!(subsection~r"START([\s\S]*)"~subsection~r"END");
@@ -14,46 +14,45 @@ string RData_Subsection (string subsection)(ref string data) {
 }
 
 string Parse ( ) {
-  static import kernel.info;
   import stl : replace;
-  string data = file.parsed_kernel.Reprocess_Data.data;
+  string kernel = parser.file.parsed_kernel.Reprocess_Data.data,
+         scene  = parser.file.parsed_scene .Reprocess_Data.data;
 
-  string camera     = RData_Subsection!("CAMERA"    )(data),
-         update_map = RData_Subsection!("UPDATEMAP" )(data),
-         materials  = RData_Subsection!("MATERIALS" )(data),
-         textures   = RData_Subsection!("TEXTURES"  )(data),
-         emitter    = RData_Subsection!("EMITTER"   )(data);
+  string camera     = RData_Subsection!("CAMERA"    )(scene),
+         update_map = RData_Subsection!("UPDATEMAP" )(scene),
+         materials  = RData_Subsection!("MATERIALS" )(scene),
+         textures   = RData_Subsection!("TEXTURES"  )(scene),
+         emitter    = RData_Subsection!("EMITTER"   )(scene);
 
   { // textures (extract `0 filename.txt`)
     import functional;
     static import glfw;
-    glfw.image.Create_Images(
+    core.Create_Images(
       textures.split("\n").filter!(n => n != "")
               .map!(n => n.split(" ").array[1]).array);
   }
 
   { // materials
-    static import dtoadq;
-    dtoadq.Set_Material(materials);
+    core.Set_Material(stl.json.parseJSON(materials));
   }
 
   // map and scene insert
-  data = data
+  kernel = kernel
     .replace("//%MAPINSERT",
          `Update_Map(a, origin, &res, si->time, Tx, si->debug_values);`)
     .replace("//%SCENEINSERT",
          emitter ~ "\n" ~ camera ~ "\n" ~ update_map);
 
   // functions insert
-  auto function_data = file.RParsed_Function_Data();
-  data = data
+  auto function_data = parser.file.RParsed_Function_Data();
+  kernel = kernel
     .replace("//%MAPFUNCDECLARATIONS", function_data.declarations)
     .replace("//%MAPFUNCDEFINITIONS",  function_data.definitions);
 
   // constants insert
-  alias KV = kernel.info.KernelVar;
-  return data
-    .replace("//%MARCH_DIST", KI.RVar(KV.March_Dist).to!string)
-    .replace("//%MARCH_REPS", KI.RVar(KV.March_Reps).to!string)
-    .replace("//%MARCH_ACC",  KI.RVar(KV.March_Acc ).to!string);
+  alias KV = core.info.KernelVar;
+  return kernel
+    .replace("//%MARCH_DIST", stl.to!string(core.RKernel_Var(KV.March_Dist)))
+    .replace("//%MARCH_REPS", stl.to!string(core.RKernel_Var(KV.March_Reps)))
+    .replace("//%MARCH_ACC",  stl.to!string(core.RKernel_Var(KV.March_Acc )));
 }

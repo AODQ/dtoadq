@@ -1,4 +1,4 @@
-module gl_renderer;
+module glfw.gl_renderer;
 /***
   A simple GL3 renderer for the CL-GL interop texture, renders at full-screen
 ***/

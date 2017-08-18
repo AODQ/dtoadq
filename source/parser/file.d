@@ -80,12 +80,6 @@ struct File {
   mixin stl.RValRef;
 }
 
-private template Create_T_File ( string varname ) {
-  void Create_File ( string filename ) {
-    mixin(varname ~ ` = ` ~ typeof(this).stringof ~ `(File(filename))`);
-  }
-}
-
 private template File_Template_Functions ( string varname ) {
   File file_;
   alias file_ this;
@@ -97,9 +91,13 @@ private template File_Template_Functions ( string varname ) {
     file_ = Ref();
     file_type = file_type;
   }
+  static auto New ( string filename ) {
+    return typeof(this)(File(filename));
+  }
   /// Creates and stores from a given filename (for *File structs)
   static void Create_File ( string filename ) {
-    mixin(varname ~ ` = ` ~ typeof(this).stringof ~ `(File(filename)).Ref`);
+    import std.string : format;
+    mixin("%s = typeof(this).New(filename);".format(varname));
   }
 }
 
@@ -157,6 +155,7 @@ void Recompile_Files ( string[] filenames ) {
 auto RParsed_Function_Data ( ) {
   import functional;
   struct SceneData { string declarations, definitions; }
+  if ( parsed_functions.length == 0 ) return SceneData("", "");
   // [{dec, data}, ..] [[dec, data], ..] -> [[dec, ..], [data, ..]] ->
   // [dec ~ .., data ~ ..]
   auto value = parsed_functions.values.map!((f) {

@@ -1,4 +1,4 @@
-﻿module imgui;
+﻿module glfw.imgui;
 /// ImGui GLFW binding with OpenGL3 + shaders, from IMGUI's GLFW opensource impl
 /// "You can copy and use unmodified imgui_impl_* files in your project."
 /// This port to D is from https://github.com/Extrawurst/imgui_d_test .

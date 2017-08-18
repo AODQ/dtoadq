@@ -103,7 +103,8 @@ bool Compile ( inout string source, string kernel_name ) {
                           len, log.ptr, null);
     import std.algorithm : min;
     writeln("----------------------------------------------------------------");
-    writeln("LOG: ", log[0..min($, 350)]);
+    writeln("Failed to compile ", kernel_name);
+    writeln(log);
     return false;
   }
   if ( CL.kernel !is null )

@@ -1,13 +1,11 @@
 module gui.files;
-import derelict.imgui.imgui, globals;
+import derelict.imgui.imgui;
+static import stl, core.info;
 
 private string project_dir = "";
 
-void Initialize ( ) {
-  import config;
-  project_dir = RDefault_Project();
-  import std.string : lastIndexOf;
-  project_dir = project_dir[0 .. project_dir.lastIndexOf("/")];
+void Set_Project_Directory ( string dir ) {
+  project_dir = dir;
 }
 
 string Ext (T...) ( string str, T extensions ) {
@@ -33,7 +31,7 @@ auto RProject_Dir ( ) { return project_dir; }
 auto RGlobals_Dir ( ) { return "projects/globals"; }
 
 void Update_Directory ( string dir_prestr ) {
-  class Dir {
+  struct Dir {
     string dir_name;
     Dir[string] dirs;
     string[] files;
@@ -41,10 +39,10 @@ void Update_Directory ( string dir_prestr ) {
     this ( string dir_name_ ) { dir_name = dir_name_; }
 
     void Add ( bool is_file, string fname, string name ) {
-      auto ind = name.indexOf("/");
+      auto ind = stl.indexOf(name, "/");
       if ( ind == -1 ) {
         if ( is_file ) files ~= fname;
-        else dirs[name] = new Dir(name);
+        else dirs[name] = Dir(name);
       } else {
         string dir = name[0..ind];
         dirs[dir].Add(is_file, fname, name[ind+1..$]);
@@ -54,16 +52,16 @@ void Update_Directory ( string dir_prestr ) {
     void Render ( ) {
       foreach ( dir; dirs ) {
         // put igTreeNode here so the parent directory isn't displayed
-        if ( igTreeNode(dir.dir_name.toStringz) ) {
+        if ( igTreeNode(stl.toStringz(dir.dir_name)) ) {
           dir.Render();
           igTreePop();
         }
       }
       foreach ( fil; files ) {
-        static import KI = kernelinfo;
-        bool open = KI.RFilename == fil;
+        import std.string;
+        bool open = core.info.RFilename == fil;
         if ( igCheckbox(fil[fil.lastIndexOf('/')+1..$].toStringz, &open) ) {
-          KI.Set_Map_Function(fil);
+          core.info.Set_Map_Function(fil);
         }
       }
     }
@@ -72,7 +70,7 @@ void Update_Directory ( string dir_prestr ) {
   static import Fil = std.file;
   import functional;
   string dir = dir_prestr;
-  auto base_dir = new Dir(dir);
+  auto base_dir = Dir(dir);
   Fil.dirEntries(dir, Fil.SpanMode.breadth)
      .each!(n => base_dir.Add(n.isFile, n.name, n.name.replace(dir~"/", "")));
   base_dir.Render();
@@ -81,6 +79,7 @@ void Update_Directory ( string dir_prestr ) {
 void Update ( ref bool open ) {
   igBegin("File Browser", &open);
   if ( open ) {
+    import std.string;
     if ( igCollapsingHeader("globals") )
       Update_Directory(RGlobals_Dir);
     if ( igCollapsingHeader(project_dir.toStringz) )

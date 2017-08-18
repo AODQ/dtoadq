@@ -18,6 +18,6 @@ int[] RWindow_Pos ( ) {
   if ( !conf.Exists ) return Default_window_pos.dup;
   stl.json.JSONValue load = conf.JSON_Value;
 
-  try { return load.To_Int_Array(load["window-pos"].str); }
+  try { return conf.To_Int_Array(load["window-pos"].str); }
   catch ( Exception e ) { return Default_window_pos.dup; }
 }

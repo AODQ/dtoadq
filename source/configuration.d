@@ -20,8 +20,9 @@ int[] To_Int_Array ( string str ) { // not to!(int[]) b wary of json syntax
 
 /** Configures all module configs */
 auto Configure ( ) {
-  static import glfw.config, kernel.config, emitter.config;
+  static import glfw.config, core.config, emitter.config, gui.config;
   glfw   .config.Configure();
-  kernel .config.Configure();
+  core   .config.Configure();
   emitter.config.Configure();
+  gui    .config.Configure();
 }

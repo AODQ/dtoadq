@@ -1,6 +1,7 @@
 module ocl.misc;
 import derelict.opencl.cl;
 static import stl;
+import std.conv : to;
 
 auto RDevice_Info(cl_device_info info, cl_device_id device_id) {
   size_t dv_size = 5000;

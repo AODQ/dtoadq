@@ -3,7 +3,7 @@ static import stl, file = parser.file;
 
 private bool Valid_Function_File (string file) {
   return stl.file.isFile(file) &&
-         stl.RMatching_File_Extensions(file, ".c") == ".c";
+         stl.RMatching_File_Extensions(file, ".dtq") != ".dtq";
 }
 
 private string[] RNew_Function_Files ( string directory ) {
@@ -16,7 +16,7 @@ private string[] RNew_Function_Files ( string directory ) {
 
 /// Returns if any files have been modified
 bool Recheck_Files ( ) {
-  static int recheck_file_counter = 0;
+  static int recheck_file_counter = 249;
   bool status = false;
   // check new files created
   if ( !(++recheck_file_counter % 250) ) {

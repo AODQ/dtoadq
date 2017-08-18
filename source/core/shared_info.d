@@ -1,38 +1,39 @@
 module core.shared_info;
 import derelict.opencl.cl : cl_event;
-static import core.image, ocl, glfw;
+static import stl, ocl, glfw, core;
 
 // --- kernel arguments ----
-core.image.Image image;
-core.image.GLImage gl_image;
-ocl.structs.ImageMetaData image_meta_data;
-ocl.structs.Camera        camera;
-ocl.structs.Material[]    material;
+core.Image image;
+core.GLImage gl_image;
+ocl.ImageMetaData image_metadata;
+ocl.Camera        camera;
+ocl.Material[]    material;
 ubyte[] rw_image;
 int[] rng;
 float timer = 0.0f;
 
-void Set_Image_Buffer ( core.image.Resolution resolution, bool force ) {
-    if ( force || image.resolution != resolution ) {
-      shared_info.clear_img = true;
-      image = core.image.RImage(resolution);
-      rw_image.length = image.x*image.y*4;
-      camera.dimensions.x = image.x;
-      camera.dimensions.y = image.y;
-    }
+//// Sets image buffer (camera, gl images, etc) based off resolution
+void Set_Image_Buffer ( core.Resolution resolution, bool force ) {
+  if ( force || image.resolution != resolution ) {
+    image_metadata.clear_img = true;
+    image = core.RImage(resolution);
+    rw_image.length = image.x*image.y*4;
+    camera.dimensions.x = image.x;
+    camera.dimensions.y = image.y;
+  }
 }
 
-/// Returns if should reset progressive pixel sampling
+/// Updates all kernel arguments, and Returns if should reset progressive pixel
+/// sampling
 bool Update_Buffer ( ) {
-  static import kernel.info;
+  static import core.info;
   static float previous_timer = 0.0f;
   bool reset =  glfw.Update_Camera(camera)     |
-                kernel.info.Should_Recompile() |
                 (stl.abs(previous_timer - timer) > 0.0f);
   previous_timer = timer;
 
   {
-    import functional;
+    import functional, std.random;
     rng = iota(0, 32).map!(n => uniform(-int.max, int.max)).array;
   }
 

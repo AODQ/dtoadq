@@ -82,16 +82,21 @@ private struct CameraInputInfo {
 import ocl : Camera;
 bool Update_Camera ( ref Camera camera ) {
   bool update_camera = false;
+  import stl : cos, sin;
 
-  auto input_info = CameraInputInfo();
+  auto input_info = CameraInputInfo.New();
   { // position
-    float angle = stl.PI - camera.lookat[0]*2.0f*PI;
-    camera.position[0] += input_info.position.cos_theta*0.1f;
-    camera.position[2] += input_info.position.sin_theta*0.1f;
+    float A = stl.PI - camera.lookat[0]*2.0f*PI;
+    float X = input_info.position.sin_theta,
+          Y = -input_info.position.cos_theta;
+    camera.position[0] +=  (A.cos*X + -A.sin*Y)*0.1f;
+    camera.position[2] += -(A.sin*X + A.cos*Y)*0.1f;
+    camera.position[1] += cast(float)(RKey_Input(81) - RKey_Input(69))*0.1f;
+    input_info.update_camera |= RKey_Input(81) | RKey_Input(69);
   }
   { // lookat
-    camera.lookat[0] += input_info.direction.cos_theta*0.001f;
-    camera.lookat[1] += input_info.direction.sin_theta*0.001f;
+    camera.lookat[0] += input_info.direction.sin_theta*-0.01f;
+    camera.lookat[1] += input_info.direction.cos_theta*0.01f;
   }
   return input_info.update_camera;
 }
