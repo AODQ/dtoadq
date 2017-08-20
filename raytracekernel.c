@@ -5,13 +5,24 @@
 #define TEXTURE_T __read_only image2d_array_t
 #define SCENE_T(S, T) SceneInfo* S , TEXTURE_T T
 
+#define DFLT2(V) ((V).x), ((V).y)
+#define DFLT3(V) ((V).x), ((V).y), ((V).z)
+#define DFLT4(V) ((V).x), ((V).y), ((V).z), ((V).w)
+
+#define writeln(X)     if (Is_Debug()){printf(X "\n");                         }
+#define writeint(X)    if (Is_Debug()){printf(#X " %d\n",                 (X));}
+#define writefloat(X)  if (Is_Debug()){printf(#X " %f\n",                 (X));}
+#define writefloat2(X) if (Is_Debug()){printf(#X " %f, %f\n",        DFLT2(X));}
+#define writefloat3(X) if (Is_Debug()){printf(#X " %f, %f, %f\n",    DFLT3(X));}
+#define writefloat4(X) if (Is_Debug()){printf(#X " %f, %f, %f, %f\n",DFLT4(X));}
+
 __constant float MARCH_ACC = //%MARCH_ACC.0f/1000.0f;
 // -----------------------------------------------------------------------------
 // --------------- DEBUG -------------------------------------------------------
 // Variadic functions not supported, so this is best you get :-(
-bool Is_Debug_Print ( ) {
-  return get_global_id(0) == 200 &&
-         get_global_id(1) == 200;
+bool Is_Debug ( ) {
+  return get_global_id(0) == get_global_size(0)/2 &&
+         get_global_id(1) == get_global_size(1)/2;
 }
 // -----------------------------------------------------------------------------
 // --------------- GPU-CPU STRUCTS ---------------------------------------------
@@ -146,6 +157,10 @@ SampledPt March ( int avoid, Ray ray, SCENE_T(si, Tx) ) {
 
 SampledPt Colour_Pixel(Ray ray, SCENE_T(si, Tx) ){
   SampledPt result = March(-1, ray, si, Tx);
+  if ( result.dist > 0.0f ) {
+    writeln("----");
+    writefloat3(ray.origin + ray.dir*result.dist);
+  }
   float3 origin = ray.origin + ray.dir*result.dist;
   result.colour = result.colour;
   return result;

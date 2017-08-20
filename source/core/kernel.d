@@ -34,6 +34,7 @@ void Update_DTOADQ ( ) {
     import std.datetime;
     stl.writeln("Compile ", (Compile("DTOADQ_Kernel")?"Success":"Failure"),
                 ": ", Clock.currTime);
+    shared_info.image_metadata.clear_img = true;
     return;
   }
   if ( reset_spp ) {

@@ -1,8 +1,15 @@
 module parser.checker;
 static import stl, file = parser.file;
 
+private bool Not_Swap_File ( string file ) {
+  auto rgx = stl.regex.ctRegex!r"\.#";
+  return !stl.regex.matchFirst(file, rgx);
+}
+
 private bool Valid_Function_File (string file) {
-  return stl.file.isFile(file) &&
+  return Not_Swap_File(file) &&
+         stl.file.isFile(file) &&
+         (file.length > 2 && file[0..2] != ".#") &&
          stl.RMatching_File_Extensions(file, ".dtq") != ".dtq";
 }
 

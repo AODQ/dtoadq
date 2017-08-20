@@ -30,8 +30,8 @@ bool Imgui_Render ( ref ocl.Material[] materials, ref ocl.Camera camera ) {
         march_acc  = core.info.RVar(core.info.KernelVar.March_Acc)/1000.0f;
       }
       pkernel_type = kernel_type;
-      igRadioButton("Raytrace", &kernel_type, 0); igSameLine();
-      igRadioButton("MLT",      &kernel_type, 1);
+      igRadioButton("DTQ", &kernel_type, 0); igSameLine();
+      igRadioButton("Raytrace", &kernel_type, 1);
       if ( kernel_type != pkernel_type ) {
         core.info.Set_Kernel_Type(cast(core.info.KernelType)kernel_type);
       }

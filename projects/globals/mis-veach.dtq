@@ -28,17 +28,15 @@ void Update_Camera ( Camera* camera, float time ) {
 CAMERAEND
 
 EMITTERSTART
-__constant int EMITTER_AMT = 4;
+__constant int EMITTER_AMT = 1;
 Emitter REmission ( int index, float time ) {
   float f = (float)(index+1);
-  float3 origin = (float3)(8.5f + f*-2.4f, 6.0f, -4.5f);
-  origin.x += sin(time)*2.5f;
+  float3 origin = (float3)(8.5f + f*-12.4f, 6.0f, -4.5f);
+  origin.x += sin(time)*4.5f;
   origin.z += 4.0f + cos(time*f + f)*4.5f;
   // float radius   = 1.0f/f * 0.25f + (4.0f-f)*0.18f,
   //       emission = 1.0f;
-  float3 emission = (float3)(fabs(cos(f*2.43f)),
-                             fabs(sin(f*0.2f)), 0.9f);
-  return (Emitter){origin, emission, 1.0f};
+  return (Emitter){origin, (float3)(5.0f), 1.0f};
 }
 EMITTEREND
 
@@ -72,7 +70,7 @@ void Panel ( float id, int avoid, float3 origin, SampledPt* pt, float3 dval ) {
   origin.z += sin(angle)*2.0f + cos(angle)*-2.0f;
   origin.yz = opRotate(origin.yz,  angle);
   float dist = sdBox(origin, (float3)(3.0f, 0.116f, 0.4f));
-  MapUnionG(avoid, pt, dist, 0, (float3)(0.4f, 0.4f, 0.5f));
+  MapUnionG(avoid, pt, dist, 0, (float3)(9.4f, 0.4f, 0.5f));
 }
 
 void Panels ( int avoid, float3 origin, SampledPt* pt, float3 dval){

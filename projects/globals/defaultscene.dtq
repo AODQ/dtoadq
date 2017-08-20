@@ -32,10 +32,11 @@ void Update_Camera ( Camera* camera, float time ) {
 CAMERAEND
 
 EMITTERSTART
-__constant int EMITTER_AMT = 4;
-Emitter REmission ( int index ) {
+__constant int EMITTER_AMT = 1;
+Emitter REmission ( int index, float time ) {
   float fd = (float)(index+1);
-  return (Emitter){(float3)(-5.0f + fd*2.0f, -2.0f, 3.5f), fd/4.0f*2.5f, 1.0f/(fd/4.0f)};
+  return (Emitter){(float3)(-5.0f + fd*2.0f, 2.0f, 3.5f),
+                            (float3)(1.0f, 0.95f, 0.8f), 1.0f};
 }
 EMITTEREND
 

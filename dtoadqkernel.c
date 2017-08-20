@@ -133,11 +133,11 @@ float3 Uniform_Sample3 ( __global int* rng ) {
 
 float sqr(float t) { return t*t; }
 float Distance(float3 u, float3 v) {
-  float x = u.x+v.x, y = u.y+v.y, z = u.z+v.z;
+  float x = u.x-v.x, y = u.y-v.y, z = u.z-v.z;
   return sqrt(x*x + y*y + z*z);
 }
 float Distance_Sqr(float3 u, float3 v) {
-  float x = u.x+v.x, y = u.y+v.y, z = u.z+v.z;
+  float x = u.x-v.x, y = u.y-v.y, z = u.z-v.z;
   return (x*x + y*y + z*z);
 }
 
@@ -233,6 +233,31 @@ float3 refract(float3 V, float3 N, float refraction) {
 float3 To_Cartesian ( float sin_theta, float cos_theta, float phi ) {
   return (float3)(cos(phi)*sin_theta, sin(phi)*sin_theta, cos_theta);
 }
+
+float2 Sample_Concentric_Disk ( float2 u ) {
+  float2 offset = 2.0f*u - (float2)(1.0f);
+  if ( offset.x == 0.0f && offset.y == 0.0f ) return (float2)(0.0f);
+
+  float theta, r;
+  if ( fabs(offset.x) > fabs(offset.y) ) {
+    r = offset.x;
+    theta = (PI/4.0f)*(offset.y/offset.x);
+  } else {
+    r = offset.y;
+    theta = (PI/2.0f) - (PI/4.0f)*(offset.x/offset.y);
+  }
+  return r*(float2)(cos(theta), sin(theta));
+}
+
+float3 Sample_Cosine_Hemisphere ( float2 u ) {
+  float2 d = Sample_Concentric_Disk(u);
+  float z = sqrt(fmax(0.0f, 1.0f - SQR(d.x) - SQR(d.y)));
+  return (float3)(d.x, d.y, z);
+}
+
+float Cosine_Hemisphere_PDF ( float3 N, float3 wi ) {
+  return fmax(0.0f, dot(N, wi)) * IPI;
+}
 // Cosine weighted
 float3 Hemisphere_Direction ( __global int* rng, float3 normal ) {
   const float phi = TAU*Uniform_Sample(rng),
@@ -243,14 +268,16 @@ float3 Hemisphere_Direction ( __global int* rng, float3 normal ) {
 }
 
 
-float3 Cone_Direction( __global int* rng, float cos_theta_max,
-                       float3 normal, float3 tangent, float3 binormal ) {
-  float2 ur = (float2)(Uniform_Sample(rng), Uniform_Sample(rng));
-  float cos_theta = (1.0f - ur.x) + ur.x*cos_theta_max,
-        sin_theta = sqrt(1.0f - cos_theta*cos_theta);
-  float phi = ur.y*TAU;
-  float3 sample_v = To_Cartesian(sin_theta, cos_theta, phi);
-  return sample_v.x*normal + sample_v.y*tangent + sample_v.z*binormal;
+//// from PBRT
+float3 Uniform_Sample_Cone ( float2 u, float cos_theta_max ) {
+  float cos_theta = (1.0f - u.x) + u.x*cos_theta_max,
+        sin_theta = sqrt(1.0f - SQR(cos_theta));
+  float phi = u.y*TAU;
+  return To_Cartesian(cos(phi)*sin_theta, sin(phi)*sin_theta, cos_theta);
+}
+
+float Uniform_Cone_PDF ( float cos_theta_max ) {
+  return 1.0f/(TAU * (1.0f - cos_theta_max));
 }
 
 void Calculate_Binormals ( float3 N, float3* T, float3* B ) {
@@ -260,167 +287,85 @@ void Calculate_Binormals ( float3 N, float3* T, float3* B ) {
 }
 // -----------------------------------------------------------------------------
 // --------------- BSDF    FUNCS -----------------------------------------------
-float3 BSDF_Sample ( float3 wi, float3 normal, Material* m, float* out_pdf,
-                     float3* out_bsdf, SCENE_T(si, Tx)) {
+float3 BSDF_Sample ( float3 wi, float3 normal, Material* m, SCENE_T(si, Tx)) {
   float3 wo;
   wo = normalize(Hemisphere_Direction(si->rng, normal));
- 
-  *out_pdf = fabs(wo.z)*IPI;
-  *out_bsdf = (float3)(IPI*m->diffuse);
   return wo;
 }
 
-float3 BSDF_Evaluate ( float3 wo, Material* m, float* out_pdf ) {
-  *out_pdf = fabs(wo.z)*IPI;
+float3 BSDF_F ( float3 wi, float3 wo, Material* m ) {
   return (float3)(IPI*m->diffuse);
+}
+
+float BSDF_PDF ( float3 wi, float3 wo, Material* m ) {
+  return fabs(wi.z)*IPI;
 }
 
 // -----------------------------------------------------------------------------
 // --------------- LIGHT   FUNCS -----------------------------------------------
-float Visibility_Ray(Ray ray, float max_dist, int mindex, SCENE_T(si, Tx)) {
+float Visibility_Ray(Ray ray, int mindex, SCENE_T(si, Tx)) {
+  Emitter e = REmission(mindex, si->time);
+  float max_dist = Distance(ray.origin, e.origin);
   ray.origin += ray.dir*(MARCH_ACC+0.1f);
   SampledPt minfo = March(-1, ray, si, Tx);
+  return true;
   return step(max_dist, minfo.dist);
 }
 
-float3 Light_Emission(float distance) {
-  return (float3)(1.0f, 0.98f, 0.95f)/SQR(distance);
-}
-
-float3 Light_Sample ( float3 wi, float3 P, float3 N, Emitter* m, float* pdf,
-                      __global int* rng ) {
-  float3 light_point = m->origin;
-  float3 offset = normalize(Uniform_Sample3(rng));
-  light_point += offset*m->radius*Uniform_Sample(rng);
-  float3 light_dir = normalize(light_point - P);
-
-  float cos_theta = fabs(dot(N, -light_dir));
-
-  // if ( cos_theta < 0.001f ) return (float3)(0.0f);
-
-
-  float area = 1.0f/(2*TAU*(m->radius*m->radius));
-  *pdf = area*(sqr(length(light_dir)))/cos_theta;
-
-  return light_dir;
-}
-
-// -----------------------------------------------------------------------------
-// --------------- LIGHT TRANSPORT - BDPT --------------------------------------
-int Generate_Subpath ( Ray ray, SampledPt* subpath, SCENE_T(si, Tx)) {
-  int mindex = -1;
-  int i;
-  float roulette = 1.0f;
-  for ( i = 0; i != MAX_DEPTH/2; ++ i ) {
-    // // roulette
-    // roulette -= 1.0f/(float)(MAX_DEPTH);
-    // if ( Uniform_Sample(si->rng) > roulette ) break;
-    // // march
-    // SampledPt minfo = March(mindex, ray, si, Tx);
-    // if ( minfo.dist < 0.0f ) break;
-    // // importance sampling
-    // mindex = minfo.mat_index;
-    // Material material = si->materials[minfo.mat_index];
-    // float3 hit = ray.origin + ray.dir*minfo.dist;
-    // BSDF_Sample_Info bsdf_info = (BSDF_Sample_Info){
-    //     ray.dir,
-    //     BSDF_Sample(ray.dir, Normal(hit, si, Tx), &material, 0, si, Tx)
-    // };
-    // // set minfo/subpath element
-    // minfo.origin = hit;
-    // minfo.bsdf_info = bsdf_info;
-    // subpath[i] = minfo;
-    // // set ray
-    // ray = (Ray){hit, bsdf_info.wo};
-    // if ( minfo.mat_index <= EMIT_MAT ) break;
+float3 Light_Sample_Li ( float3 P, float3* wi, float* pdf, Emitter* m,
+                         SCENE_T(si, Tx)) {
+  float3 O = m->origin;
+  float theta = 2.0f * Uniform_Sample(si->rng) * PI,
+        phi   = PI * Uniform_Sample(si->rng);
+  O += (float3)(cos(theta)*sin(phi), sin(theta)*sin(phi), cos(phi))
+       * (2.0f * (Uniform_Sample(si->rng)-0.5f)) * m->radius;
+  *wi = O - P;
+  if ( length(*wi) == 0.0f ) *pdf = 0.0f;
+  else {
+    *wi = normalize(*wi);
+    float sin_max = m->radius*m->radius/Distance_Sqr(O, P);
+    *pdf = 1.0f/(TAU * (1.0f - sqrt(max(0.0f, 1.0f - sin_max))));
+    writefloat(*pdf);
+    if ( *pdf == INFINITY ) *pdf = 0.0f;
   }
-  return i;
+  return O;
 }
 
-int Generate_BSDF_Path(Ray ray, SampledPt* subpath, SCENE_T(si, Tx)) {
-  return Generate_Subpath(ray, subpath, si, Tx);
+float Light_PDF ( float3 P, Emitter* m ) {
+  float area = 1.0f/(2.0f*TAU*SQR(m->radius));
+  float sin_theta = m->radius*m->radius/Distance_Sqr(m->origin, P);
+  writefloat(sin_theta);
+  return 1.0f/(TAU * (1.0f - sqrt(max(0.0f, 1.0f - sin_theta))));
+  /* wi = -wi; */
+  /* SampledPt light_pt = March(-1, (Ray){P + wi, wi}, si, Tx); */
+  /* writeint(light_pt.mat_index); */
+  /* if ( light_pt.dist < 0.0f ) return 0.0f; */
+  /* writefloat(light_pt.dist); */
+  /* float3 hit = P + wi*light_pt.dist; */
+  /* writefloat3(P); */
+  /* writefloat3(hit); */
+  /* writefloat(Distance_Sqr(P, hit)); */
+  /* float fdot = fabs(dot(Normal(hit, si, Tx), -wi)); */
+  /* writefloat(fdot); */
+  /* float pdf = Distance_Sqr(P, hit)/fdot; */
+  /* return pdf; */
 }
-
-// does not do retro for you
-int Generate_Light_Path (Emitter* light, SampledPt* subpath, SCENE_T(si, Tx)) {
-  Ray ray = (Ray){light->origin, Uniform_Sample3(si->rng)};
-  return Generate_Subpath(ray, subpath, si, Tx);
-}
-
-// TODO FIX
-bool Check_Subpath(float3 xorigin, float3 yorigin, float xmat, float ymat,
-                   SCENE_T(si, Tx)) {
-  float3 angle = normalize(yorigin - xorigin);
-  float xdist = March(xmat, (Ray){xorigin, normalize(yorigin - xorigin)},
-                      si, Tx).dist;
-  float ydist = March(ymat, (Ray){yorigin, normalize(xorigin - yorigin)},
-                      si, Tx).dist;
-  return true;
-  // return ( fabs(ydist - xdist) < MARCH_ACC+0.01f );
-}
-
-bool Generate_Path ( Ray ray, SampledPath* p, SCENE_T(si, Tx)) {
-  SampledPt light_path[MAX_DEPTH/2+1];
-  // grab a random light
-  int light_index = (int)(Uniform_Sample(si->rng)*EMITTER_AMT);
-  Emitter light_emitter = REmission(light_index, si->time);
-  p->light_emitter = light_emitter;
-  // generate paths, use p->path as bsdf_path
-  int bsdf_length  = Generate_BSDF_Path (ray,              p->path,  si, Tx);
-  int light_length = Generate_Light_Path(&light_emitter, light_path, si, Tx);
-  // --- configure last points on each path.. some special cases here as
-  //    outlined in Veach's thesis
-  if ( bsdf_length == 0 ) {
-    if ( light_length == 0 ) { return false; }
-    SampledPt* light = &light_path[light_length-1];
-    if ( !Check_Subpath(ray.origin, light->origin, -1,light->mat_index, si, Tx))
-      return false;
-    light->bsdf_info.wo = normalize(ray.origin - light->origin);
-  } else if ( light_length == 0 ) {
-    SampledPt* bsdf = &p->path[bsdf_length-1];
-    if ( !(Check_Subpath(bsdf->origin, light_emitter.origin,
-            bsdf->mat_index, EMIT_MAT+1, si, Tx)))
-      return false;
-    bsdf->bsdf_info.wo = normalize(bsdf->origin - light_emitter.origin);
-  } else {
-    SampledPt* bsdf  = &p->path   [bsdf_length -1],
-             * light = &light_path[light_length-1];
-    // check connection made
-    if ( !Check_Subpath(bsdf->origin, light->origin,
-                bsdf->mat_index, light->mat_index, si, Tx) )
-      return false;
-    // set bsdf[$].wo = light[$].wo = |^ - $|
-    bsdf->bsdf_info.wo = light->bsdf_info.wo =
-          normalize(bsdf->origin - light->origin);
-  }
-
-  // retro light paths and concatenate
-  for ( int i = 0; i != light_length; ++ i ) {
-    float3 t_wi = light_path[i].bsdf_info.wi;
-    light_path[i].bsdf_info.wi = -light_path[i].bsdf_info.wo;
-    light_path[i].bsdf_info.wo = -t_wi;
-    p->path[bsdf_length + light_length - i - 1] = light_path[i];
-  }
-
-  p->length = light_length + bsdf_length;
-  return true;
-}
-
-
 
 // -----------------------------------------------------------------------------
 // --------------- LIGHT TRANSPORT ---------------------------------------------
 float MIS_Weight ( float pdf_i, float pdf_o ) {
-  return pdf_i / ( pdf_i + pdf_o );
+  return SQR(pdf_i) / ( SQR(pdf_i) + SQR(pdf_o) );
 }
+
 SampledPt Colour_Pixel ( Ray ray, SCENE_T(si, Tx) ) {
   float3 coeff = (float3)(1.0f);
   float3 colour = (float3)(0.0f);
-  float bsdf_pdf = 1.0f;
+  /* float bsdf_pdf = 1.0f; */
   int mindex = -1;
   SampledPt result;
   result.dist = -1.0f;
-  for ( int depth = 0; depth != 1; ++ depth ) {
+  float emitter_div = 1.0f/(float)(EMITTER_AMT);
+  for ( int depth = 0; depth != 8; ++ depth ) {
     SampledPt minfo = March(mindex, ray, si, Tx);
     if ( minfo.dist < 0.0f ) break;
     // importance sampling
@@ -429,45 +374,50 @@ SampledPt Colour_Pixel ( Ray ray, SCENE_T(si, Tx) ) {
     float3 hit = ray.origin + ray.dir*minfo.dist;
     float3 normal = Normal(hit, si, Tx);
     if ( mindex <= EMIT_MAT ) {
-      Emitter emitter = REmission(abs(mindex - EMIT_MAT), si->time);
-      float light_pdf;
-      Light_Sample(ray.dir, hit, normal, &emitter, &light_pdf, si->rng);
-      float weight = MIS_Weight(bsdf_pdf, (1.0f/EMITTER_AMT)*light_pdf);
-      // colour += coeff * emitter.emission * weight;
-      // result.dist = 1.0f;
-      // break;
+      /* Emitter emitter = REmission(abs(mindex - EMIT_MAT), si->time); */
+      /* float light_pdf; */
+      /* Light_Sample(ray.dir, hit, normal, &emitter, &light_pdf, si->rng); */
+      /* float weight = MIS_Weight(bsdf_pdf, emitter_div*light_pdf); */
+      /* colour += coeff * emitter.emission * weight; */
+      result.dist = 1.0f;
+      break;
     }
 
+
+    int light_index = (int)(Uniform_Sample(si->rng)*EMITTER_AMT);
+    Emitter light = REmission(light_index, si->time);
+
     { // light sample
-      int light_index = (int)(Uniform_Sample(si->rng)*EMITTER_AMT);
-      // if ( light_index == 0 ) light_index = 1;
-      // light_index = 1;
-      Emitter light = REmission(light_index, si->time);
-      float light_pdf;
-      float3 light_sample = Light_Sample(ray.dir, hit, normal, &light,
-                                          &light_pdf, si->rng);
-      SampledPt mt = March(mindex, (Ray){hit, light_sample}, si, Tx);
-      if ( mt.mat_index <= EMIT_MAT ) {
-        float3 factor = BSDF_Evaluate(light_sample, &material, &bsdf_pdf);
-        float weight = MIS_Weight(light_pdf*(1.0f/EMITTER_AMT), bsdf_pdf);
-        float cos_theta = light_sample.z;
-        float3 contrib = (weight * cos_theta/((1.0f/EMITTER_AMT)*light_pdf)
-                         ) * (factor*light.emission);
-        colour += coeff * contrib;
-        result.dist = 1.0f;
-      }
+      float light_pdf, bsdf_pdf;
+      float3 wi;
+      float3 Li = Light_Sample_Li(hit, &wi, &light_pdf, &light, si, Tx);
+      /* if ( light_pdf > 0.0f ) { */
+        float3 f = BSDF_F(wi, ray.dir, &material) * fabs(dot(wi, normal));
+        bsdf_pdf = BSDF_PDF(wi, ray.dir, &material);
+        bool visible = Visibility_Ray((Ray){hit, Li}, light_index, si, Tx);
+        visible &= light_pdf > 0.0f;
+        /* visible = true; // asdf/a sdf/ */
+        float weight = MIS_Weight(light_pdf, bsdf_pdf);
+        colour += f * light.emission * weight/light_pdf;
+
+        result.dist += (float)(visible)*2.0f;
+      /* } */
     }
 
     BSDF_Sample_Info bsdf_info;
     {
-      float3 bsdf;
-      bsdf_info = (BSDF_Sample_Info){
-          ray.dir,
-          BSDF_Sample(ray.dir, normal, &material, &bsdf_pdf, &bsdf, si, Tx)
-      };
+      float3 wo = BSDF_Sample(ray.dir, normal, &material, si, Tx);
+      float3 f = BSDF_F(ray.dir, wo, &material)*fabs(dot(ray.dir, wo));
+      float bsdf_pdf = BSDF_PDF(ray.dir, wo, &material);
+      float light_pdf = Light_PDF(hit, &light);
+      /* light_pdf = 0.2f; */
+      writefloat(bsdf_pdf);
+      writefloat(light_pdf);
+      float weight = MIS_Weight(bsdf_pdf, light_pdf);
 
-      float dot_nl = fabs(dot(bsdf_info.wi, bsdf_info.wo));
-      coeff *= minfo.colour/PI * (bsdf/bsdf_pdf) * dot_nl;
+      writefloat(weight);
+      colour += minfo.colour/PI * f *(weight/bsdf_pdf);
+      /* coeff *= minfo.colour/PI * f * (weight/bsdf_pdf); */
     }
 
 
