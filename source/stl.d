@@ -6,6 +6,12 @@ public static import file = std.file,
                      regex = std.regex,
                      json = std.json;
 
+/// --- move these elsewhere later ---
+
+bool Not_Swap_File ( string file ) {
+  auto rgx = stl.regex.ctRegex!r"\.#";
+  return !stl.regex.matchFirst(file, rgx);
+}
 
 
 /** Returns if the file extension exists */

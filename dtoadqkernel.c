@@ -22,6 +22,9 @@
 // math macros
 #define SQR(T) ((T)*(T))
 
+//
+#define Spectrum float3
+
 __constant float MARCH_ACC = //%MARCH_ACC.0f/1000.0f;
 // -----------------------------------------------------------------------------
 // --------------- DEBUG -------------------------------------------------------
@@ -65,14 +68,9 @@ typedef struct T_Ray {
   float3 origin, dir;
 } Ray;
 
-typedef struct T_BSDF_Sample_Info {
-  float3 wi, wo;
-} BSDF_Sample_Info;
-
 typedef struct T_SampledPt {
   float3 colour, origin, dir, normal;
   float dist;
-  BSDF_Sample_Info bsdf_info;
   int mat_index;
 } SampledPt;
 SampledPt SampledPt_From_Origin(float3 origin) {
@@ -82,21 +80,31 @@ SampledPt SampledPt_From_Origin(float3 origin) {
   return pt;
 }
 
-typedef struct T_SampledPath {
-  SampledPt path [MAX_DEPTH+1];
+
+typedef struct T_Vertex {
+  float3 colour, origin, normal;
+  int mat_index;
+} Vertex;
+
+typedef struct T_Edge {
+  Vertex wi, wo;
+} Edge;
+
+typedef struct T_Subpath {
+  Vertex vertices[MAX_DEPTH];
+  Edge   edges   [MAX_DEPTH];
   uint length;
-  Emitter light_emitter;
-} SampledPath;
+} Subpath;
 
 typedef struct T_SceneInfo {
   float time;
   // __read_only image2d_array_t textures; IMAGES CANT BE USED AS FIELD TYPES:-(
   __global Material* materials;
   float3 debug_values;
-  __global int* rng;
+  float rng;
 } SceneInfo;
 SceneInfo New_SceneInfo(float time, __global Material* materials,
-                        float3 debug_values, __global int* rng){
+                        float3 debug_values, float rng){
   SceneInfo si;
   si.time         = time;
   si.materials    = materials;
@@ -106,29 +114,24 @@ SceneInfo New_SceneInfo(float time, __global Material* materials,
 }
 // -----------------------------------------------------------------------------
 // --------------- GENERAL FUNCTIONS      --------------------------------------
-// http://www0.cs.ucl.ac.uk/staff/ucacbbl/ftp/papers/langdon_2009_CIGPU.pdf
-int Parker_Miller_Rand ( int seed ) {
-  const int a = 16807,      // 7^5
-            m = 2147483647; // 2^31 - 1
-  return ((long)(seed * a))%m;
+float Rand ( SceneInfo* si ) {
+  float t;
+  float val = fract(sin(dot((float2)(get_global_id(0), get_global_id(1)),
+                            (float2)(si->rng*100.0f+2.8f,
+                                     si->rng*100.0f+4.3f))
+                       )*48561.4982f, &t);
+  si->rng = val;
+  return val;
 }
 
-int Rand ( __global int* rng ) {
-  int id = get_global_id(1)*get_global_size(0) + get_global_id(0);
-  id %= 31;
-  int rnum = Parker_Miller_Rand(rng[id]);
-  rng[id] = rnum;
-  return rnum;
+float Uniform_Sample ( SceneInfo* si ) {
+  return Rand(si);
 }
-
-float Uniform_Sample ( __global int* rng ) {
-  return (float)((uint)(Rand(rng)))/(float)(UINT_MAX);
+float2 Uniform_Sample2 ( SceneInfo* si ) {
+  return (float2)(Uniform_Sample(si), Uniform_Sample(si));
 }
-float2 Uniform_Sample2 ( __global int* rng ) {
-  return (float2)(Uniform_Sample(rng), Uniform_Sample(rng));
-}
-float3 Uniform_Sample3 ( __global int* rng ) {
-  return (float3)(Uniform_Sample(rng), Uniform_Sample2(rng));
+float3 Uniform_Sample3 ( SceneInfo* si ) {
+  return (float3)(Uniform_Sample(si), Uniform_Sample2(si));
 }
 
 float sqr(float t) { return t*t; }
@@ -180,7 +183,7 @@ SampledPt Map ( int a, float3 origin, SCENE_T(si, Tx))  {
   // lighting with emissions
   float3 light_emission = (float3)(1.0f, 0.9f, 0.8f);
   for ( int i = 0; i != EMITTER_AMT; ++ i ) {
-    Emitter e = REmission(i, si->time);
+    Emitter e = REmission(i, si->debug_values, si->time);
     float dist = sdSphere(origin - e.origin, e.radius);
     int ta = a;
     if ( a == EMIT_MAT + 1 ) ta = EMIT_MAT - i;
@@ -259,9 +262,9 @@ float Cosine_Hemisphere_PDF ( float3 N, float3 wi ) {
   return fmax(0.0f, dot(N, wi)) * IPI;
 }
 // Cosine weighted
-float3 Hemisphere_Direction ( __global int* rng, float3 normal ) {
-  const float phi = TAU*Uniform_Sample(rng),
-              vv  = 2.0f*(Uniform_Sample(rng) - 0.5f);
+float3 Hemisphere_Direction ( float3 normal, SceneInfo* si ) {
+  const float phi = TAU*Uniform_Sample(si),
+              vv  = 2.0f*(Uniform_Sample(si) - 0.5f);
   const float cos_theta = sign(vv)*sqrt(fabs(vv)),
               sin_theta = sqrt(fmax(0.0f, 1.0f - (cos_theta*cos_theta)));
   return To_Cartesian(sin_theta, cos_theta, phi);
@@ -289,83 +292,66 @@ void Calculate_Binormals ( float3 N, float3* T, float3* B ) {
 // --------------- BSDF    FUNCS -----------------------------------------------
 float3 BSDF_Sample ( float3 wi, float3 normal, Material* m, SCENE_T(si, Tx)) {
   float3 wo;
-  wo = normalize(Hemisphere_Direction(si->rng, normal));
+  wo = normalize(Hemisphere_Direction(normal, si));
   return wo;
 }
 
 float3 BSDF_F ( float3 wi, float3 wo, Material* m ) {
-  return (float3)(IPI*m->diffuse);
+  return (float3)(IPI*m->diffuse, IPI*m->diffuse, IPI*m->diffuse);
 }
 
 float BSDF_PDF ( float3 wi, float3 wo, Material* m ) {
-  return fabs(wi.z)*IPI;
+  return fabs(wo.z)*IPI;
 }
 
 // -----------------------------------------------------------------------------
 // --------------- LIGHT   FUNCS -----------------------------------------------
-float Visibility_Ray(Ray ray, int mindex, SCENE_T(si, Tx)) {
-  Emitter e = REmission(mindex, si->time);
-  float max_dist = Distance(ray.origin, e.origin);
-  ray.origin += ray.dir*(MARCH_ACC+0.1f);
-  SampledPt minfo = March(-1, ray, si, Tx);
-  return true;
-  return step(max_dist, minfo.dist);
+float Visibility_Ray(float3 orig, float3 other, int goal_index,
+                     SCENE_T(si, Tx)) {
+  float max_dist = Distance(orig, other);
+  float3 dir = normalize(other - orig);
+  orig -= dir*(MARCH_ACC+0.1f);
+  /* writefloat3(ray.origin); */
+  SampledPt minfo = March(-1, (Ray){orig, dir}, si, Tx);
+  return minfo.mat_index == goal_index;
+}
+
+float Light_PDF ( float3 P, Emitter* m ) {
+  float sin_theta = (m->radius*m->radius/Distance_Sqr(m->origin, P));
+  return 1.0f/(TAU * (1.0f - sqrt(max(0.0f, 1.0f - sin_theta))));
 }
 
 float3 Light_Sample_Li ( float3 P, float3* wi, float* pdf, Emitter* m,
                          SCENE_T(si, Tx)) {
   float3 O = m->origin;
-  float theta = 2.0f * Uniform_Sample(si->rng) * PI,
-        phi   = PI * Uniform_Sample(si->rng);
+  float theta = 2.0f * Uniform_Sample(si) * PI,
+        phi   = PI * Uniform_Sample(si);
   O += (float3)(cos(theta)*sin(phi), sin(theta)*sin(phi), cos(phi))
-       * (2.0f * (Uniform_Sample(si->rng)-0.5f)) * m->radius;
+       * (2.0f * (Uniform_Sample(si)-0.5f)) * m->radius;
   *wi = O - P;
   if ( length(*wi) == 0.0f ) *pdf = 0.0f;
   else {
     *wi = normalize(*wi);
     float sin_max = m->radius*m->radius/Distance_Sqr(O, P);
-    *pdf = 1.0f/(TAU * (1.0f - sqrt(max(0.0f, 1.0f - sin_max))));
-    writefloat(*pdf);
+    *pdf = Light_PDF(P, m);
     if ( *pdf == INFINITY ) *pdf = 0.0f;
   }
   return O;
 }
 
-float Light_PDF ( float3 P, Emitter* m ) {
-  float area = 1.0f/(2.0f*TAU*SQR(m->radius));
-  float sin_theta = m->radius*m->radius/Distance_Sqr(m->origin, P);
-  writefloat(sin_theta);
-  return 1.0f/(TAU * (1.0f - sqrt(max(0.0f, 1.0f - sin_theta))));
-  /* wi = -wi; */
-  /* SampledPt light_pt = March(-1, (Ray){P + wi, wi}, si, Tx); */
-  /* writeint(light_pt.mat_index); */
-  /* if ( light_pt.dist < 0.0f ) return 0.0f; */
-  /* writefloat(light_pt.dist); */
-  /* float3 hit = P + wi*light_pt.dist; */
-  /* writefloat3(P); */
-  /* writefloat3(hit); */
-  /* writefloat(Distance_Sqr(P, hit)); */
-  /* float fdot = fabs(dot(Normal(hit, si, Tx), -wi)); */
-  /* writefloat(fdot); */
-  /* float pdf = Distance_Sqr(P, hit)/fdot; */
-  /* return pdf; */
-}
 
 // -----------------------------------------------------------------------------
 // --------------- LIGHT TRANSPORT ---------------------------------------------
-float MIS_Weight ( float pdf_i, float pdf_o ) {
-  return SQR(pdf_i) / ( SQR(pdf_i) + SQR(pdf_o) );
-}
 
 SampledPt Colour_Pixel ( Ray ray, SCENE_T(si, Tx) ) {
-  float3 coeff = (float3)(1.0f);
+  float3 coeff = (float3)(0.0f);
   float3 colour = (float3)(0.0f);
   /* float bsdf_pdf = 1.0f; */
   int mindex = -1;
   SampledPt result;
   result.dist = -1.0f;
   float emitter_div = 1.0f/(float)(EMITTER_AMT);
-  for ( int depth = 0; depth != 8; ++ depth ) {
+  for ( int depth = 0; depth != 4; ++ depth ) {
     SampledPt minfo = March(mindex, ray, si, Tx);
     if ( minfo.dist < 0.0f ) break;
     // importance sampling
@@ -374,61 +360,115 @@ SampledPt Colour_Pixel ( Ray ray, SCENE_T(si, Tx) ) {
     float3 hit = ray.origin + ray.dir*minfo.dist;
     float3 normal = Normal(hit, si, Tx);
     if ( mindex <= EMIT_MAT ) {
-      /* Emitter emitter = REmission(abs(mindex - EMIT_MAT), si->time); */
+      Emitter emitter = REmission(abs(mindex - EMIT_MAT), si->debug_values,
+                                  si->time);
       /* float light_pdf; */
-      /* Light_Sample(ray.dir, hit, normal, &emitter, &light_pdf, si->rng); */
+      /* Light_Sample(ray.dir, hit, normal, &emitter, &light_pdf, si); */
       /* float weight = MIS_Weight(bsdf_pdf, emitter_div*light_pdf); */
-      /* colour += coeff * emitter.emission * weight; */
+      float3 emit = emitter.emission * (1.0f/(float)(depth+1.0f));
+      colour += coeff * emit;
       result.dist = 1.0f;
       break;
     }
 
 
-    int light_index = (int)(Uniform_Sample(si->rng)*EMITTER_AMT);
-    Emitter light = REmission(light_index, si->time);
+    int light_index = (int)(Uniform_Sample(si)*EMITTER_AMT);
+    Emitter light = REmission(light_index, si->debug_values, si->time);
 
     { // light sample
       float light_pdf, bsdf_pdf;
       float3 wi;
       float3 Li = Light_Sample_Li(hit, &wi, &light_pdf, &light, si, Tx);
       /* if ( light_pdf > 0.0f ) { */
-        float3 f = BSDF_F(wi, ray.dir, &material) * fabs(dot(wi, normal));
+        float3 f = BSDF_F(wi, ray.dir, &material) * fabs(dot(wi, normal))
+                   * (minfo.colour/PI);
         bsdf_pdf = BSDF_PDF(wi, ray.dir, &material);
-        bool visible = Visibility_Ray((Ray){hit, Li}, light_index, si, Tx);
-        visible &= light_pdf > 0.0f;
-        /* visible = true; // asdf/a sdf/ */
-        float weight = MIS_Weight(light_pdf, bsdf_pdf);
-        colour += f * light.emission * weight/light_pdf;
+        bool visible = Visibility_Ray(hit, Li, light_index, si, Tx);
+        /* visible &= light_pdf > 0.0f; */
+        visible = true;
+        float weight = Power_Heuristic(light_pdf, 1.0f,  bsdf_pdf, 1.0f);
+        colour += f * light.emission * visible * 100.0f *
+                  (weight/(emitter_div*light_pdf));
 
+        colour = fabs(colour);
         result.dist += (float)(visible)*2.0f;
       /* } */
     }
 
-    BSDF_Sample_Info bsdf_info;
-    {
-      float3 wo = BSDF_Sample(ray.dir, normal, &material, si, Tx);
-      float3 f = BSDF_F(ray.dir, wo, &material)*fabs(dot(ray.dir, wo));
-      float bsdf_pdf = BSDF_PDF(ray.dir, wo, &material);
+    { // bsdf sample
+      float3 wo       = BSDF_Sample(ray.dir, normal, &material, si, Tx);
+      float3 f        = BSDF_F(ray.dir, wo, &material)*fabs(dot(ray.dir, wo))
+                        * (minfo.colour/PI);
+      float bsdf_pdf  = BSDF_PDF(ray.dir, wo, &material);
       float light_pdf = Light_PDF(hit, &light);
-      /* light_pdf = 0.2f; */
-      writefloat(bsdf_pdf);
-      writefloat(light_pdf);
-      float weight = MIS_Weight(bsdf_pdf, light_pdf);
+      float weight    = Power_Heuristic(1.0f/bsdf_pdf,          2.0f,
+                                       (light_pdf*emitter_div), 2.0f);
 
-      writefloat(weight);
-      colour += minfo.colour/PI * f *(weight/bsdf_pdf);
-      /* coeff *= minfo.colour/PI * f * (weight/bsdf_pdf); */
+      coeff += f * (weight/bsdf_pdf);
+
+      ray.dir = wo;
+      ray.origin = hit;
     }
-
-
-    ray.dir = bsdf_info.wo;
-    ray.origin = hit;
   }
-  result.colour = fabs(colour);
+  result.colour = min((float3)(1.0f), max((float3)(0.0f), fabs(colour)));
   return result;
 }
-//   // Bidirectional Path Tracing . .
-//   // Generate camera and light subpaths
+
+
+#if 0
+Spectrum Bidirectional_Pathtrace ( float3 pixel, float3 dir, SCENE_T(si, Tx)){
+  Emitter light = REmission(Uniform_Sample(si)*EMITTER_AMT,
+                            si->debug_values, si->time);
+  float3 light_pos;
+  {
+    float3 light_off = (normalize(Uniform_Sample(si)) - (float3)(0.5f)) *
+                       (float2)(2.0f);
+    light_pos = light.origin + light_off * light.radius;
+  }
+  // -- generate subpath --
+  Subpath bsdf_subpath   = Generate_Random_Walk(pixel),
+          light_subpath  = Generate_Random_Walk(light.origin);
+
+  // -- generate weights --
+  Spectrum bsdf_weights [MAX_DEPTH],
+           light_weights[MAX_DEPTH];
+
+  bsdf_weights[0] = light_weights[0] = (Spectrum)(1.0f);
+
+  for ( int i = 1; i < light_weights.length; ++ i ) {
+    light_weights[i] = light_weights[i-1] *
+           RLight_Weight_Vertex (light_subpath.vertex[i-1]) *
+           RIDK_Weight          (light_subpath.vertex[i-1]) *
+           RLight_Weight_Edge   (i-1);
+  }
+
+  for ( int i = 1; i < bsdf_subpath.length; ++ i ) {
+    bsdf_weights[i] = bsdf_weights[i-1] *
+           RBSDF_Weight_Vertex (bsdf_subpath.vertex[i-1]) *
+           RIDK_Weight         (bsdf_subpath.vertex[i-1]) *
+           RBSDF_Weight_Edge   (bsdf_subpath.vertex[i-1]);
+  }
+
+
+  Spectrum sample_colour = (Spectrum)(0.0f);
+  // iterate over emitter subpath and connect to bsdf path
+  for ( int lindex = light_subpath.length-1; lindex >= 0; -- lindex ) {
+    int min_bindex = max(2-lindex, 2),
+        max_bindex = min(bsdf_subpath.length - 1, MAX_DEPTH+1-lindex);
+
+    for ( int bindex = max_bindex; bindex >= min_bindex; -- bindex ) {
+      bool was_sample_direct = false;
+      int remaining = MAX_DEPTH - lindex - bindex + 1;
+
+      Spectrum path_colour = (Spectrum)(0.0f);
+
+      // connect paths
+    }
+  }
+}
+#endif
+// Bidirectional Path Tracing . .
+// Generate camera and light subpaths
 //   SampledPath transport;
 //   if ( !Generate_Path(ray, &transport, si, Tx) || transport.length == 0 ) {
 //     SampledPt result;
@@ -571,10 +611,11 @@ __kernel void DTOADQ_Kernel (
     __read_only image2d_array_t textures,
     __global Material*          materials,
     __global float*             debug_val_ptr,
-    __global int*               rng
+    __global float*             rng
   ) {
   int2 out = (int2)(get_global_id(0), get_global_id(1));
   float spp = (float)(sinfo->spp);
+
   Camera camera = *camera_ptr;
   int pt = out.y*camera.dim.x*4 + out.x*4;
   float4 old_colour = Eval_Previous_Output(img, output_img, out, sinfo, pt);
@@ -582,7 +623,8 @@ __kernel void DTOADQ_Kernel (
   float time = *time_ptr;
   float3 dval = (float3)(debug_val_ptr[0], debug_val_ptr[1],
                           debug_val_ptr[2]);
-  SceneInfo scene_info = New_SceneInfo(time, materials, dval, rng);
+  SceneInfo scene_info = New_SceneInfo(time, materials, dval, *rng);
+  Uniform_Sample(&scene_info);
   // -- get old pixel, check if there are samples to be done
   //    (counter is stored in alpha channel)
   Update_Camera(&camera, time);

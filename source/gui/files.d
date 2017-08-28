@@ -72,6 +72,7 @@ void Update_Directory ( string dir_prestr ) {
   string dir = dir_prestr;
   auto base_dir = Dir(dir);
   Fil.dirEntries(dir, Fil.SpanMode.breadth)
+     .filter!(n => stl.Not_Swap_File(n.name))
      .each!(n => base_dir.Add(n.isFile, n.name, n.name.replace(dir~"/", "")));
   base_dir.Render();
 }

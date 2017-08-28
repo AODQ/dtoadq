@@ -9,7 +9,6 @@ private bool Not_Swap_File ( string file ) {
 private bool Valid_Function_File (string file) {
   return Not_Swap_File(file) &&
          stl.file.isFile(file) &&
-         (file.length > 2 && file[0..2] != ".#") &&
          stl.RMatching_File_Extensions(file, ".dtq") != ".dtq";
 }
 

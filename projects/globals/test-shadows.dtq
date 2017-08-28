@@ -29,20 +29,27 @@ CAMERAEND
 
 EMITTERSTART
 __constant int EMITTER_AMT = 1;
-Emitter REmission ( int index, float time ) {
-  float f = (float)(index+1);
-  float3 origin = (float3)(8.5f + f*-12.4f, 6.0f, -4.5f);
-  origin.z -= 4.0f;
-  // float radius   = 1.0f/f * 0.25f + (4.0f-f)*0.18f,
-  //       emission = 1.0f;
-  float3 emission = (float3)(fabs(cos(f*2.43f)),
-                             fabs(sin(f*0.2f)), 0.9f);
-  return (Emitter){origin, emission, 2.1f};
+Emitter REmission ( int index, float3 dval, float time ) {
+  return (Emitter){(float3)(16.0f), (float3)(250.0f), 2.1f};
 }
 EMITTEREND
 
 UPDATEMAPSTART
 void Room ( int avoid, float3 origin, SampledPt* pt, float time, float3 dval ) {
+  float dist;
+  dist = sdPlane(origin, normalize((float3)(0.0f, 0.0f, 1.0f)), 18.0f);
+  MapUnionG(avoid, pt, dist, 1, (float3)(0.2f, 0.2f, 0.9f));
+  dist = sdPlane(origin, normalize((float3)(0.0f, 1.0f, 0.0f)), 18.0f);
+  MapUnionG(avoid, pt, dist, 1, (float3)(0.25f, 0.3f, 0.3f));
+  // misc walls for speedup
+  dist = sdPlane(origin, normalize((float3)(0.0f, 0.0f, -1.0f)), 18.0f);
+  MapUnionG(avoid, pt, dist, 1, (float3)(0.2f, 0.2f, 0.2f));
+  dist = sdPlane(origin, normalize((float3)(0.0f, -1.0f, 0.0f)), 18.0f);
+  MapUnionG(avoid, pt, dist, 1, (float3)(0.2f, 0.9f, 0.9f));
+  dist = sdPlane(origin, normalize((float3)(1.0f, 0.0f, 0.0f)), 18.0f);
+  MapUnionG(avoid, pt, dist, 1, (float3)(0.2f, 0.9f, 0.9f));
+  dist = sdPlane(origin, normalize((float3)(-1.0f, 0.0f, 0.0f)), 18.0f);
+  MapUnionG(avoid, pt, dist, 1, (float3)(0.2f, 0.0f, 0.9f));
 }
 
 void Panels ( int avoid, float3 origin, SampledPt* pt, float time, float3 dval){
@@ -51,12 +58,23 @@ void Panels ( int avoid, float3 origin, SampledPt* pt, float time, float3 dval){
 
   // dist = sdSphere(origin + (float3)(cos(time)*2.5f, sin(time)*2.5f, 0.0), 4.0f);
    dist = sdSphere(origin, 1.0f);
-  MapUnionG(avoid, pt, dist, 0, (float3)(0.8f, 0.5f, 0.8f));
+  // MapUnionG(avoid, pt, dist, 0, (float3)(0.8f, 0.5f, 0.8f));
+}
+
+void Batman ( int avoid, float3 origin, SampledPt* pt, float time, float3 dval){
+  float3 torigin = origin;
+  float dist;
+
+  torigin.xy = opRotate(torigin.xy, 90.0f);
+  dist =  sdCylinder(torigin, 4.5f, 1.5f);
+
+  MapUnionG(avoid, pt, dist, 0, (float3)(1.0f));
 }
 
 void Update_Map ( int avoid, float3 origin, SampledPt* pt, float time,
                   __read_only image2d_array_t textures, float3 dval ) {
   Room(avoid, origin, pt, time, dval);
   Panels(avoid, origin, pt, time, dval);
+  Batman(avoid, origin, pt, time, dval);
 }
 UPDATEMAPEND

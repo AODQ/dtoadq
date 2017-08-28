@@ -33,7 +33,7 @@ CAMERAEND
 
 EMITTERSTART
 __constant int EMITTER_AMT = 1;
-Emitter REmission ( int index, float time ) {
+Emitter REmission ( int index, float3 debug_value, float time ) {
   float fd = (float)(index+1);
   return (Emitter){(float3)(-5.0f + fd*2.0f, 2.0f, 3.5f),
                             (float3)(1.0f, 0.95f, 0.8f), 1.0f};

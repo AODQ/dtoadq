@@ -9,7 +9,7 @@ ocl.ImageMetaData image_metadata;
 ocl.Camera        camera;
 ocl.Material[]    material;
 ubyte[] rw_image;
-int[] rng;
+float rng;
 float timer = 0.0f;
 
 //// Sets image buffer (camera, gl images, etc) based off resolution
@@ -34,7 +34,7 @@ bool Update_Buffer ( ) {
 
   {
     import functional, std.random;
-    rng = iota(0, 32).map!(n => uniform(-int.max, int.max)).array;
+    rng = uniform(0.0f, 1.0f);
   }
 
   return reset;
