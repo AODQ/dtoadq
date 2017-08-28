@@ -1,9 +1,5 @@
 # DTOADQ
-GPU-Accelerated Light Transport on Sigend Distance Fields
-The idea is to create vdieo animations from scenes described by hand-written
-SDFs and rendered using bidirectional path tracing. It is very much a means to
-learn about the rendering equation.
-
+GPU-Accelerated Light Transport on Sigend Distance Fields Video Emitter and Prototyping Tool.
 
 # build
   Requires GLFW, OpenGL3.3, OpenCL1.2 with the cl\_khr\_gl\_sharing extension
