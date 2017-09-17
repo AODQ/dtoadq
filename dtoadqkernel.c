@@ -80,7 +80,6 @@ SampledPt SampledPt_From_Origin(float3 origin) {
   return pt;
 }
 
-
 typedef struct T_Vertex {
   float3 colour, origin, normal;
   int mat_index;
@@ -499,9 +498,6 @@ Emitter Generate_Light_Subpath ( Subpath* path, Scene_T(si, Tx)) {
 }
 Spectrum Bidirectional_Pathtrace ( float3 pixel, float3 dir, SCENE_T(si, Tx)) {
   /**
-    You probably have to read Veach's PhD thesis in order to understand what's
-      going on here if you are unfamiliar, but I explain it to the best of my
-      abilities anyways
     path contribution = Iⱼ = ∫Ω ( pⱼ(x̆) dμ(x̆) )
     where x̆ is a path z₀–>zₛ–>yₜ–>y₀ (bsdf -> light) [or x₀–>xₖ, k=s+t-1]
           Ω is the set of paths of any length
@@ -510,7 +506,7 @@ Spectrum Bidirectional_Pathtrace ( float3 pixel, float3 dir, SCENE_T(si, Tx)) {
       which is referred to as "Three-point form" by Veach, but I've also seen it
       called the light-transport equation. Well, actually, this is the
       recursively expanded form of the transport equation. Anyways, this form
-      makes it easier to do BDPT calculations
+      makes it easier to do BDPT calculations.
 
     Of course, to compute this, we need to apply monte carlo sampling:
       Iⱼ ≈ fⱼ(x̆)/p(x̆)
@@ -519,18 +515,17 @@ Spectrum Bidirectional_Pathtrace ( float3 pixel, float3 dir, SCENE_T(si, Tx)) {
        PDF w.r.t. solid angle.
 
     The amount that each path contributes to Iⱼ differ greatly, so even naively
-      weighing each contribution by something like 1.0/(s+t), will produce very
+      weighing each contribution by something like 1.0/(s+t+1), will produce very
       noisy images, with results similar to naive path tracing.
     In order to get good contributions, you must combine them in an optimal
       manner using multiple importance sampling, as described in Veach's thesis:
         F = ΣₛΣₜWₛₜ(x̆ₛₜ)/(pₛₜ(x̆ₛₜ))
         But this can be rewritten to
             ΣₛΣₜCₛ,ₜ = (Wₛₜ(x̆₍ₛₜ₎))*(αᴸₛ*cₛₜ*αᴱₜ)
-        where W is the weight
-              (αᴸₛ*cₛₜ*αᴱₜ) is the unweighted contribution
+        where (αᴸₛ*cₛₜ*αᴱₜ) is the unweighted contribution
               α is the contribution from light L or bsdf B
               c is the contribution from connecting L and B, zₛ–>yₜ
-    And thus Iⱼ = fⱼ(x̆)/F
+              W is the weight
   **/
   Subpath light_path;
   // Instead of generating a light and bsdf path, I generate the light path and
@@ -539,22 +534,71 @@ Spectrum Bidirectional_Pathtrace ( float3 pixel, float3 dir, SCENE_T(si, Tx)) {
   // -- generate weights and PDFS --
   Spectrum bsdf_weight, light_weights[MAX_DEPTH];
   float    bsdf_contrib,  light_contrib[MAX_DEPTH];
-  light_pdf[0] = bsdf_pdf = 1.0f; // αᵢ⁽ᴸᴱ⁾₀ = 1
-  // Calculate weights/pdfs for light path
-  if ( light_path.length > 1 ) {
+  // Calculate weights/pdfs for light path... I calculated pdfs as described in
+  //   veach's paper, however, calculating the weight is very painful process.
+  light_contrib[0] = bsdf_contrib = 1.0f; // α₀⁽ᴸᴱ⁾ = 1
+  float light_pdf; // need to store as Pˡᵢ relies on Pᴸᵢ₋₁
+  if ( light_path.length > 1 ) { // α₁
     // pᴸ₁ = Pₐ(y₀)
-    // where Pₐ(i) [PDF w.r.t. area] = Pσ(v̆₍ᵢ₋₁₎ –> v̆ᵢ) * G(v̆₍ᵢ₋₁) <–> v̆ᵢ)
+    // where Pₐ(i) [PDF w.r.t. area] = Pσ(v̆₍ᵢ₋₁₎ –> v̆ᵢ) * G(v̆₍ᵢ₋₁₎ <–> v̆ᵢ)
     //       Pσ = PDF w.r.t. solid angle
-    float light_pdf = 1.0f;//TODO
+    //       G(v, v') = V(v, v')*(cosθₒ * cosθ'ᵢ)/||v - v'||²
+    //       V = visibility test, no need to calculate it here; if you were to
+    //              expand the three point equation, all the visibility checks
+    //              would cancel out except for cₛₜ – makes sense intuitively
+    //              as the path has already been constructed: V must be 1.0
+    Vertex* Vn1 = light_path.vertices, * Vn0 = light_path.vertices - 1;
+    Edge  * En1 = light_path.edges,    * En0 = light_path.edges    - 1;
+    light_pdf =
+      Light_PDF(light_path.vertices[1].origin, &light) * // solid angle
+      (dot(En1.wi, Vn1.normal)*dot(En0.wo, Vn1.normal) * // cosθₒ * cosθ'ᵢ
+            pow(length(Vn0.origin - Vn1.origin), 2.0f)); // magnitude sqr'd
     // αᴸ₁ = Lₑ⁰(y₀ –> y₁) * Pₐ(y₁)
-    // α₁ = pα(y₀ –> y₁), which is pdf with respect to the area.
-    //      pα(p₀ –> p₁) = pσ(p₀ –> p₁)*gᵢ(p₀ –> p₁)
-    // gᵢ(v̆) [PDF sa –> PDF A] = (cosθ₍ᵢ,ᵢ₋₁₎)/||yᵢ – yᵢ₋₁||²
-    light_pdf[1] = 1.0f; //TODO
+    light_contrib[1] = 1.0f * light_pdf; //TODO
+  }
+  for ( int i = 2; i < light_path.length(); ++ i ) { // α₂ –> αₜ
+    // pᴸᵢ = Pσ(yᵢ₋₂–>yᵢ₋₁)*G(yᵢ₋₂<–>yᵢ₋₁)*pᴸᵢ₋₁
+    Vertex* Vn1 = 
+    light_pdf *= light_pdf;
+    // αᴸᵢ = fₛ(yᵢ₋₃ –> yᵢ₋₂ –> yᵢ₋₁)/Pσ(yᵢ₋₂ –> yᵢ₋₁) * αᴸᵢ₋₁
+    light_contrib[i] = light_contrib[i-1] * 1.0f;//TODO
   }
 
   Spectrum sample_colour = (Spectrum)(0.0f);
-  // iterate over emitter subpath and connect to bsdf path
+  // Pretty much same exact code as generate light subpath, except with bdpt,
+  //  and I leave out the near-identical equations from L path equations
+  Ray ray = Ray{pixel, dir};
+  float bsdf_pdf;
+  for ( int depth = 0; depth != 3; ++ depth ) {
+    SampledPt ptinfo = March(mindex, ray, si, Tx);
+    if ( minfo.dist < 0.0f )
+      break;
+
+    // Vᵢ = Vᵢ₋₁ + ωᵢ*Rd
+    float3 hit = ray.origin + ray.dir*minfo.dist;
+    float3 normal = Normal(hit, si, Tx);
+    // W₀ = fᵢ(Wᵢ, N)
+    float3 wo = BSDF_Sample(ray.dir, normal, &material, si, Tx);
+    {// calculate contribution
+      if ( depth == 0 ) {
+        bsdf_pdf = 1.0f;
+        bsdf_contrib = 1.0f;
+      } else if ( depth == 1 ) {
+        bsdf_pdf = 1.0f;//TODO
+        bsdf_contrib = 1.0f; //TODO
+      } else {
+        bsdf_pdf *= 1.0f//TODO
+        bsdf_contrib = bsdf_contrib * 1.0f;
+      }
+    }
+    {// calculate weight
+    }
+
+    mindex = minfo.mat_index;
+    ray.origin = hit;
+    ray.dir = wo;
+  }
+  // Iterate over
   for ( int lindex = light_subpath.length-1; lindex >= 0; -- lindex ) {
     int min_bindex = max(2-lindex, 2),
         max_bindex = min(bsdf_subpath.length - 1, MAX_DEPTH+1-lindex);
