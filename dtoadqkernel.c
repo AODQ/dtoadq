@@ -58,10 +58,10 @@ typedef struct T_SharedInfo {
   unsigned char spp;
 } SharedInfo;
 
-__constant float PI   = 3.141592654f;
-__constant float IPI  = 0.318309886f;
-__constant float TAU  = 6.283185307f;
-__constant float ITAU = 0.159154943f;
+__constant float PI   = 3.141592653589793f;
+__constant float IPI  = 0.318309886183791f;
+__constant float TAU  = 6.283185307179586f;
+__constant float ITAU = 0.159154943091895f;
 // -----------------------------------------------------------------------------
 // --------------- GENERAL STRUCTS ---------------------------------------------
 typedef struct T_Ray {
@@ -87,7 +87,7 @@ typedef struct T_Vertex {
 } Vertex;
 
 typedef struct T_Edge {
-  Vertex wi, wo;
+  float3 wi, wo;
 } Edge;
 
 typedef struct T_Subpath {
@@ -217,6 +217,22 @@ SampledPt March ( int avoid, Ray ray, SCENE_T(si, Tx)) {
 // -----------------------------------------------------------------------------
 // --------------- GRAPHIC FUNCS -----------------------------------------------
 float3 Normal ( float3 p, SCENE_T(s, t)) {
+  /* In order to do a normal, using SDFs, you must perform a gradient
+       approximation: the central difference on the SDF at P, for example the
+        difference quotient: (f(x+h) - f(x))/h
+     The most obvious way to calculate this is the six-point gradient; where
+       for each axis you compute f(x+h) - f(x-h), and normalize the result,
+       this returns a vector pointing in the direction where the SDF map
+       increases the most, so the gradient is the same as a normal.
+     A 4 point gradient is possible, you just have to multiply each point
+       of the gradient by epsilon before normalizing. Computing these gradients
+       is expensive, because you have to map multiple times, so the speedup
+       is well worth the (rather unnoticeable) accuracy.
+     It's worth noting that with an additional normal, you can also compute a
+       bumpmap, and that with simple object you can calculate the gradient
+       by hand rather than this general-purpoe solution. But that's not an
+       option with dtoadq.
+  */
   float2 e = (float2)(1.0f, -1.0f)*0.5773f*0.0005f;
   return normalize(
     e.xyy*Map(-1, p + e.xyy, s, t).dist + e.yyx*Map(-1, p + e.yyx, s, t).dist +
@@ -262,7 +278,7 @@ float Cosine_Hemisphere_PDF ( float3 N, float3 wi ) {
   return fmax(0.0f, dot(N, wi)) * IPI;
 }
 // Cosine weighted
-float3 Hemisphere_Direction ( float3 normal, SceneInfo* si ) {
+float3 Hemisphere_Direction ( SceneInfo* si ) {
   const float phi = TAU*Uniform_Sample(si),
               vv  = 2.0f*(Uniform_Sample(si) - 0.5f);
   const float cos_theta = sign(vv)*sqrt(fabs(vv)),
@@ -292,7 +308,9 @@ void Calculate_Binormals ( float3 N, float3* T, float3* B ) {
 // --------------- BSDF    FUNCS -----------------------------------------------
 float3 BSDF_Sample ( float3 wi, float3 normal, Material* m, SCENE_T(si, Tx)) {
   float3 wo;
-  wo = normalize(Hemisphere_Direction(normal, si));
+  wo = normalize(Hemisphere_Direction(si));
+  // Now I have to orient it with the normal . . .
+  // whatever
   return wo;
 }
 
@@ -416,39 +434,124 @@ SampledPt Colour_Pixel ( Ray ray, SCENE_T(si, Tx) ) {
 
 
 #if 0
-Spectrum Bidirectional_Pathtrace ( float3 pixel, float3 dir, SCENE_T(si, Tx)){
-  Emitter light = REmission(Uniform_Sample(si)*EMITTER_AMT,
-                            si->debug_values, si->time);
-  float3 light_pos;
-  {
-    float3 light_off = (normalize(Uniform_Sample(si)) - (float3)(0.5f)) *
-                       (float2)(2.0f);
-    light_pos = light.origin + light_off * light.radius;
+/*
+  typedef struct T_Vertex {
+  float3 colour, origin, normal;
+  int mat_index;
+  } Vertex;
+
+  typedef struct T_Edge {
+  float3 wi, wo;
+  } Edge;
+
+  typedef struct T_Subpath {
+  Vertex vertices[MAX_DEPTH];
+  Edge   edges   [MAX_DEPTH];
+  uint length;
+  } Subpath;
+ */
+Emitter Generate_Light_Subpath ( Subpath* path, Scene_T(si, Tx)) {
+  // Grab a random light source to generate a subpath
+  int light_index = Uniform_Sample(si)*EMITTER_AMT;
+  Emitter light = REmission(light_index, si->debug_values, si->time);
+  int mindex = EMIT_MIT - light_index;
+  Ray ray;
+  {// Generate ray position/angle
+    float3 origin = (normalize(Uniform_Sample(si)) - (float3)(0.5f)) *
+                  (float2)(2.0f);
+      origin = light.origin + origin*light.radius;
+    ray = (Ray){origin, Uniform_Sample3(si)};
   }
-  // -- generate subpath --
-  Subpath bsdf_subpath   = Generate_Random_Walk(pixel),
-          light_subpath  = Generate_Random_Walk(light.origin);
+  // generate path, Σ₀iᴿᴿ(Vᵢ + ωₒ*Rd)
+  // where Rd is raymarch-distance, RR is russian-roulette, and
+  // ωₒ = i=0 ? light-ray-dir : fᵢ(ωᵢ, N)
+  // fᵢ = BSDF importance-sampling (Alternatively, you could sample a random
+  //         point on hemisphere Ω, but fᵢ ensures f(P, ωᵢ, ωₒ) > 0.0)
+  // Also collect vertex and edge data along the way
+  for ( int depth = 0; depth != 3; ++ depth ) {
+    SampledPt ptinfo = March(mindex, ray, si, Tx);
+    if ( minfo.dist < 0.0f )
+      break;
 
-  // -- generate weights --
-  Spectrum bsdf_weights [MAX_DEPTH],
-           light_weights[MAX_DEPTH];
+    // Vᵢ = Vᵢ₋₁ + ωᵢ*Rd
+    float3 hit = ray.origin + ray.dir*minfo.dist;
+    float3 normal = Normal(hit, si, Tx);
+    {// set up vertex
+      path.vertices[depth].colour = ptinfo.colour;
+      path.vertices[depth].origin = hit;
+      path.vertices[depth].normal = Normal(hit);
+      path.vertices[depth].mat_index = ptinfo.mat_index;
+    }
+    {// set up edge
+      path.edges[depth].wi = ray.dir;
+      if ( depth > 0 ) {
+        path.edges[depth-1].wo = ray.dir;
+      }
+    }
 
-  bsdf_weights[0] = light_weights[0] = (Spectrum)(1.0f);
-
-  for ( int i = 1; i < light_weights.length; ++ i ) {
-    light_weights[i] = light_weights[i-1] *
-           RLight_Weight_Vertex (light_subpath.vertex[i-1]) *
-           RIDK_Weight          (light_subpath.vertex[i-1]) *
-           RLight_Weight_Edge   (i-1);
+    // W₀ = fᵢ(Wᵢ, N)
+    float3 wo = BSDF_Sample(ray.dir, normal, &material, si, Tx);
+    mindex = minfo.mat_index;
+    ray.origin = hit;
+    ray.dir = wo;
   }
+  return light;
+}
+Spectrum Bidirectional_Pathtrace ( float3 pixel, float3 dir, SCENE_T(si, Tx)) {
+  /**
+    You probably have to read Veach's PhD thesis in order to understand what's
+      going on here if you are unfamiliar, but I explain it to the best of my
+      abilities anyways
+    path contribution = Iⱼ = ∫Ω ( pⱼ(x̆) dμ(x̆) )
+    where x̆ is a path z₀–>zₛ–>yₜ–>y₀ (bsdf -> light) [or x₀–>xₖ, k=s+t-1]
+          Ω is the set of paths of any length
+    since μ is the area-product measure, we have to use the area-integral
+      of the rendering equation: ∫A ( L(x₀–>x₁)G(x₀<–>x₁)fₛ(x₍ₖ₋₁₎–>xₖ)
+      which is referred to as "Three-point form" by Veach, but I've also seen it
+      called the light-transport equation. Well, actually, this is the
+      recursively expanded form of the transport equation. Anyways, this form
+      makes it easier to do BDPT calculations
 
-  for ( int i = 1; i < bsdf_subpath.length; ++ i ) {
-    bsdf_weights[i] = bsdf_weights[i-1] *
-           RBSDF_Weight_Vertex (bsdf_subpath.vertex[i-1]) *
-           RIDK_Weight         (bsdf_subpath.vertex[i-1]) *
-           RBSDF_Weight_Edge   (bsdf_subpath.vertex[i-1]);
+    Of course, to compute this, we need to apply monte carlo sampling:
+      Iⱼ ≈ fⱼ(x̆)/p(x̆)
+       where p is the probability distribution function. It should be noted
+       that this PDF must be with respects to the area, so we must convert the
+       PDF w.r.t. solid angle.
+
+    The amount that each path contributes to Iⱼ differ greatly, so even naively
+      weighing each contribution by something like 1.0/(s+t), will produce very
+      noisy images, with results similar to naive path tracing.
+    In order to get good contributions, you must combine them in an optimal
+      manner using multiple importance sampling, as described in Veach's thesis:
+        F = ΣₛΣₜWₛₜ(x̆ₛₜ)/(pₛₜ(x̆ₛₜ))
+        But this can be rewritten to
+            ΣₛΣₜCₛ,ₜ = (Wₛₜ(x̆₍ₛₜ₎))*(αᴸₛ*cₛₜ*αᴱₜ)
+        where W is the weight
+              (αᴸₛ*cₛₜ*αᴱₜ) is the unweighted contribution
+              α is the contribution from light L or bsdf B
+              c is the contribution from connecting L and B, zₛ–>yₜ
+    And thus Iⱼ = fⱼ(x̆)/F
+  **/
+  Subpath light_path;
+  // Instead of generating a light and bsdf path, I generate the light path and
+  // then walk the bsdf path, in order to conserve GPU memory
+  Emitter light = Generate_Light_Subpath(&light_path, si, Tx);
+  // -- generate weights and PDFS --
+  Spectrum bsdf_weight, light_weights[MAX_DEPTH];
+  float    bsdf_contrib,  light_contrib[MAX_DEPTH];
+  light_pdf[0] = bsdf_pdf = 1.0f; // αᵢ⁽ᴸᴱ⁾₀ = 1
+  // Calculate weights/pdfs for light path
+  if ( light_path.length > 1 ) {
+    // pᴸ₁ = Pₐ(y₀)
+    // where Pₐ(i) [PDF w.r.t. area] = Pσ(v̆₍ᵢ₋₁₎ –> v̆ᵢ) * G(v̆₍ᵢ₋₁) <–> v̆ᵢ)
+    //       Pσ = PDF w.r.t. solid angle
+    float light_pdf = 1.0f;//TODO
+    // αᴸ₁ = Lₑ⁰(y₀ –> y₁) * Pₐ(y₁)
+    // α₁ = pα(y₀ –> y₁), which is pdf with respect to the area.
+    //      pα(p₀ –> p₁) = pσ(p₀ –> p₁)*gᵢ(p₀ –> p₁)
+    // gᵢ(v̆) [PDF sa –> PDF A] = (cosθ₍ᵢ,ᵢ₋₁₎)/||yᵢ – yᵢ₋₁||²
+    light_pdf[1] = 1.0f; //TODO
   }
-
 
   Spectrum sample_colour = (Spectrum)(0.0f);
   // iterate over emitter subpath and connect to bsdf path
