@@ -85,13 +85,8 @@ typedef struct T_Vertex {
   int mat_index;
 } Vertex;
 
-typedef struct T_Edge {
-  float3 wi, wo;
-} Edge;
-
 typedef struct T_Subpath {
   Vertex vertices[MAX_DEPTH];
-  Edge   edges   [MAX_DEPTH];
   uint length;
 } Subpath;
 
@@ -216,22 +211,6 @@ SampledPt March ( int avoid, Ray ray, SCENE_T(si, Tx)) {
 // -----------------------------------------------------------------------------
 // --------------- GRAPHIC FUNCS -----------------------------------------------
 float3 Normal ( float3 p, SCENE_T(s, t)) {
-  /* In order to do a normal, using SDFs, you must perform a gradient
-       approximation: the central difference on the SDF at P, for example the
-        difference quotient: (f(x+h) - f(x))/h
-     The most obvious way to calculate this is the six-point gradient; where
-       for each axis you compute f(x+h) - f(x-h), and normalize the result,
-       this returns a vector pointing in the direction where the SDF map
-       changes the most, so the gradient is the same as a normal.
-     A 4 point gradient is possible, you just have to multiply each point
-       of the gradient by epsilon before normalizing. Computing these gradients
-       is expensive, because you have to map multiple times, so the speedup
-       is well worth the (rather unnoticeable) accuracy.
-     It's worth noting that with an additional normal, you can also compute a
-       bumpmap, and that with simple object you can calculate the gradient
-       by hand rather than this general-purpoe solution. But that's not an
-       option with dtoadq.
-  */
   float2 e = (float2)(1.0f, -1.0f)*0.5773f*0.0005f;
   return normalize(
     e.xyy*Map(-1, p + e.xyy, s, t).dist + e.yyx*Map(-1, p + e.yyx, s, t).dist +
@@ -317,7 +296,7 @@ float3 BSDF_F ( float3 wi, float3 wo, Material* m ) {
   return (float3)(IPI*m->diffuse, IPI*m->diffuse, IPI*m->diffuse);
 }
 
-float BSDF_PDF ( float3 wi, float3 wo, Material* m ) {
+float BSDF_PDF ( float3 P, float3 wo, Material* m ) {
   return fabs(wo.z)*IPI;
 }
 
@@ -439,13 +418,8 @@ SampledPt Colour_Pixel ( Ray ray, SCENE_T(si, Tx) ) {
   int mat_index;
   } Vertex;
 
-  typedef struct T_Edge {
-  float3 wi, wo;
-  } Edge;
-
   typedef struct T_Subpath {
   Vertex vertices[MAX_DEPTH];
-  Edge   edges   [MAX_DEPTH];
   uint length;
   } Subpath;
  */
@@ -466,7 +440,7 @@ Emitter Generate_Light_Subpath ( Subpath* path, Scene_T(si, Tx)) {
   // ωₒ = i=0 ? light-ray-dir : fᵢ(ωᵢ, N)
   // fᵢ = BSDF importance-sampling (Alternatively, you could sample a random
   //         point on hemisphere Ω, but fᵢ ensures f(P, ωᵢ, ωₒ) > 0.0)
-  // Also collect vertex and edge data along the way
+  // Also collect vertex data along the way
   for ( int depth = 0; depth != 3; ++ depth ) {
     SampledPt ptinfo = March(mindex, ray, si, Tx);
     if ( minfo.dist < 0.0f )
@@ -481,12 +455,6 @@ Emitter Generate_Light_Subpath ( Subpath* path, Scene_T(si, Tx)) {
       path.vertices[depth].normal = Normal(hit);
       path.vertices[depth].mat_index = ptinfo.mat_index;
     }
-    {// set up edge
-      path.edges[depth].wi = ray.dir;
-      if ( depth > 0 ) {
-        path.edges[depth-1].wo = ray.dir;
-      }
-    }
 
     // W₀ = fᵢ(Wᵢ, N)
     float3 wo = BSDF_Sample(ray.dir, normal, &material, si, Tx);
@@ -496,111 +464,65 @@ Emitter Generate_Light_Subpath ( Subpath* path, Scene_T(si, Tx)) {
   }
   return light;
 }
+
+/// Geometric term of e0 -> e1 no visibilty check, can be used to convert
+///   a PDF w.r.t. SA to area
+float3 Geometric_Term(Vertex* V0, Vertex* V1) {
+  float3 dist_sqr = Distance(V0->origin, V1->origin);
+  dist_sqr *= dist_sqr;
+  float3 omega = normalize(V1->origin - V0->origin);
+  float cos_theta = (dot(omega, V0->normal)*dot(omega, V1->normal))/dist_sqr;
+  return cos_theta;
+}
+
 Spectrum Bidirectional_Pathtrace ( float3 pixel, float3 dir, SCENE_T(si, Tx)) {
-  /**
-    Remember the rendering equation, that uses the solid angle
-      Lₒ(P, ωₒ) = Lₑ(P, ωₒ) + ∫ Fₛ(P, ωᵢ, ωₒ) Lᵢ(P, ωᵢ) cosθᵢ dωᵢ
-                              Ω
-
-    To get from solid angle to path, consider:
-      Fₛ(v –> v` –> v``) = Fₛ(P, ωᵢ, ωₒ)
-      Lₑ(v –> v`)        = Lₑ(P, ωₒ)
-      cosθ  , is transformed to area with G(v <–> v`)
-    Lₒ(v –> v`) = Lₑ(v –> v`) * ∫M Lₒ(v₀–>v₁)G(v₀<–>v₁)fₛ(v₍ₖ₋₁₎–>vₖ) dA
-      where A is area
-      M is all set of possible paths
-    This is known as the three-point form or light transport equation, we
-      recursively expand it to get this:
-
-        ∞                              k-1
-        Σ  ∫( Lₑ(V₀ –> V₁) G(V₀ <–> V₁) Π( fₛ(Vᵢ₋₁–>Vᵢ–>Vᵢ₊₁)G(Vᵢ<–>Vᵢ₊₁)
-       k=1 ₼ᵏ⁺¹                        i=1
-                     * Wₑʲ(Vₖ₋₁ –>Vₖ) dA(v₀) ̇̇̇ dA(vₖ)
-           ))
-
-    This becomes, = Iⱼ = ∫Ω ( pⱼ(v̆) dμ(v̆) )
-      where v̆ is a path z₀–>zₛ–>yₜ–>y₀ (bsdf -> light) [or v₀–>vₖ, k=s+t-1]
-      Ω is the set of paths of any length
-      μ is the union of a set of paths
-    since μ is the area-product measure, we have to use the area-integral
-      of the transport equation. Well, this is actually the recursively
-      expanded form of the transport equation:
-
-    Of course, to compute this, we need to apply monte carlo sampling:
-      Iⱼ ≈ fⱼ(v̆)/p(v̆)
-       where p is the probability distribution function. It should be noted
-       that this PDF must be with respects to the area, so we must convert the
-       PDF w.r.t. solid angle.
-
-    The amount that each path contributes to Iⱼ differ greatly, so even naively
-      weighing each contribution by something like 1.0/(s+t+1), will produce very
-      noisy images, with results similar to naive path tracing.
-    In order to get good contributions, you must combine them in an optimal
-      manner using multiple importance sampling, as described in Veach's thesis:
-        F = ΣₛΣₜWₛₜ(v̆ₛₜ)/(pₛₜ(v̆ₛₜ))
-        But this can be rewritten to
-            ΣₛΣₜCₛ,ₜ = (Wₛₜ(v̆₍ₛₜ₎))*(αᴸₛ*cₛₜ*αᴱₜ)
-        where (αᴸₛ*cₛₜ*αᴱₜ) is the unweighted contribution (Cᵘₛₜ)
-              α is the contribution from light L or bsdf B
-              c is the contribution from connecting L and B, zₛ–>yₜ
-              W is the weight
-      For clarity,
-        Cᵘₛₜ = (αᴸₛ * cₛₜ * αᴱₜ) ≡ fⱼ(V̆ₛₜ)/p(x̆ₛₜ)
-      And if you were to expand this, you would get the light transport equation,
-        divided by a probablity distribution function.
-      Thus F = ΣₛΣₜWₛₜ*Cᵘₛₜ
-  **/
   Subpath light_path;
-  // Instead of generating a light and bsdf path, I generate the light path and
-  // then walk the bsdf path, in order to conserve GPU memory
+  // instead of genearting a light and bsdf path, only the light path is
+  // generated and the BSDF path is walked while evaluating the vertex behind it
+  // to conserve GPU memory.
   Emitter light = Generate_Light_Subpath(&light_path, si, Tx);
-  // -- generate weights and PDFS --
-  Spectrum bsdf_weight, light_weights[MAX_DEPTH];
-  Spectrum bsdf_contrib,  light_contrib[MAX_DEPTH];
-  // Calculate weights/pdfs for light path... I calculated pdfs as described in
-  //   veach's paper.
+  // generate weights and PDFs
+  Spectrum eye_weight, light_weight  [MAX_DEPTH];
+  Spectrum eye_contrib, light_contrib[MAX_DEPTH];
   // α₀⁽ᴸᴱ⁾ = 1
-  light_contrib[0] = light.colour;
-  bsdf_contrib = 1.0f;
+  light_contrib[0] = bsdf_contrib = eye_weight = light_weight[0] = 1.0f;
+
   if ( light_path.length > 1 ) { // α₁
-    // αᴸ₁ = Lₑ⁰(y₀ –> y₁) / Pₐ(y₁)
-    // Calculate Pₐ then Lₑ⁰
+    // -------- unweighted contribution --------
+    // αᴸ₁ = Lₑ⁰(y₀ –> y₁) / Pₐ(y₀)
     // Pₐ(y₀) = pᴸ₁
-    // where Pₐ(i) [PDF w.r.t. area] = Pσ(v̆₍ᵢ₋₁₎ –> v̆ᵢ) * G(v̆₍ᵢ₋₁₎ <–> v̆ᵢ)
-    //       Pσ = PDF w.r.t. solid angle
-    //       G(v <–> v') = V(v –> v')*(cosθₒ * cosθ'ᵢ)/||v - v'||²
-    //       V = visibility test, no need to calculate it here; check the
-    //             expansion of the light transport eq., they all cancel out
-    //             except for cₛₜ – makes sense intuitively as the path has
-    //             already been constructed: v –> v' must be visible
-    Vertex* V1 = light_path.vertices, * V0 = light_path.vertices - 1;
-    Edge  * E1 = light_path.edges,    * E0 = light_path.edges    - 1;
-    // Pσ * G(v <–> v')
-    float sigma_pdf = Light_PDF(V1.origin, &light),
-          g = (dot(E1.wi, V0.normal)*dot(E1.wi, V1.normal) / // cosθₒ * cosθ'ᵢ
-               sqr(length(V0.origin - V1.origin)));          // sqr magnitude
-    float light_pdf = sigma_pdf * g;
-    // Lₑ⁰(y₀ –> y₁) [spatial and directional components of Le]
-    // Specifically, the Lₑ component of the rendering eq. is split into two:
-    //   Lₑ(V₀–>V₁) = Lₑ⁰(V₀)* Lₑ¹(V₀–>V₁)
-    //   XXX This is mostly meaningless, because I only deal with area lights.
-    //         consider Lₑ(P, ωₒ) ≡ Lₑ(P):
-    //            Lₑ(V₀ –> V₁) = Lₑ⁰(V₀)
+    Vertex* V0 = light_path.vertices - 1, * V1 = light_path.vertices;
+    // Pₐ(y₀) = Pσ(y₀) * G(y₀ –> y₁)
+    float sigma_pdf = Light_PDF(V1.origin, &light);
+    float forward_g = Geometric_Term(V0, V1);
+    float forward_pdf = sigma_pdf * g;
+    // consider an area light: Lₑ(P, ωₒ) ≡ Lₑ(P); Lₑ(V₀ –> V₁) = Lₑ⁰(V₀)
     float Le = light.colour;
-    // αᴸ₁ = Lₑ⁰(y₀ –> y₁) / Pₐ(y₁)
-    light_contrib[1] = Le / light_pdf;
+    light_contrib[1] = Le / forward_pdf;
+    // ---------- MIS weight -------------------
+    // <-PA / ->PA
+    float backward_g = Geometric_Term(V1.origin, V0.origin, V1.normal, V0.normal);
+    float backward_pdf = sigma_pdf * backward_g;
+    light_weight[1] = backward_pdf * (1.0f/forward_pdf);
   }
   for ( int i = 2; i < light_path.length(); ++ i ) { // α₂ –> αₜ
+    // -------- unweighted contribution --------
     Vertex* V0 = light_path.vertices - 1, * V1 = light_path.vertices,
-            V2 = light_path.vertices + 1;
-    Edge  * E0 = light_path.edges    - 1, * E1 = light_path.edges,
-            E2 = light_path.vertices + 1;
-    //       fₛ(yᵢ₊₁ –> yᵢ –> yᵢ₋₁)
+          * V2 = light_path.vertices + 1;
+    //       fₛ(y₊₁ –> yᵢ –> y₋₁)
     // αᴸᵢ = —————————————————————– * αᴸᵢ₋₁
-    //         Pσ(yᵢ –> yᵢ₋₁)
-    Spectrum bsdf_f = BSDF_F(E1.wo, E1.wi, &material);
-    float sigma_pdf = BSDF_PDF(E1.wo, E1.wi, &material);
-    light_contrib[i] = bsdf_f/sigma_pdf * (light_contrib[i-1]);
+    //         Pσ(yᵢ –> y₋₁)
+    float3 wi = normalize(V1 - V0), wo = normalize(V2 - V1);
+    Spectrum bsdf_f = BSDF_F(wo, wi, &material);
+    float backward_pdf = BSDF_PDF(wo, wi, &material);
+    // backward_pdf *= Geometric_Term(V1, V0);
+    light_contrib[i] = bsdf_f/backward_pdf * (light_contrib[i-1]);
+    // ---------- MIS weight -------------------
+    float forward_g  = Geometric_Term(V1, V2);
+    float backward_g = Geometric_Term(V1, V0);
+    backward_pdf *= backward_g; //XXX not part of contrib?
+    float forward_pdf = BSDF_PDF(wi, wo, &material) * forward_g;
+    light_weight[i] = backward_pdf/forward_pdf * light_weight[i-1];
   }
 
   Spectrum sample_colour = (Spectrum)(0.0f);
@@ -608,12 +530,15 @@ Spectrum Bidirectional_Pathtrace ( float3 pixel, float3 dir, SCENE_T(si, Tx)) {
   //  and I leave out the near-identical equations from L path equations
   Ray ray = Ray{pixel, dir};
   Vertex V0, V1, V2;
-  Edge E0, E1, E2;
   Spectrum prev_contrib;
   for ( int depth = 0; depth != 3; ++ depth ) {
     SampledPt ptinfo = March(mindex, ray, si, Tx);
     if ( minfo.dist < 0.0f )
       break;
+
+    // Vᵢ = Vᵢ₋₁ + ωᵢ*Rd
+    float3 hit = ray.origin + ray.dir*minfo.dist;
+    float3 normal = Normal(hit, si, Tx);
 
     // V0 –> V1 –> V2
     // V2 is current, but we're evaluating V1
@@ -624,95 +549,44 @@ Spectrum Bidirectional_Pathtrace ( float3 pixel, float3 dir, SCENE_T(si, Tx)) {
       V2.normal = Normal(hit);
       V2.mat_index = ptinfo.mat_index;
     }
-    {// set up edge
-      E2.wi = ray.dir;
-    }
-    // Vᵢ = Vᵢ₋₁ + ωᵢ*Rd
-    float3 hit = ray.origin + ray.dir*minfo.dist;
-    float3 normal = Normal(hit, si, Tx);
-    // W₀ = fᵢ(Wᵢ, N)
-    float3 wo = BSDF_Sample(ray.dir, normal, &material, si, Tx);
-    // previous vertices/edges
+    // previous vertices
     {// calculate contribution and weights
       if ( depth == 0 ) {
+        // What's defined: V2 [we're not evaluating anything]
         // αᴱ₀ = 1
-        bsdf_contrib = 1.0f;
+        bsdf_contrib = bsdf_weight = 1.0f; // unnecessary, but unfortunately the
+                                           // if statement is
       } else if ( depth == 1 ) {
-        // ———————————— contribution ————————————
+        // What's defined: V1 -> V2 [we're evaluating V1]
+        // This is for a lens. So, it's ultimately completely useless until an
+        // actual lens exists in the SDF scene. Note that this isn't an actual
+        // point on a surface of the scene (that's V2, next up for eval), this
+        // is just an infinitesimal point based off where the camera currently
+        // is, just like a delta light.
+        // -------- unweighted contribution --------
         // αᴱ₁ = Wₑ⁰(z₀)/Pₐ(z₀)
-        float We = V1.colour; // XXX correct ?
+        Spectrum We = 1.0f; // XXX This is for lens, we don't have one.
         // Pₐ = Pσ(z̆ᵢ₋₁ –> z̆ᵢ) * G(zᵢ₋₁ <–> zᵢ)
-        float sigma_pdf = 1.0f/PI, // TODO, based off camera ??
-        g = (dot(E1.wi, V1.normal)*dot(E0.wo, V1.normal) / // cosθₒ * cosθ'ᵢ
-            sqr(length(V0.origin - V1.origin)));          // sqr magnitude
-        bsdf_contrib = We/(sigma_pdf * g);
-        prev_contrib = bsdf_contrib;
-        // ———————————— weight       ————————————
+        float sigma_pdf = 1.0f; // Still mathematically correct until a camera
+                                // is implemented [if ever]
+        float forward_g = 1.0f; // based off camera too
+        prev_contrib = bsdf_contrib = We/(sigma_pdf * g);
+        // ---------- MIS weight -------------------
+        eye_weight[1] = 1.0f;
       } else {
-        //       fₛ(zᵢ₋₁ –> zᵢ₋₂ –> zᵢ₋₃)
+        // What's defined: V0 -> V1 -> V2 [we're evaluating V1]
+        // -------- unweighted contribution --------
+        //       fₛ(V0 -> V1 -> V2)
         // αᴱᵢ = ———————————————————————— αᴱᵢ₋₁
-        //        Pα(zᵢ₋₂ –> zᵢ₋₁)
-        float bsdf = BSDF_F(E1.wi, E2.wi, &si.materials);
-        float sigma_pdf = BSDF_PDF(E1.wo, E1.wi, &material);
-        bsdf_contrib = bsdf/sigma_pdf * prev_contrib;
+        //        Pα(V1 -> V2)
+        float3 wi = normalize(V1 - V0), wo = normalize(V2 - V1);
+        float bsdf = BSDF_F(wi, wo, &si.materials);
+        float forward_pdf = BSDF_PDF(V1.origin, wo, &si.materials);
+        bsdf_contrib = (bsdf/forward_pdf) * prev_contrib;
         prev_contrib = bsdf_contrib;
+        // ---------- MIS weight -------------------
+        float backward_pdf = BSDF_PDF(V1.origin, wi, &si.materials);
       }
-      // Calculate pᵢ(y̆)
-      // calculate weight
-      /*
-                    pₛ(x̆)
-        ωₛₜ(x̆) = —————————–
-                 Σᵢ Pᵢ(x̆)
-        As described by Veach's thesis; there's a few problems with this:
-          1) PDFs can under/overflow floats; a vertex's area density is
-             inversely proportional to the square of the scene dimensions.
-          2) Has a complexity of O(n²)
-          3) Produces very lengthy code that is hard to debug
-
-        PBR 3rd Ed, chapter 16 pg 1014-1016 explains in detail how to solve this
-          while simplifying the equation:
-
-                 ( 1.0f,                i = s
-                 |
-                 | p←(xᵢ)
-                 | ——————– rᵢ₊₁(x̆)      i < s
-         rᵢ(x̆) = { p→(xᵢ)
-                 |
-                 | p→(xᵢ₋₁)
-                 | ————————– rᵢ₋₁(x̆)    i > s
-                 ( p←(xᵢ₋₁)
-
-                                              1.0f
-        Thus, something like Wₛₜ(x̆) = ——————————–——————————–
-                                       rₛ(x̆) + rₜ(x̆) + 1.0f
-
-      Well, I've found there's a bit more simplification possible. The thing is,
-        there isn't a single path x̆, there's a light and eye path, the latter of
-        which is an input range. So thus you can reduce:
-
-                                1.0f
-          Wₛₜ(y̆, z̆) = –––––––––––––––——————————–
-                       Rₛ₋₁(y̆) + Rₜ₋₁(z̆) + 1.0f
-
-              ( 1.0f               i=0
-              |
-      Rᵢ(x̆) = { Pᵢ←(x̆)
-              | —————– * Rᵢ₋₁(x̆)  i>0
-              ( pᵢ→(x̆)
-
-      There's no need to swap the Pᵢ directions, because they are in respects to
-        the light path and not the entire path (swapping them to form to the
-        camera path). Expanding the recursion we get
-
-               i    Pᵢ←(x̆)
-      Rᵢ(x̆) =  Π    —————–
-              n=0   Pᵢ→(x̆)
-
-      pᵢ = the probability of a path to have been created. Specifically, pₛ is
-        how the path was actually generated, while p₀ ̣̣̣ pₛ₋₁ , p₀ ̣̣̣ pₜ₋₁
-        represents the ways the path could have been generated
-      pᵢ = pᵢ,₍ₛ₊ₜ₎₋ᵢ(x̆ₛₜ) for i 0 .. s+t
-      */
     }
     {
     }
@@ -725,7 +599,8 @@ Spectrum Bidirectional_Pathtrace ( float3 pixel, float3 dir, SCENE_T(si, Tx)) {
 
     mindex = minfo.mat_index;
     ray.origin = hit;
-    ray.dir = wo;
+    // W₀ = fᵢ(Wᵢ, N)
+    ray.dir = BSDF_Sample(ray.dir, normal, &material, si, Tx);
   }
   // Iterate over
   for ( int lindex = light_subpath.length-1; lindex >= 0; -- lindex ) {
