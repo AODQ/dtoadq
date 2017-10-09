@@ -37,7 +37,7 @@ private const GLchar* fragment_shader =  `
   uniform sampler2D Tex;
   void main() {
     gl_FragColor.rgba = vec4(texture(Tex, Texcoord).rgb, 1.0);
-    if ( distance(Texcoord, vec2(0.5f)) < 0.01 )
+    if ( distance(Texcoord, vec2(0.5f)) < 0.001 )
       gl_FragColor.g = 1.0;
   }
 `;

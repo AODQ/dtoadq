@@ -73,6 +73,13 @@ typedef struct T_SampledPt {
   int material_index;
 } SampledPt;
 // -----------------------------------------------------------------------------
+// --------------- GENERAL UTILITIES      --------------------------------------
+float Distance(float3 u, float3 v) {
+  float x = u.x-v.x, y = u.y-v.y, z = u.z-v.z;
+  return sqrt(x*x + y*y + z*z);
+}
+float sqr(float t) { return t*t; }
+// -----------------------------------------------------------------------------
 // --------------- MAP GEOMETRY FUNCTIONS --------------------------------------
 
 //---MAP GEOMETRY INSERTION POINT---
@@ -115,7 +122,7 @@ SampledPt Map ( int a, float3 origin, SCENE_T(si, Tx) ) {
 
 // -----------------------------------------------------------------------------
 // --------------- GRAPHIC FUNCS -----------------------------------------------
-float3 Normal ( float3 p, float tm, SCENE_T(si, Tx) ) {
+float3 Normal ( float3 p, SCENE_T(si, Tx) ) {
   float2 e = (float2)(1.0f, -1.0f)*0.5773f*0.0005f;
   return normalize(
     e.xyy*Map(-1, p + e.xyy, si, Tx).dist +
@@ -155,14 +162,85 @@ SampledPt March ( int avoid, Ray ray, SCENE_T(si, Tx) ) {
 //----POSTPROCESS---
 //%POSTPROCESS
 
-SampledPt Colour_Pixel(Ray ray, SCENE_T(si, Tx) ){
+float Visibility_Ray(float3 orig, float3 other, float sphere_radius,
+                     SCENE_T(si, Tx)) {
+  float theoretical = Distance(orig, other) - sphere_radius;
+  float3 dir = normalize(other - orig);
+  orig += dir*(MARCH_ACC*2.0f + 0.2f);
+  SampledPt ptinfo = March(-1, (Ray){orig, dir}, si, Tx);
+  float actual = ptinfo.dist + MARCH_ACC + 0.4f;
+  return 1.0f*(actual >= theoretical);
+}
+
+float3 BRDF_Specular(float3 L, float3 V, float3 N, float3 H, float3 col) {
+  float roughness = 0.4f, metallic = 0.3f, fresnel = 1.0f;
+  float3 F, G, D;
+  // --------- variables
+
+  {// ---------- Fresnel
+    // Schlick 1994
+    float3 f0 = fresnel * (1.0f - metallic) + col*metallic;
+    F = f0 + (1.0f - f0)*pow(dot(L, H), 5.0f);
+  }
+  {// ---------- Geometry
+    // Heits 2014, SmithGGXCorrelated
+    float a2 = roughness*roughness;
+    float GGXV = dot(N, L) * sqrt((dot(N, V) - a2*dot(N, V))*dot(N, V) + a2),
+          GGXL = dot(N, V) * sqrt((dot(N, L) - a2*dot(N, L))*dot(N, L) + a2);
+    G = (float3)(0.5f / (GGXV + GGXL));
+  }
+  {// ---------- Distribution
+    // Walter et al 2007
+    float cosN_H = dot(N, H);
+    float a = cosN_H * roughness,
+    k = roughness/(1.0f - (cosN_H*cosN_H));
+    D = (float3)(k*k*(1.0f/PI));
+  }
+
+  // ---------- add it all up
+
+  float3 val = (float3)(F*G*D);
+  return val;
+}
+
+float3 BRDF_Diffuse(float3 L, float3 V, float3 N, float3 H, float3 col) {
+  float roughness = 0.4f, metallic = 0.3f;
+  // Burley 2012, Physically-Based shading at disney
+  float f90 = 0.5f + 2.0f*roughness * sqr(dot(L, H));
+  float light_scatter = 1.0f + (f90 - 1.0f) * pow(1.0f - dot(L, N), 5.0f),
+        view_scatter  = 1.0f + (f90 - 1.0f) * pow(1.0f - dot(V, N), 5.0f);
+  float3 D = (float3)(light_scatter * view_scatter * (1.0f/PI));
+  return D * (1.0f - metallic) * col;
+}
+
+float3 Illuminate ( float3 O, float3 Wi, float3 col, SCENE_T(si, Tx) ) {
+  float3 colour = (float3)(0.0f);
+  for ( int i = 0; i != EMITTER_AMT; ++ i ) {
+    Emitter emit = REmission(i, si->debug_values, si->time);
+
+    float3 V = normalize(-Wi),
+           N = Normal(O, si, Tx),
+           L = normalize(emit.origin - O),
+           H = normalize(V + L);
+    float3 brdf_sp = BRDF_Specular(L, V, N, H, col);
+    float3 brdf_di = BRDF_Diffuse(L, V, N, H, col);
+    float shadow = Visibility_Ray(O, emit.origin, emit.radius, si, Tx);
+
+    colour += (brdf_di + brdf_sp) * dot(N, L) * emit.emission * shadow;
+  }
+  return colour / EMITTER_AMT;
+}
+
+SampledPt Colour_Pixel(Ray ray, SCENE_T(si, Tx)) {
   SampledPt result = March(-1, ray, si, Tx);
   if ( result.dist > 0.0f ) {
     writeln("----");
     writefloat3(ray.origin + ray.dir*result.dist);
   }
   float3 origin = ray.origin + ray.dir*result.dist;
-  result.colour = result.colour;
+
+  result.colour = Illuminate(origin, ray.dir, result.colour, si, Tx);
+
   return result;
 }
 

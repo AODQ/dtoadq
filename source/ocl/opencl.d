@@ -95,6 +95,8 @@ bool Compile ( inout string source, string kernel_name ) {
   working_program =
     clBuildProgram(CL.program, 0, null, null, null, null) == CL_SUCCESS;
   if ( !working_program ) {
+    import std.datetime;
+    writeln("Compiling ", Clock.currTime());
     size_t len;
     clGetProgramBuildInfo(CL.program, device.device_id, CL_PROGRAM_BUILD_LOG,
                           0, null, &len);

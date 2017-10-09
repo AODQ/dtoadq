@@ -1,0 +1,1216 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN">
+
+<!--Converted with LaTeX2HTML 2017.2 (Released Jan 23, 2017) -->
+<HTML>
+<HEAD>
+<TITLE>Bidirectional Path Tracing</TITLE>
+<META NAME="description" CONTENT="Bidirectional Path Tracing">
+<META NAME="keywords" CONTENT="paper">
+<META NAME="resource-type" CONTENT="document">
+<META NAME="distribution" CONTENT="global">
+
+<META NAME="Generator" CONTENT="LaTeX2HTML v2017.2">
+<META HTTP-EQUIV="Content-Style-Type" CONTENT="text/css">
+
+<LINK REL="STYLESHEET" HREF="paper.css">
+
+<LINK REL="next" HREF="node6.html">
+<LINK REL="previous" HREF="node4.html">
+<LINK REL="up" HREF="paper.html">
+<LINK REL="next" HREF="node6.html">
+</HEAD>
+
+<BODY >
+
+<DIV CLASS="navigation"><!--Navigation Panel-->
+<A NAME="tex2html61"
+  HREF="node6.html">
+<IMG WIDTH="37" HEIGHT="24" ALIGN="BOTTOM" BORDER="0" ALT="next"
+ SRC="file:/usr/lib/latex2html/icons/next.png"></A> 
+<A NAME="tex2html59"
+  HREF="paper.html">
+<IMG WIDTH="26" HEIGHT="24" ALIGN="BOTTOM" BORDER="0" ALT="up"
+ SRC="file:/usr/lib/latex2html/icons/up.png"></A> 
+<A NAME="tex2html53"
+  HREF="node4.html">
+<IMG WIDTH="63" HEIGHT="24" ALIGN="BOTTOM" BORDER="0" ALT="previous"
+ SRC="file:/usr/lib/latex2html/icons/prev.png"></A>   
+<BR>
+<B> Next:</B> <A NAME="tex2html62"
+  HREF="node6.html">Video/Image Emitter</A>
+<B> Up:</B> <A NAME="tex2html60"
+  HREF="paper.html">DTOADQ</A>
+<B> Previous:</B> <A NAME="tex2html54"
+  HREF="node4.html">Light Transport Introduction</A>
+<BR>
+<BR></DIV>
+<!--End of Navigation Panel-->
+
+<H1><A NAME="SECTION00050000000000000000">
+Bidirectional Path Tracing</A>
+</H1>
+    All the materials in here, about path tracing, have come from Veach's PhD
+    thesis. So, in a way, DTOADQ, at this stage, is just an implementation of
+    BDPT as described in veach's thesis to the GPU, along with pulling from
+    other resources such as Physically Based Render [PBR] 3rd ed. In order
+    to understand the mathematics for BDPT, it must be worked up starting from
+    light transport. So this section is about transforming the algorithms and
+    mathematical models into something easily and efficiently implementable for
+    the GPU, even if some of it is a rewrite of the mathematical model so that a
+    programmer could understand it. In order to compute a normal of an SDF, you
+    must perform a gradient approximation: the central distance onf the SDF at
+    P. For example, the difference quotient:
+      <P><!-- MATH
+ \begin{displaymath}
+\frac{(f(x+h) - f(x))}{h}
+\end{displaymath}
+ -->
+</P>
+<DIV ALIGN="CENTER" CLASS="mathdisplay">
+<IMG
+ WIDTH="130" HEIGHT="55" ALIGN="MIDDLE" BORDER="0"
+ SRC="img7.png"
+ ALT="$\displaystyle \frac{(f(x+h) - f(x))}{h}$">
+</DIV><P></P>
+
+<P>
+Calculating probability distribution functions is a very vital component in
+    Monte Carlo Sampling. The PDF states the probability of a random variable to
+    take the form of a given input. Its usefulness comes when contributions from
+    many Monte Carlo samples have a different weight. That is, one sample may
+    have a higher probability distribution, and thus a higher contribution to
+    the path. That's the strategy behind Monte Carlo;
+    <P></P>
+<DIV ALIGN="CENTER" CLASS="mathdisplay"><TABLE CELLPADDING="0" WIDTH="100%" ALIGN="CENTER">
+<TR VALIGN="MIDDLE">
+<TD NOWRAP ALIGN="CENTER"><SPAN CLASS="MATH"><IMG
+ WIDTH="152" HEIGHT="55" ALIGN="MIDDLE" BORDER="0"
+ SRC="img8.png"
+ ALT="$\displaystyle \int f(x) \approx \frac{1}{N}\Sigma_0^N\frac{f(x)}{p(x)}$"></SPAN></TD>
+<TD NOWRAP CLASS="eqno" WIDTH="10" ALIGN="RIGHT">
+(<SPAN CLASS="arabic">1</SPAN>)</TD></TR>
+</TABLE></DIV>
+<BR CLEAR="ALL"><P></P>
+The PDF applies to everything from path contributions, solid angles of a
+    BRDF, uniformly sampling a sphere, etc. I had a difficult time understanding
+    these, and more importantly, how to calculate them for a given formula. The
+    biggest conceptual barrier is that, for example, given a solid angle in a
+    hemisphere <SPAN CLASS="MATH"><IMG
+ WIDTH="16" HEIGHT="14" ALIGN="BOTTOM" BORDER="0"
+ SRC="img9.png"
+ ALT="$ \Omega$"></SPAN>, the probability for a random variable X to equal
+    <SPAN CLASS="MATH"><IMG
+ WIDTH="15" HEIGHT="14" ALIGN="BOTTOM" BORDER="0"
+ SRC="img10.png"
+ ALT="$ \omega$"></SPAN> is 0. But this isn't what's happening here, this is all about the
+    probability that X could potentially equal <SPAN CLASS="MATH"><IMG
+ WIDTH="15" HEIGHT="14" ALIGN="BOTTOM" BORDER="0"
+ SRC="img10.png"
+ ALT="$ \omega$"></SPAN> when compared to other values
+    in <SPAN CLASS="MATH"><IMG
+ WIDTH="16" HEIGHT="14" ALIGN="BOTTOM" BORDER="0"
+ SRC="img9.png"
+ ALT="$ \Omega$"></SPAN>. It's all about comparing the probabilities of two potential
+    <SPAN CLASS="MATH"><IMG
+ WIDTH="15" HEIGHT="14" ALIGN="BOTTOM" BORDER="0"
+ SRC="img10.png"
+ ALT="$ \omega$"></SPAN>s with each other.
+
+<P>
+I still have a hard time conceptualizing these things in my head, but the
+    good thing is, is that calculating these are relatively easy. There's a lot
+    that could be talked about, but the important thing is that I've found a
+    reliable three-step process. The first is to
+    find the cumulative distribution function <!-- MATH
+ $CDF = Pr(X \leq x)$
+ -->
+<SPAN CLASS="MATH"><IMG
+ WIDTH="141" HEIGHT="32" ALIGN="MIDDLE" BORDER="0"
+ SRC="img11.png"
+ ALT="$ CDF = Pr(X \leq x)$"></SPAN>. Where <SPAN CLASS="MATH"><IMG
+ WIDTH="24" HEIGHT="15" ALIGN="BOTTOM" BORDER="0"
+ SRC="img12.png"
+ ALT="$ Pr$"></SPAN>
+    is the probability, <SPAN CLASS="MATH"><IMG
+ WIDTH="19" HEIGHT="14" ALIGN="BOTTOM" BORDER="0"
+ SRC="img13.png"
+ ALT="$ X$"></SPAN> is a uniformly random variable, and <SPAN CLASS="MATH"><IMG
+ WIDTH="13" HEIGHT="14" ALIGN="BOTTOM" BORDER="0"
+ SRC="img14.png"
+ ALT="$ x$"></SPAN> is a known
+    constant. In other words, this gives the probability that, for a formula
+    <SPAN CLASS="MATH"><IMG
+ WIDTH="17" HEIGHT="14" ALIGN="BOTTOM" BORDER="0"
+ SRC="img15.png"
+ ALT="$ P$"></SPAN>, where <!-- MATH
+ $X \in \Omega$
+ -->
+<SPAN CLASS="MATH"><IMG
+ WIDTH="50" HEIGHT="30" ALIGN="MIDDLE" BORDER="0"
+ SRC="img16.png"
+ ALT="$ X \in \Omega$"></SPAN>, and <SPAN CLASS="MATH"><IMG
+ WIDTH="16" HEIGHT="14" ALIGN="BOTTOM" BORDER="0"
+ SRC="img9.png"
+ ALT="$ \Omega$"></SPAN> is the set of all possible values
+    for <SPAN CLASS="MATH"><IMG
+ WIDTH="43" HEIGHT="15" ALIGN="BOTTOM" BORDER="0"
+ SRC="img17.png"
+ ALT="$ CDF$"></SPAN>,
+    that <SPAN CLASS="MATH"><IMG
+ WIDTH="49" HEIGHT="30" ALIGN="MIDDLE" BORDER="0"
+ SRC="img18.png"
+ ALT="$ X \leq x$"></SPAN>. The second step is to take the derivative of this, so for
+    PDF <SPAN CLASS="MATH"><IMG
+ WIDTH="12" HEIGHT="30" ALIGN="MIDDLE" BORDER="0"
+ SRC="img19.png"
+ ALT="$ p$"></SPAN>
+    <P></P>
+<DIV ALIGN="CENTER" CLASS="mathdisplay"><TABLE CELLPADDING="0" WIDTH="100%" ALIGN="CENTER">
+<TR VALIGN="MIDDLE">
+<TD NOWRAP ALIGN="CENTER"><SPAN CLASS="MATH"><IMG
+ WIDTH="127" HEIGHT="55" ALIGN="MIDDLE" BORDER="0"
+ SRC="img20.png"
+ ALT="$\displaystyle p(x) = \frac{dCDF(x)}{dx}$"></SPAN></TD>
+<TD NOWRAP CLASS="eqno" WIDTH="10" ALIGN="RIGHT">
+(<SPAN CLASS="arabic">2</SPAN>)</TD></TR>
+</TABLE></DIV>
+<BR CLEAR="ALL"><P></P>
+And the final step is to verify that the PDF is correct by integrating it
+    over <SPAN CLASS="MATH"><IMG
+ WIDTH="16" HEIGHT="14" ALIGN="BOTTOM" BORDER="0"
+ SRC="img9.png"
+ ALT="$ \Omega$"></SPAN>, this final value should equal 1. This makes sense intuitively
+    - it is a probability after all, so the sum of the probabilities of every
+    possible input must be 1.
+    For an example, how I calculated the PDF of an area light source
+      <!-- MATH
+ $L^0_e(v) = L_o(P, \omega_o)$
+ -->
+<SPAN CLASS="MATH"><IMG
+ WIDTH="129" HEIGHT="34" ALIGN="MIDDLE" BORDER="0"
+ SRC="img21.png"
+ ALT="$ L^0_e(v) = L_o(P, \omega_o)$"></SPAN> 
+    is quite simple. Firstly,the area light is defined as a sphere, and thus our
+    set of all possible values is correlated to surface area:
+    <!-- MATH
+ $\Omega = [0,\:2.0f*\tau*R^2]$
+ -->
+<SPAN CLASS="MATH"><IMG
+ WIDTH="152" HEIGHT="34" ALIGN="MIDDLE" BORDER="0"
+ SRC="img22.png"
+ ALT="$ \Omega = [0,\:2.0f*\tau*R^2]$"></SPAN>.
+    Thus for a given constant <SPAN CLASS="MATH"><IMG
+ WIDTH="13" HEIGHT="14" ALIGN="BOTTOM" BORDER="0"
+ SRC="img14.png"
+ ALT="$ x$"></SPAN>, and a uniformly random <SPAN CLASS="MATH"><IMG
+ WIDTH="19" HEIGHT="14" ALIGN="BOTTOM" BORDER="0"
+ SRC="img13.png"
+ ALT="$ X$"></SPAN>,
+    <P></P>
+<DIV ALIGN="CENTER" CLASS="mathdisplay"><TABLE CELLPADDING="0" WIDTH="100%" ALIGN="CENTER">
+<TR VALIGN="MIDDLE">
+<TD NOWRAP ALIGN="CENTER"><SPAN CLASS="MATH"><IMG
+ WIDTH="276" HEIGHT="45" ALIGN="MIDDLE" BORDER="0"
+ SRC="img23.png"
+ ALT="$\displaystyle CDF(x) = Pr(X \leq x) = \frac{x}{2.0f*\tau*R^2}$"></SPAN></TD>
+<TD NOWRAP CLASS="eqno" WIDTH="10" ALIGN="RIGHT">
+(<SPAN CLASS="arabic">3</SPAN>)</TD></TR>
+<TR VALIGN="MIDDLE">
+<TD NOWRAP ALIGN="CENTER"><SPAN CLASS="MATH"><IMG
+ WIDTH="240" HEIGHT="55" ALIGN="MIDDLE" BORDER="0"
+ SRC="img24.png"
+ ALT="$\displaystyle p(x) = \frac{dCDF(x)}{dx} = \frac{1.0f}{2.0f*\tau*R^2}$"></SPAN></TD>
+<TD NOWRAP CLASS="eqno" WIDTH="10" ALIGN="RIGHT">
+(<SPAN CLASS="arabic">4</SPAN>)</TD></TR>
+<TR VALIGN="MIDDLE">
+<TD NOWRAP ALIGN="CENTER"><SPAN CLASS="MATH"><IMG
+ WIDTH="130" HEIGHT="59" ALIGN="MIDDLE" BORDER="0"
+ SRC="img25.png"
+ ALT="$\displaystyle \int_0^{\Omega}p(x)dx = 1.0f$"></SPAN></TD>
+<TD NOWRAP CLASS="eqno" WIDTH="10" ALIGN="RIGHT">
+(<SPAN CLASS="arabic">5</SPAN>)</TD></TR>
+</TABLE></DIV>
+<BR CLEAR="ALL"><P></P>
+In code
+    <BR>
+<IMG
+ WIDTH="315" HEIGHT="65" ALIGN="BOTTOM" BORDER="0"
+ SRC="img26.png"
+ ALT="\begin{lstlisting}
+float Light_PDF ( float3 P, Emitter* m ) {
+float rad_sqr = m-&gt;radius*m-&gt;radius;
+return 1.0f/(2.0f*TAU*rad_sqr);
+}
+\end{lstlisting}">
+<BR>
+The more interesting aspect, in this example, is actually generating the
+    uniformly distributed samples of a sphere. The naive method gives incorrect
+    distributions.TODO page 774
+
+<P>
+The most obvious way to calculate this is the six-point gradient; where for
+    each axis you compute <!-- MATH
+ $f(x+h) - f(x-h)$
+ -->
+<SPAN CLASS="MATH"><IMG
+ WIDTH="143" HEIGHT="32" ALIGN="MIDDLE" BORDER="0"
+ SRC="img27.png"
+ ALT="$ f(x+h) - f(x-h)$"></SPAN>, and normalize the result. This
+    returns a vector pointing in the direction where the map's SDF changes the
+    most: the normal. A four point gradient is possible; as long as each each
+    point of the gradient is multiplied by <SPAN CLASS="MATH"><IMG
+ WIDTH="11" HEIGHT="14" ALIGN="BOTTOM" BORDER="0"
+ SRC="img28.png"
+ ALT="$ \epsilon$"></SPAN> before normalizing. The
+    speedup from six to four is worthwhile, as computing each gradient is
+    expensive as it involves a sdf map call. There are more utilities with
+    gradients not yet currently provided in DTOADQ but are worth mentioning, a
+    few are: an additional normal call using an alternative (higher-quality) SDF
+    map can be used to compute a 'normal' bumpmap, and analyzing the gradient by
+    hand allows a cheap normal computation of primitives such as a spheres.
+
+<P>
+Rendering equation with solid angle:
+  <P></P>
+<DIV ALIGN="CENTER" CLASS="mathdisplay"><TABLE CELLPADDING="0" WIDTH="100%" ALIGN="CENTER">
+<TR VALIGN="MIDDLE">
+<TD NOWRAP ALIGN="CENTER"><SPAN CLASS="MATH"><IMG
+ WIDTH="405" HEIGHT="53" ALIGN="MIDDLE" BORDER="0"
+ SRC="img29.png"
+ ALT="$\displaystyle L_o(P, \omega_o) = L_o(P, \omega_o) + \int_{\Omega}f_s(P, \omega_i, \omega_o) L_i(P, \omega_i) cos\Theta_i d\omega_i$"></SPAN></TD>
+<TD NOWRAP CLASS="eqno" WIDTH="10" ALIGN="RIGHT">
+(<SPAN CLASS="arabic">6</SPAN>)</TD></TR>
+</TABLE></DIV>
+<BR CLEAR="ALL"><P></P>
+To get from solid angle to path, consider:
+  <P></P>
+<DIV ALIGN="CENTER" CLASS="mathdisplay"><TABLE CELLPADDING="0" WIDTH="100%" ALIGN="CENTER">
+<TR VALIGN="MIDDLE">
+<TD NOWRAP ALIGN="RIGHT"><SPAN CLASS="MATH"><IMG
+ WIDTH="105" HEIGHT="32" ALIGN="MIDDLE" BORDER="0"
+ SRC="img30.png"
+ ALT="$\displaystyle f_s(v \rightarrow \dot{v} \rightarrow \ddot{v})$"></SPAN></TD>
+<TD NOWRAP ALIGN="LEFT"><SPAN CLASS="MATH"><IMG
+ WIDTH="105" HEIGHT="32" ALIGN="MIDDLE" BORDER="0"
+ SRC="img31.png"
+ ALT="$\displaystyle = f_s(P, \omega_i, \omega_o)$"></SPAN></TD>
+<TD NOWRAP CLASS="eqno" WIDTH="10" ALIGN="RIGHT">
+(<SPAN CLASS="arabic">7</SPAN>)</TD></TR>
+<TR VALIGN="MIDDLE">
+<TD NOWRAP ALIGN="RIGHT"><SPAN CLASS="MATH"><IMG
+ WIDTH="75" HEIGHT="32" ALIGN="MIDDLE" BORDER="0"
+ SRC="img32.png"
+ ALT="$\displaystyle L_e(v \rightarrow \dot{v})$"></SPAN></TD>
+<TD NOWRAP ALIGN="LEFT"><SPAN CLASS="MATH"><IMG
+ WIDTH="86" HEIGHT="32" ALIGN="MIDDLE" BORDER="0"
+ SRC="img33.png"
+ ALT="$\displaystyle = L_e(P, \omega_o)$"></SPAN></TD>
+<TD NOWRAP CLASS="eqno" WIDTH="10" ALIGN="RIGHT">
+(<SPAN CLASS="arabic">8</SPAN>)</TD></TR>
+<TR VALIGN="MIDDLE">
+<TD NOWRAP ALIGN="RIGHT"><SPAN CLASS="MATH"><IMG
+ WIDTH="75" HEIGHT="32" ALIGN="MIDDLE" BORDER="0"
+ SRC="img32.png"
+ ALT="$\displaystyle L_e(v \rightarrow \dot{v})$"></SPAN></TD>
+<TD NOWRAP ALIGN="LEFT"><SPAN CLASS="MATH"><IMG
+ WIDTH="131" HEIGHT="37" ALIGN="MIDDLE" BORDER="0"
+ SRC="img34.png"
+ ALT="$\displaystyle = L_e^0(v) L_e^1(v \rightarrow \dot{v})$"></SPAN></TD>
+<TD NOWRAP CLASS="eqno" WIDTH="10" ALIGN="RIGHT">
+(<SPAN CLASS="arabic">9</SPAN>)</TD></TR>
+</TABLE></DIV>
+<BR CLEAR="ALL"><P></P>
+That is, instead of looking at a point <SPAN CLASS="MATH"><IMG
+ WIDTH="17" HEIGHT="14" ALIGN="BOTTOM" BORDER="0"
+ SRC="img15.png"
+ ALT="$ P$"></SPAN> with an incoming and outgoing
+    angle <!-- MATH
+ $(\omega_i,\:\omega_o)$
+ -->
+<SPAN CLASS="MATH"><IMG
+ WIDTH="59" HEIGHT="32" ALIGN="MIDDLE" BORDER="0"
+ SRC="img35.png"
+ ALT="$ (\omega_i,\:\omega_o)$"></SPAN>, look at the path from <SPAN CLASS="MATH"><IMG
+ WIDTH="31" HEIGHT="30" ALIGN="MIDDLE" BORDER="0"
+ SRC="img36.png"
+ ALT="$ P_{-1}$"></SPAN> (<SPAN CLASS="MATH"><IMG
+ WIDTH="12" HEIGHT="14" ALIGN="BOTTOM" BORDER="0"
+ SRC="img37.png"
+ ALT="$ v$"></SPAN>) to
+    <SPAN CLASS="MATH"><IMG
+ WIDTH="31" HEIGHT="30" ALIGN="MIDDLE" BORDER="0"
+ SRC="img38.png"
+ ALT="$ P_{+1}$"></SPAN> (<SPAN CLASS="MATH"><IMG
+ WIDTH="12" HEIGHT="17" ALIGN="BOTTOM" BORDER="0"
+ SRC="img39.png"
+ ALT="$ \ddot{v}$"></SPAN>). More accurately, it's the transport between
+    three different surfaces of the scene. In terms of SDFs, the surface
+    is every point on an SDF map where <!-- MATH
+ $|map| \leq \epsilon$
+ -->
+<SPAN CLASS="MATH"><IMG
+ WIDTH="71" HEIGHT="32" ALIGN="MIDDLE" BORDER="0"
+ SRC="img40.png"
+ ALT="$ \vert map\vert \leq \epsilon$"></SPAN>. There's no longer
+    any integration over a hemisphere with solid angle <SPAN CLASS="MATH"><IMG
+ WIDTH="19" HEIGHT="30" ALIGN="MIDDLE" BORDER="0"
+ SRC="img41.png"
+ ALT="$ \omega_i$"></SPAN>, it's now over
+    every single surface in the scene. This will be explained in detail later.
+
+<BR>
+In the case of <SPAN CLASS="MATH"><IMG
+ WIDTH="22" HEIGHT="30" ALIGN="MIDDLE" BORDER="0"
+ SRC="img42.png"
+ ALT="$ L_e$"></SPAN>,
+    DTOADQ [at least, for now], only has support for area-light. Thus consider:
+
+<P>
+<P></P>
+<DIV ALIGN="CENTER" CLASS="mathdisplay"><TABLE CELLPADDING="0" WIDTH="100%" ALIGN="CENTER">
+<TR VALIGN="MIDDLE">
+<TD NOWRAP ALIGN="RIGHT"><SPAN CLASS="MATH"><IMG
+ WIDTH="69" HEIGHT="32" ALIGN="MIDDLE" BORDER="0"
+ SRC="img43.png"
+ ALT="$\displaystyle L_e(P, \omega_o)$"></SPAN></TD>
+<TD NOWRAP ALIGN="LEFT"><SPAN CLASS="MATH"><IMG
+ WIDTH="63" HEIGHT="32" ALIGN="MIDDLE" BORDER="0"
+ SRC="img44.png"
+ ALT="$\displaystyle \equiv L_e(P)$"></SPAN></TD>
+<TD NOWRAP ALIGN="RIGHT"><SPAN CLASS="MATH">[ for area lights ]</SPAN></TD>
+<TD NOWRAP CLASS="eqno" WIDTH="10" ALIGN="RIGHT">
+(<SPAN CLASS="arabic">10</SPAN>)</TD></TR>
+<TR VALIGN="MIDDLE">
+<TD NOWRAP ALIGN="RIGHT"><SPAN CLASS="MATH"><IMG
+ WIDTH="75" HEIGHT="32" ALIGN="MIDDLE" BORDER="0"
+ SRC="img32.png"
+ ALT="$\displaystyle L_e(v \rightarrow \dot{v})$"></SPAN></TD>
+<TD NOWRAP ALIGN="LEFT"><SPAN CLASS="MATH"><IMG
+ WIDTH="60" HEIGHT="37" ALIGN="MIDDLE" BORDER="0"
+ SRC="img45.png"
+ ALT="$\displaystyle = L_e^0(v)$"></SPAN></TD>
+<TD>&nbsp;</TD>
+<TD NOWRAP CLASS="eqno" WIDTH="10" ALIGN="RIGHT">
+(<SPAN CLASS="arabic">11</SPAN>)</TD></TR>
+</TABLE></DIV>
+<BR CLEAR="ALL"><P></P>
+
+<P>
+The cos term, used for the projected solid angle in irradiance, no longer
+    applies when dealing with area. This and <SPAN CLASS="MATH"><IMG
+ WIDTH="28" HEIGHT="30" ALIGN="MIDDLE" BORDER="0"
+ SRC="img46.png"
+ ALT="$ d\omega_i$"></SPAN> now become a
+    generalized geometry term, G, that converts a PDF with respect to solid area
+    using Jacobian mapping, which involves the inverse squared distance, and the
+    cosine angle between the geometric normals at <SPAN CLASS="MATH"><IMG
+ WIDTH="12" HEIGHT="14" ALIGN="BOTTOM" BORDER="0"
+ SRC="img37.png"
+ ALT="$ v$"></SPAN> and <SPAN CLASS="MATH"><IMG
+ WIDTH="12" HEIGHT="17" ALIGN="BOTTOM" BORDER="0"
+ SRC="img47.png"
+ ALT="$ \dot{v}$"></SPAN>:
+
+<P>
+<P></P>
+<DIV ALIGN="CENTER" CLASS="mathdisplay"><TABLE CELLPADDING="0" WIDTH="100%" ALIGN="CENTER">
+<TR VALIGN="MIDDLE">
+<TD NOWRAP ALIGN="CENTER"><SPAN CLASS="MATH"><IMG
+ WIDTH="118" HEIGHT="32" ALIGN="MIDDLE" BORDER="0"
+ SRC="img48.png"
+ ALT="$\displaystyle cos\theta_n = v \cdot N(v)$"></SPAN></TD>
+<TD NOWRAP CLASS="eqno" WIDTH="10" ALIGN="RIGHT">
+(<SPAN CLASS="arabic">12</SPAN>)</TD></TR>
+<TR VALIGN="MIDDLE">
+<TD NOWRAP ALIGN="CENTER"><SPAN CLASS="MATH"><IMG
+ WIDTH="251" HEIGHT="61" ALIGN="MIDDLE" BORDER="0"
+ SRC="img49.png"
+ ALT="$\displaystyle G(v \leftrightarrow \dot{v}) = V(v \rightarrow \dot{v}) \frac{(cos\theta_n cos\dot{\theta_n})}{\vert\vert v - \dot{v}\vert\vert^2}$"></SPAN></TD>
+<TD NOWRAP CLASS="eqno" WIDTH="10" ALIGN="RIGHT">
+(<SPAN CLASS="arabic">13</SPAN>)</TD></TR>
+</TABLE></DIV>
+<BR CLEAR="ALL"><P></P>
+
+<P>
+Where <SPAN CLASS="MATH"><IMG
+ WIDTH="17" HEIGHT="15" ALIGN="BOTTOM" BORDER="0"
+ SRC="img50.png"
+ ALT="$ V$"></SPAN> is the visibility test. Thus the rendering equation with respects
+    to area is:
+  <P></P>
+<DIV ALIGN="CENTER" CLASS="mathdisplay"><TABLE CELLPADDING="0" WIDTH="100%" ALIGN="CENTER">
+<TR VALIGN="MIDDLE">
+<TD NOWRAP ALIGN="CENTER"><SPAN CLASS="MATH"><IMG
+ WIDTH="440" HEIGHT="53" ALIGN="MIDDLE" BORDER="0"
+ SRC="img51.png"
+ ALT="$\displaystyle L(v \rightarrow \dot{v}) = L_e(v \rightarrow \dot{v}) \int_ML(v \...
+... G(v\leftrightarrow \dot{v}) f_s(v\rightarrow \dot{v} \rightarrow \ddot{v}) d_A$"></SPAN></TD>
+<TD NOWRAP CLASS="eqno" WIDTH="10" ALIGN="RIGHT">
+(<SPAN CLASS="arabic">14</SPAN>)</TD></TR>
+</TABLE></DIV>
+<BR CLEAR="ALL"><P></P>
+where <SPAN CLASS="MATH"><IMG
+ WIDTH="16" HEIGHT="14" ALIGN="BOTTOM" BORDER="0"
+ SRC="img52.png"
+ ALT="$ A$"></SPAN> is the area on <SPAN CLASS="MATH"><IMG
+ WIDTH="21" HEIGHT="14" ALIGN="BOTTOM" BORDER="0"
+ SRC="img53.png"
+ ALT="$ M$"></SPAN>, and <SPAN CLASS="MATH"><IMG
+ WIDTH="21" HEIGHT="14" ALIGN="BOTTOM" BORDER="0"
+ SRC="img53.png"
+ ALT="$ M$"></SPAN> is the union of all scene surfaces.
+    This is known as the three-point form or the light transport equation. By
+    recursively expanding<SPAN CLASS="MATH"><IMG
+ WIDTH="18" HEIGHT="19" ALIGN="BOTTOM" BORDER="0"
+ SRC="img54.png"
+ ALT="$ ^{[1]}$"></SPAN>, so that the three point form is integrated
+    over every possible set of possible paths, this can be rewritten as the more
+    usable format:
+  <P></P>
+<DIV ALIGN="CENTER" CLASS="mathdisplay"><TABLE CELLPADDING="0" WIDTH="100%" ALIGN="CENTER">
+<TR VALIGN="MIDDLE">
+<TD NOWRAP ALIGN="CENTER"><SPAN CLASS="MATH"><IMG
+ WIDTH="134" HEIGHT="53" ALIGN="MIDDLE" BORDER="0"
+ SRC="img55.png"
+ ALT="$\displaystyle I_j = \int_\Omega f_j(\bar{v}) d\mu(\bar{v})$"></SPAN></TD>
+<TD NOWRAP CLASS="eqno" WIDTH="10" ALIGN="RIGHT">
+(<SPAN CLASS="arabic">15</SPAN>)</TD></TR>
+</TABLE></DIV>
+<BR CLEAR="ALL"><P></P>
+Where <SPAN CLASS="MATH"><IMG
+ WIDTH="12" HEIGHT="14" ALIGN="BOTTOM" BORDER="0"
+ SRC="img56.png"
+ ALT="$ \bar{v}$"></SPAN> is a path <!-- MATH
+ $z_0\rightarrow z_s \rightarrow y_t \rightarrow
+    y_0 (eye \rightarrow light)$
+ -->
+<SPAN CLASS="MATH"><IMG
+ WIDTH="229" HEIGHT="32" ALIGN="MIDDLE" BORDER="0"
+ SRC="img57.png"
+ ALT="$ z_0\rightarrow z_s \rightarrow y_t \rightarrow
+y_0 (eye \rightarrow light)$"></SPAN>, <SPAN CLASS="MATH"><IMG
+ WIDTH="16" HEIGHT="14" ALIGN="BOTTOM" BORDER="0"
+ SRC="img9.png"
+ ALT="$ \Omega$"></SPAN> is the combination of all possible
+    paths of any length, and <SPAN CLASS="MATH"><IMG
+ WIDTH="14" HEIGHT="30" ALIGN="MIDDLE" BORDER="0"
+ SRC="img58.png"
+ ALT="$ \mu$"></SPAN> is the area-product measure [the product of
+    all the expanded <SPAN CLASS="MATH"><IMG
+ WIDTH="23" HEIGHT="30" ALIGN="MIDDLE" BORDER="0"
+ SRC="img59.png"
+ ALT="$ d_A$"></SPAN>]. Special care has to be taken with the definition of
+    path itself, as in the source code, there never exists a path <SPAN CLASS="MATH"><IMG
+ WIDTH="12" HEIGHT="14" ALIGN="BOTTOM" BORDER="0"
+ SRC="img56.png"
+ ALT="$ \bar{v}$"></SPAN>,
+    only eye-path <SPAN CLASS="MATH"><IMG
+ WIDTH="12" HEIGHT="14" ALIGN="BOTTOM" BORDER="0"
+ SRC="img60.png"
+ ALT="$ \bar{z}$"></SPAN> and light-path . Right now, this is analytically
+    unsolvable. To compute this, we need to apply monte carlo sampling and limit
+    the maximum path length:
+  <P></P>
+<DIV ALIGN="CENTER" CLASS="mathdisplay"><TABLE CELLPADDING="0" WIDTH="100%" ALIGN="CENTER">
+<TR VALIGN="MIDDLE">
+<TD NOWRAP ALIGN="CENTER"><SPAN CLASS="MATH"><IMG
+ WIDTH="109" HEIGHT="52" ALIGN="MIDDLE" BORDER="0"
+ SRC="img61.png"
+ ALT="$\displaystyle I_j \approx \frac{1.0f}{N}\Sigma_0^NF$"></SPAN></TD>
+<TD NOWRAP CLASS="eqno" WIDTH="10" ALIGN="RIGHT">
+(<SPAN CLASS="arabic">16</SPAN>)</TD></TR>
+<TR VALIGN="MIDDLE">
+<TD NOWRAP ALIGN="CENTER"><SPAN CLASS="MATH"><IMG
+ WIDTH="127" HEIGHT="55" ALIGN="MIDDLE" BORDER="0"
+ SRC="img62.png"
+ ALT="$\displaystyle F = \Sigma_s\Sigma_t\frac{f_j(\bar{v}_{s, t})}{p(\bar{v}_{s, t})}$"></SPAN></TD>
+<TD NOWRAP CLASS="eqno" WIDTH="10" ALIGN="RIGHT">
+(<SPAN CLASS="arabic">17</SPAN>)</TD></TR>
+</TABLE></DIV>
+<BR CLEAR="ALL"><P></P>
+
+<P>
+where <SPAN CLASS="MATH"><IMG
+ WIDTH="12" HEIGHT="14" ALIGN="BOTTOM" BORDER="0"
+ SRC="img63.png"
+ ALT="$ s$"></SPAN> is the light-path length, and <SPAN CLASS="MATH"><IMG
+ WIDTH="10" HEIGHT="14" ALIGN="BOTTOM" BORDER="0"
+ SRC="img64.png"
+ ALT="$ t$"></SPAN> is the eye-path length. In
+    DTOADQ, they are limited to <!-- MATH
+ $s+t \leq 8$
+ -->
+<SPAN CLASS="MATH"><IMG
+ WIDTH="66" HEIGHT="30" ALIGN="MIDDLE" BORDER="0"
+ SRC="img65.png"
+ ALT="$ s+t \leq 8$"></SPAN>[TODO]. Finally, to transform
+    <SPAN CLASS="MATH"><IMG
+ WIDTH="12" HEIGHT="14" ALIGN="BOTTOM" BORDER="0"
+ SRC="img56.png"
+ ALT="$ \bar{v}$"></SPAN> into two seperate paths, <!-- MATH
+ $\frac{f_j(\bar{v}_{s,
+        t})}{p(\bar{v}_{s, t})}$
+ -->
+<SPAN CLASS="MATH"><IMG
+ WIDTH="51" HEIGHT="41" ALIGN="MIDDLE" BORDER="0"
+ SRC="img66.png"
+ ALT="$ \frac{f_j(\bar{v}_{s,
+t})}{p(\bar{v}_{s, t})}$"></SPAN> is split into two with a connection edge <SPAN CLASS="MATH"><IMG
+ WIDTH="11" HEIGHT="14" ALIGN="BOTTOM" BORDER="0"
+ SRC="img67.png"
+ ALT="$ c$"></SPAN>
+  <P></P>
+<DIV ALIGN="CENTER" CLASS="mathdisplay"><TABLE CELLPADDING="0" WIDTH="100%" ALIGN="CENTER">
+<TR VALIGN="MIDDLE">
+<TD NOWRAP ALIGN="CENTER"><SPAN CLASS="MATH"><IMG
+ WIDTH="239" HEIGHT="58" ALIGN="MIDDLE" BORDER="0"
+ SRC="img68.png"
+ ALT="$\displaystyle \frac{f_j(\bar{v}_{s, t})}{p(\bar{v}_{s, t})} \equiv \frac{f^L(\b...
+...bar{y})} c(\bar{y}_s \leftrightarrow \bar{z}_t) \frac{f^E(\bar{z})}{p(\bar{z})}$"></SPAN></TD>
+<TD NOWRAP CLASS="eqno" WIDTH="10" ALIGN="RIGHT">
+(<SPAN CLASS="arabic">18</SPAN>)</TD></TR>
+</TABLE></DIV>
+<BR CLEAR="ALL"><P></P>
+
+<P>
+And now
+  <P></P>
+<DIV ALIGN="CENTER" CLASS="mathdisplay"><TABLE CELLPADDING="0" WIDTH="100%" ALIGN="CENTER">
+<TR VALIGN="MIDDLE">
+<TD NOWRAP ALIGN="CENTER"><SPAN CLASS="MATH"><IMG
+ WIDTH="136" HEIGHT="38" ALIGN="MIDDLE" BORDER="0"
+ SRC="img69.png"
+ ALT="$\displaystyle F = \Sigma_s\Sigma_t \alpha^L_s c_{s, t} \alpha^E_t$"></SPAN></TD>
+<TD NOWRAP CLASS="eqno" WIDTH="10" ALIGN="RIGHT">
+(<SPAN CLASS="arabic">19</SPAN>)</TD></TR>
+</TABLE></DIV>
+<BR CLEAR="ALL"><P></P>
+  <P></P>
+<DIV ALIGN="CENTER" CLASS="mathdisplay"><TABLE CELLPADDING="0" WIDTH="100%" ALIGN="CENTER">
+<TR VALIGN="MIDDLE">
+<TD NOWRAP ALIGN="CENTER"><SPAN CLASS="MATH"><IMG
+ WIDTH="419" HEIGHT="69" ALIGN="MIDDLE" BORDER="0"
+ SRC="img70.png"
+ ALT="$\displaystyle \alpha^{L\vert E}_i = \begin{cases}\frac{L_e^0(y_0 \rightarrow y_...
+...igma(z_{i-2} \rightarrow z_{i-1})}) \alpha^{L\vert E}_{i-1}, &amp;i &gt; 1 \end{cases}$"></SPAN></TD>
+<TD NOWRAP CLASS="eqno" WIDTH="10" ALIGN="RIGHT">
+(<SPAN CLASS="arabic">20</SPAN>)</TD></TR>
+</TABLE></DIV>
+<BR CLEAR="ALL"><P></P>
+There is no case for <SPAN CLASS="MATH"><IMG
+ WIDTH="39" HEIGHT="17" ALIGN="BOTTOM" BORDER="0"
+ SRC="img71.png"
+ ALT="$ i = 0$"></SPAN> as either, the path doesn't exist, or if one
+    does exist, <SPAN CLASS="MATH"><IMG
+ WIDTH="19" HEIGHT="30" ALIGN="MIDDLE" BORDER="0"
+ SRC="img72.png"
+ ALT="$ y_0$"></SPAN> and <SPAN CLASS="MATH"><IMG
+ WIDTH="19" HEIGHT="30" ALIGN="MIDDLE" BORDER="0"
+ SRC="img73.png"
+ ALT="$ z_0$"></SPAN> do not contribute to the image. Veach (and many other
+    sources), leave this in, but it's unnecessarily confusing. A special case
+    needs to be handled, unfortunately, for <!-- MATH
+ $\alpha^E_0$
+ -->
+<SPAN CLASS="MATH"><IMG
+ WIDTH="25" HEIGHT="35" ALIGN="MIDDLE" BORDER="0"
+ SRC="img74.png"
+ ALT="$ \alpha^E_0$"></SPAN> as it is being
+    generated on the fly while <SPAN CLASS="MATH"><IMG
+ WIDTH="12" HEIGHT="14" ALIGN="BOTTOM" BORDER="0"
+ SRC="img60.png"
+ ALT="$ \bar{z}$"></SPAN> is being constructed. The two options
+    is to unroll the first iteration of the construction loop, or just allow the
+    special case to exist. The latter is the better choice, as all kernels will
+    enter and exit the special case at the same time, and the GPU might just
+    unroll the loop anyways.
+    There may be cases where <SPAN CLASS="MATH"><IMG
+ WIDTH="41" HEIGHT="14" ALIGN="BOTTOM" BORDER="0"
+ SRC="img75.png"
+ ALT="$ s = 0$"></SPAN> (<SPAN CLASS="MATH"><IMG
+ WIDTH="39" HEIGHT="14" ALIGN="BOTTOM" BORDER="0"
+ SRC="img76.png"
+ ALT="$ t = 0$"></SPAN> is not possible without a
+    physical camera lens), which is equivalent to just forward path tracing.
+    There is also to consider, what happens on <SPAN CLASS="MATH"><IMG
+ WIDTH="41" HEIGHT="14" ALIGN="BOTTOM" BORDER="0"
+ SRC="img77.png"
+ ALT="$ s = 1$"></SPAN> and <SPAN CLASS="MATH"><IMG
+ WIDTH="39" HEIGHT="14" ALIGN="BOTTOM" BORDER="0"
+ SRC="img78.png"
+ ALT="$ t = 1$"></SPAN>, Well, in either case where both paths exist or only the camera path exists,
+    the connection strategy below describes how to connect the edges of the two
+    paths
+  <P></P>
+<DIV ALIGN="CENTER" CLASS="mathdisplay"><TABLE CELLPADDING="0" WIDTH="100%" ALIGN="CENTER">
+<TR VALIGN="MIDDLE">
+<TD NOWRAP ALIGN="CENTER"><SPAN CLASS="MATH"><IMG
+ WIDTH="561" HEIGHT="64" ALIGN="MIDDLE" BORDER="0"
+ SRC="img79.png"
+ ALT="$\displaystyle c_{s, t} = \begin{cases}L_e(z_{-2} \rightarrow z_{-1}), &amp;s = 0, t...
+...}) f_s(y_{-1} \rightarrow z_{-1} \rightarrow z_{-2}), &amp;s &gt; 0, t &gt; 0 \end{cases}$"></SPAN></TD>
+<TD NOWRAP CLASS="eqno" WIDTH="10" ALIGN="RIGHT">
+(<SPAN CLASS="arabic">21</SPAN>)</TD></TR>
+</TABLE></DIV>
+<BR CLEAR="ALL"><P></P>
+One question to be made is if the strategy <!-- MATH
+ $s = 0, t > 0$
+ -->
+<SPAN CLASS="MATH"><IMG
+ WIDTH="83" HEIGHT="30" ALIGN="MIDDLE" BORDER="0"
+ SRC="img80.png"
+ ALT="$ s = 0, t &gt; 0$"></SPAN> is worthwhile to
+    compute; the most noticeable effect are for caustics, light sources in
+    direct view of an emitter should be emitted from animations in this current
+    state of DTOADQ. Another idea to consider is that under real physics
+    circumstances, the photons are still allowed to bounce after hitting a
+    source of light, but the contribution from these cases are negligible, and
+    so most likely not worthwhile to implement. Anyways, the <SPAN CLASS="MATH"><IMG
+ WIDTH="41" HEIGHT="14" ALIGN="BOTTOM" BORDER="0"
+ SRC="img75.png"
+ ALT="$ s = 0$"></SPAN>
+    strategy is a worthwhile  calculation under these circumstances
+
+<P>
+One immediately obvious optimization that could be made with this model is
+    in regards to the visibility check in the geometric term, if you were to
+    expand <SPAN CLASS="MATH"><IMG
+ WIDTH="18" HEIGHT="30" ALIGN="MIDDLE" BORDER="0"
+ SRC="img81.png"
+ ALT="$ I_j$"></SPAN>, and take the V term from outside the G function
+    [<!-- MATH
+ $G(v \rightarrow
+    \dot{v}) V(v \rightarrow \dot{v})$
+ -->
+<SPAN CLASS="MATH"><IMG
+ WIDTH="137" HEIGHT="32" ALIGN="MIDDLE" BORDER="0"
+ SRC="img82.png"
+ ALT="$ G(v \rightarrow
+\dot{v}) V(v \rightarrow \dot{v})$"></SPAN>],
+    it would be made obvious that all the visibility checks can be
+    cancelled out for the entire equation, except for the connection term <SPAN CLASS="MATH"><IMG
+ WIDTH="11" HEIGHT="14" ALIGN="BOTTOM" BORDER="0"
+ SRC="img67.png"
+ ALT="$ c$"></SPAN>.
+    The expansion is not shown as it is very lengthy, and unnecessary. Paths
+    <!-- MATH
+ $\bar{y}_{0} \ldots \bar{y}_s$
+ -->
+<SPAN CLASS="MATH"><IMG
+ WIDTH="58" HEIGHT="30" ALIGN="MIDDLE" BORDER="0"
+ SRC="img83.png"
+ ALT="$ \bar{y}_{0} \ldots \bar{y}_s$"></SPAN> and <!-- MATH
+ $\bar{z}_0 \ldots \bar{z}_t$
+ -->
+<SPAN CLASS="MATH"><IMG
+ WIDTH="56" HEIGHT="30" ALIGN="MIDDLE" BORDER="0"
+ SRC="img84.png"
+ ALT="$ \bar{z}_0 \ldots \bar{z}_t$"></SPAN> being
+    visible is intuitively obvious as the paths have been generated using the
+    same technique used to check for visibility; raymarching. Specifically, the
+    definition of <SPAN CLASS="MATH"><IMG
+ WIDTH="17" HEIGHT="15" ALIGN="BOTTOM" BORDER="0"
+ SRC="img50.png"
+ ALT="$ V$"></SPAN> is
+  <P></P>
+<DIV ALIGN="CENTER" CLASS="mathdisplay"><TABLE CELLPADDING="0" WIDTH="100%" ALIGN="CENTER">
+<TR VALIGN="MIDDLE">
+<TD NOWRAP ALIGN="CENTER"><SPAN CLASS="MATH"><IMG
+ WIDTH="232" HEIGHT="41" ALIGN="MIDDLE" BORDER="0"
+ SRC="img85.png"
+ ALT="$\displaystyle V(v \rightarrow \dot{v}) = \vert\vert v - \dot{v}\vert\vert \leq m(v,\:\overrightarrow{v\:\dot{v}})$"></SPAN></TD>
+<TD NOWRAP CLASS="eqno" WIDTH="10" ALIGN="RIGHT">
+(<SPAN CLASS="arabic">22</SPAN>)</TD></TR>
+</TABLE></DIV>
+<BR CLEAR="ALL"><P></P>
+where <SPAN CLASS="MATH"><IMG
+ WIDTH="18" HEIGHT="14" ALIGN="BOTTOM" BORDER="0"
+ SRC="img86.png"
+ ALT="$ m$"></SPAN> is a march through the SDF map. A visibility check is only
+    necessary for the connection edge
+    <P></P>
+<DIV ALIGN="CENTER" CLASS="mathdisplay"><TABLE CELLPADDING="0" WIDTH="100%" ALIGN="CENTER">
+<TR VALIGN="MIDDLE">
+<TD NOWRAP ALIGN="CENTER"><SPAN CLASS="MATH"><IMG
+ WIDTH="144" HEIGHT="41" ALIGN="MIDDLE" BORDER="0"
+ SRC="img87.png"
+ ALT="$\displaystyle \vert\vert v - \dot{v}\vert\vert = m(v, \overrightarrow{v, \dot{v}})$"></SPAN></TD>
+<TD NOWRAP CLASS="eqno" WIDTH="10" ALIGN="RIGHT">
+&nbsp;&nbsp;&nbsp;</TD></TR>
+<TR VALIGN="MIDDLE">
+<TD NOWRAP ALIGN="CENTER"><SPAN CLASS="MATH"><IMG
+ WIDTH="15" HEIGHT="30" ALIGN="MIDDLE" BORDER="0"
+ SRC="img88.png"
+ ALT="$\displaystyle \:\:\:$">for all paths but&nbsp;<IMG
+ WIDTH="78" HEIGHT="30" ALIGN="MIDDLE" BORDER="0"
+ SRC="img89.png"
+ ALT="$\displaystyle y_{-1} \rightarrow z_{-1}$"></SPAN></TD>
+<TD NOWRAP CLASS="eqno" WIDTH="10" ALIGN="RIGHT">
+&nbsp;&nbsp;&nbsp;</TD></TR>
+</TABLE></DIV>
+<BR CLEAR="ALL"><P></P>
+
+<BR>
+Moving on, for <!-- MATH
+ $\alpha^{L|E}_i$
+ -->
+<SPAN CLASS="MATH"><IMG
+ WIDTH="38" HEIGHT="43" ALIGN="MIDDLE" BORDER="0"
+ SRC="img90.png"
+ ALT="$ \alpha^{L\vert E}_i$"></SPAN>, these are equivalent for both <SPAN CLASS="MATH"><IMG
+ WIDTH="15" HEIGHT="14" ALIGN="BOTTOM" BORDER="0"
+ SRC="img91.png"
+ ALT="$ L$"></SPAN> and <SPAN CLASS="MATH"><IMG
+ WIDTH="17" HEIGHT="14" ALIGN="BOTTOM" BORDER="0"
+ SRC="img92.png"
+ ALT="$ E$"></SPAN>,
+    the problem is that the <SPAN CLASS="MATH"><IMG
+ WIDTH="13" HEIGHT="30" ALIGN="MIDDLE" BORDER="0"
+ SRC="img93.png"
+ ALT="$ \bar{y}$"></SPAN> path is generated in perspective of the
+    light source, so we have to call the BSDF in perspective of the camera; the
+    path is flipped. Handling <SPAN CLASS="MATH"><IMG
+ WIDTH="13" HEIGHT="30" ALIGN="MIDDLE" BORDER="0"
+ SRC="img93.png"
+ ALT="$ \bar{y}$"></SPAN> is significantly easier than <SPAN CLASS="MATH"><IMG
+ WIDTH="12" HEIGHT="14" ALIGN="BOTTOM" BORDER="0"
+ SRC="img60.png"
+ ALT="$ \bar{z}$"></SPAN>,
+    as <SPAN CLASS="MATH"><IMG
+ WIDTH="13" HEIGHT="30" ALIGN="MIDDLE" BORDER="0"
+ SRC="img93.png"
+ ALT="$ \bar{y}$"></SPAN> is precomputed. For <SPAN CLASS="MATH"><IMG
+ WIDTH="12" HEIGHT="14" ALIGN="BOTTOM" BORDER="0"
+ SRC="img60.png"
+ ALT="$ \bar{z}$"></SPAN>, the next vertex <SPAN CLASS="MATH"><IMG
+ WIDTH="28" HEIGHT="30" ALIGN="MIDDLE" BORDER="0"
+ SRC="img94.png"
+ ALT="$ z_{+1}$"></SPAN>
+    (<SPAN CLASS="MATH"><IMG
+ WIDTH="21" HEIGHT="30" ALIGN="MIDDLE" BORDER="0"
+ SRC="img95.png"
+ ALT="$ \omega_o$"></SPAN> in the perspective of SA), is unknown. For example <!-- MATH
+ $\alpha^L_1$
+ -->
+<SPAN CLASS="MATH"><IMG
+ WIDTH="24" HEIGHT="35" ALIGN="MIDDLE" BORDER="0"
+ SRC="img96.png"
+ ALT="$ \alpha^L_1$"></SPAN>
+    in OpenCL looks like:
+
+<P>
+<BR>
+<IMG
+ WIDTH="517" HEIGHT="101" ALIGN="BOTTOM" BORDER="0"
+ SRC="img97.png"
+ ALT="\begin{lstlisting}
+Vertex* V0 = light_path.vertices - 1, * V1 = light_path.vert...
+...
+float Le = light.colour;
+light_contrib[1] = Le / light_pdf;
+\end{lstlisting}">
+<BR>
+
+<P>
+For <SPAN CLASS="MATH"><IMG
+ WIDTH="26" HEIGHT="30" ALIGN="MIDDLE" BORDER="0"
+ SRC="img98.png"
+ ALT="$ c_{s, t}$"></SPAN>, there is no cases for <!-- MATH
+ $s = s, t = 0$
+ -->
+<SPAN CLASS="MATH"><IMG
+ WIDTH="82" HEIGHT="30" ALIGN="MIDDLE" BORDER="0"
+ SRC="img99.png"
+ ALT="$ s = s, t = 0$"></SPAN> as
+    the lens does not have a physical existence in the SDF map. <SPAN CLASS="MATH"><IMG
+ WIDTH="23" HEIGHT="30" ALIGN="MIDDLE" BORDER="0"
+ SRC="img100.png"
+ ALT="$ p_A$"></SPAN> is
+    the PDF w.r.t. area, for the light path; we only need to take the PDF of the
+    solid angle of a sphere
+  <P></P>
+<DIV ALIGN="CENTER" CLASS="mathdisplay"><TABLE CELLPADDING="0" WIDTH="100%" ALIGN="CENTER">
+<TR VALIGN="MIDDLE">
+<TD NOWRAP ALIGN="CENTER"><SPAN CLASS="MATH"><IMG
+ WIDTH="261" HEIGHT="38" ALIGN="MIDDLE" BORDER="0"
+ SRC="img101.png"
+ ALT="$\displaystyle p_A^L(y_0 \rightarrow y_1) = p_{\sigma}^L(y_0 \rightarrow y_1) G(v \leftrightarrow \dot{v})$"></SPAN></TD>
+<TD NOWRAP CLASS="eqno" WIDTH="10" ALIGN="RIGHT">
+(<SPAN CLASS="arabic">23</SPAN>)</TD></TR>
+<TR VALIGN="MIDDLE">
+<TD NOWRAP ALIGN="CENTER"><SPAN CLASS="MATH"><IMG
+ WIDTH="268" HEIGHT="63" ALIGN="MIDDLE" BORDER="0"
+ SRC="img102.png"
+ ALT="$\displaystyle p_{\sigma}^L(y_0 \rightarrow y_1) = \frac{1.0f}{\tau * (1.0f - \sqrt{\frac{R^2}{\vert y_0 - y_1\vert^2}})}$"></SPAN></TD>
+<TD NOWRAP CLASS="eqno" WIDTH="10" ALIGN="RIGHT">
+(<SPAN CLASS="arabic">24</SPAN>)</TD></TR>
+</TABLE></DIV>
+<BR CLEAR="ALL"><P></P>
+where <SPAN CLASS="MATH"><IMG
+ WIDTH="16" HEIGHT="15" ALIGN="BOTTOM" BORDER="0"
+ SRC="img103.png"
+ ALT="$ R$"></SPAN> is the radius of the sphere, note <SPAN CLASS="MATH"><IMG
+ WIDTH="19" HEIGHT="30" ALIGN="MIDDLE" BORDER="0"
+ SRC="img72.png"
+ ALT="$ y_0$"></SPAN> is a point on the surface
+    of the sphere, and not its origin.
+    
+<BR><!-- MATH
+ $p_A^E(x_0 \rightarrow x_1)$
+ -->
+<SPAN CLASS="MATH"><IMG
+ WIDTH="92" HEIGHT="35" ALIGN="MIDDLE" BORDER="0"
+ SRC="img104.png"
+ ALT="$ p_A^E(x_0 \rightarrow x_1)$"></SPAN> doesn't exist, as there is no physical lens
+    on the scene. [TODO - this might cahnge later]. One of the benefits of this,
+    is that there are no special cases for pathes where <SPAN CLASS="MATH"><IMG
+ WIDTH="39" HEIGHT="14" ALIGN="BOTTOM" BORDER="0"
+ SRC="img76.png"
+ ALT="$ t = 0$"></SPAN>, which is
+    impossible to handle on the GPU as the path could contribute to any
+    arbitrary pixel [directly hitting the lens].
+  <P></P>
+<DIV ALIGN="CENTER" CLASS="mathdisplay"><TABLE CELLPADDING="0" WIDTH="100%" ALIGN="CENTER">
+<TR VALIGN="MIDDLE">
+<TD NOWRAP ALIGN="CENTER"><SPAN CLASS="MATH"><IMG
+ WIDTH="78" HEIGHT="38" ALIGN="MIDDLE" BORDER="0"
+ SRC="img105.png"
+ ALT="$\displaystyle P_A^E = 1.0f$"></SPAN></TD>
+<TD NOWRAP CLASS="eqno" WIDTH="10" ALIGN="RIGHT">
+(<SPAN CLASS="arabic">25</SPAN>)</TD></TR>
+</TABLE></DIV>
+<BR CLEAR="ALL"><P></P>
+The <SPAN CLASS="MATH"><IMG
+ WIDTH="22" HEIGHT="34" ALIGN="MIDDLE" BORDER="0"
+ SRC="img106.png"
+ ALT="$ L^0_e$"></SPAN> is contribution from the light source. As of right now, DTOADQ
+    only supports area lights, so <SPAN CLASS="MATH"><IMG
+ WIDTH="22" HEIGHT="34" ALIGN="MIDDLE" BORDER="0"
+ SRC="img106.png"
+ ALT="$ L^0_e$"></SPAN> is set a constant for the emitter's
+    spectrum value.
+    The <SPAN CLASS="MATH"><IMG
+ WIDTH="29" HEIGHT="34" ALIGN="MIDDLE" BORDER="0"
+ SRC="img107.png"
+ ALT="$ W_e^0$"></SPAN> is contribution from the eye source, that is, the lens. Since
+    the lens does not exist in the scene, as of now [TODO - this might change
+    later], there is no <SPAN CLASS="MATH"><IMG
+ WIDTH="29" HEIGHT="34" ALIGN="MIDDLE" BORDER="0"
+ SRC="img107.png"
+ ALT="$ W_e^0$"></SPAN>. While this should be implemented in the future,
+    a hidden benefit of the current model is that there are no special cases for
+    paths where <SPAN CLASS="MATH"><IMG
+ WIDTH="39" HEIGHT="14" ALIGN="BOTTOM" BORDER="0"
+ SRC="img76.png"
+ ALT="$ t = 0$"></SPAN>, which is impossible to handle on the GPU as any such
+    path could contribute to any arbitrary pixel [the light path is, after all,
+    directly hitting the lens]. So this has now become:
+  <P></P>
+<DIV ALIGN="CENTER" CLASS="mathdisplay"><TABLE CELLPADDING="0" WIDTH="100%" ALIGN="CENTER">
+<TR VALIGN="MIDDLE">
+<TD NOWRAP ALIGN="CENTER"><SPAN CLASS="MATH"><IMG
+ WIDTH="79" HEIGHT="38" ALIGN="MIDDLE" BORDER="0"
+ SRC="img108.png"
+ ALT="$\displaystyle \alpha_i^E = \Sigma_{i\leq 0}$"></SPAN></TD>
+<TD NOWRAP CLASS="eqno" WIDTH="10" ALIGN="RIGHT">
+(<SPAN CLASS="arabic">26</SPAN>)</TD></TR>
+</TABLE></DIV>
+<BR CLEAR="ALL"><P></P>
+The amount that each path contributes to F differ greatly, so naively
+  weighing each contribution uniformly by something like 1.0f, or even, by
+  inverse path length, will producy very noisy images, and would not be
+  worth the additional computation time that BDPT requires, as shown below.
+  <P></P>
+<DIV ALIGN="CENTER" CLASS="mathdisplay"><TABLE CELLPADDING="0" WIDTH="100%" ALIGN="CENTER">
+<TR VALIGN="MIDDLE">
+<TD NOWRAP ALIGN="CENTER"><SPAN CLASS="MATH"><IMG
+ WIDTH="4" HEIGHT="30" ALIGN="MIDDLE" BORDER="0"
+ SRC="img109.png"
+ ALT="$\displaystyle \includegraphics{bdpt_unweighted}$"></SPAN></TD>
+<TD NOWRAP CLASS="eqno" WIDTH="10" ALIGN="RIGHT">
+(<SPAN CLASS="arabic">27</SPAN>)</TD></TR>
+</TABLE></DIV>
+<BR CLEAR="ALL"><P></P>
+In order to get good
+  samples from the contributions, they must be combined in an optimal manner
+  using Multiple Importance Sampling: each contribution is weighted by the PDF
+  of the entire path itself:
+  <P></P>
+<DIV ALIGN="CENTER" CLASS="mathdisplay"><TABLE CELLPADDING="0" WIDTH="100%" ALIGN="CENTER">
+<TR VALIGN="MIDDLE">
+<TD NOWRAP ALIGN="RIGHT"><SPAN CLASS="MATH"><IMG
+ WIDTH="17" HEIGHT="30" ALIGN="MIDDLE" BORDER="0"
+ SRC="img110.png"
+ ALT="$\displaystyle F$"></SPAN></TD>
+<TD NOWRAP ALIGN="LEFT"><SPAN CLASS="MATH"><IMG
+ WIDTH="113" HEIGHT="30" ALIGN="MIDDLE" BORDER="0"
+ SRC="img111.png"
+ ALT="$\displaystyle \equiv \Sigma_s\Sigma_tW_{s, t}C_{s, t}$"></SPAN></TD>
+<TD NOWRAP CLASS="eqno" WIDTH="10" ALIGN="RIGHT">
+&nbsp;&nbsp;&nbsp;</TD></TR>
+<TR VALIGN="MIDDLE">
+<TD NOWRAP ALIGN="RIGHT"><SPAN CLASS="MATH"><IMG
+ WIDTH="31" HEIGHT="30" ALIGN="MIDDLE" BORDER="0"
+ SRC="img112.png"
+ ALT="$\displaystyle C_{s, t}$"></SPAN></TD>
+<TD NOWRAP ALIGN="LEFT"><SPAN CLASS="MATH"><IMG
+ WIDTH="84" HEIGHT="38" ALIGN="MIDDLE" BORDER="0"
+ SRC="img113.png"
+ ALT="$\displaystyle = \alpha^L_s c_{s, t} \alpha^E_t$"></SPAN></TD>
+<TD NOWRAP CLASS="eqno" WIDTH="10" ALIGN="RIGHT">
+&nbsp;&nbsp;&nbsp;</TD></TR>
+</TABLE></DIV>
+<BR CLEAR="ALL"><P></P>
+where <SPAN CLASS="MATH"><IMG
+ WIDTH="35" HEIGHT="30" ALIGN="MIDDLE" BORDER="0"
+ SRC="img114.png"
+ ALT="$ W_{s, t}$"></SPAN> is the MIS weight of path <!-- MATH
+ $\bar{y} \leftarrow \bar{z}$
+ -->
+<SPAN CLASS="MATH"><IMG
+ WIDTH="45" HEIGHT="30" ALIGN="MIDDLE" BORDER="0"
+ SRC="img115.png"
+ ALT="$ \bar{y} \leftarrow \bar{z}$"></SPAN>, and
+    <SPAN CLASS="MATH"><IMG
+ WIDTH="31" HEIGHT="30" ALIGN="MIDDLE" BORDER="0"
+ SRC="img116.png"
+ ALT="$ C_{s, t}$"></SPAN> is the unweighted contribution of the same path. For clarity,
+    <!-- MATH
+ $C^U_{s, t}$
+ -->
+<SPAN CLASS="MATH"><IMG
+ WIDTH="31" HEIGHT="35" ALIGN="MIDDLE" BORDER="0"
+ SRC="img117.png"
+ ALT="$ C^U_{s, t}$"></SPAN> as described below is the unweighted contribution of the
+    algorithm:
+  <P></P>
+<DIV ALIGN="CENTER" CLASS="mathdisplay"><TABLE CELLPADDING="0" WIDTH="100%" ALIGN="CENTER">
+<TR VALIGN="MIDDLE">
+<TD NOWRAP ALIGN="CENTER"><SPAN CLASS="MATH"><IMG
+ WIDTH="188" HEIGHT="55" ALIGN="MIDDLE" BORDER="0"
+ SRC="img118.png"
+ ALT="$\displaystyle C^u_{s, t} = (\alpha^L_s c_{s, t} \alpha^E_t) \equiv \frac{f_j(\bar{v})}{p(\bar{v})}$"></SPAN></TD>
+<TD NOWRAP CLASS="eqno" WIDTH="10" ALIGN="RIGHT">
+(<SPAN CLASS="arabic">28</SPAN>)</TD></TR>
+</TABLE></DIV>
+<BR CLEAR="ALL"><P></P>
+thus
+  <P></P>
+<DIV ALIGN="CENTER" CLASS="mathdisplay"><TABLE CELLPADDING="0" WIDTH="100%" ALIGN="CENTER">
+<TR VALIGN="MIDDLE">
+<TD NOWRAP ALIGN="CENTER"><SPAN CLASS="MATH"><IMG
+ WIDTH="130" HEIGHT="31" ALIGN="MIDDLE" BORDER="0"
+ SRC="img119.png"
+ ALT="$\displaystyle F = \Sigma_s\Sigma_tW_{s, t}C^u_{s, t}$"></SPAN></TD>
+<TD NOWRAP CLASS="eqno" WIDTH="10" ALIGN="RIGHT">
+(<SPAN CLASS="arabic">29</SPAN>)</TD></TR>
+</TABLE></DIV>
+<BR CLEAR="ALL"><P></P>
+The formula Veach gives for Multiple Importance Sampling on BDPT is as so:
+  <P></P>
+<DIV ALIGN="CENTER" CLASS="mathdisplay"><TABLE CELLPADDING="0" WIDTH="100%" ALIGN="CENTER">
+<TR VALIGN="MIDDLE">
+<TD NOWRAP ALIGN="CENTER"><SPAN CLASS="MATH"><IMG
+ WIDTH="151" HEIGHT="55" ALIGN="MIDDLE" BORDER="0"
+ SRC="img120.png"
+ ALT="$\displaystyle MIS_{st}(\bar{x}) = \frac{P_s(\bar{x})}{\Sigma_i{P_i(\bar{x})}}$"></SPAN></TD>
+<TD NOWRAP CLASS="eqno" WIDTH="10" ALIGN="RIGHT">
+(<SPAN CLASS="arabic">30</SPAN>)</TD></TR>
+</TABLE></DIV>
+<BR CLEAR="ALL"><P></P>
+Conceptually, the numerator <!-- MATH
+ $P_s(\bar{x})$
+ -->
+<SPAN CLASS="MATH"><IMG
+ WIDTH="43" HEIGHT="32" ALIGN="MIDDLE" BORDER="0"
+ SRC="img121.png"
+ ALT="$ P_s(\bar{x})$"></SPAN> is the path density that was
+    generated, while the denominator is the path density of other connection
+    strategies that could could have, in theory,<SPAN CLASS="MATH"><IMG
+ WIDTH="18" HEIGHT="19" ALIGN="BOTTOM" BORDER="0"
+ SRC="img54.png"
+ ALT="$ ^{[1]}$"></SPAN> created the path. The
+    straight forward implementation of this has a lot of problems gone
+    unresolved in Veach's thesis; PBR 3rd Ed, chapter 16 pg 1014-1016 addresses
+    and describe these problems. Primarily, <!-- MATH
+ $P_i(\bar{x})$
+ -->
+<SPAN CLASS="MATH"><IMG
+ WIDTH="41" HEIGHT="32" ALIGN="MIDDLE" BORDER="0"
+ SRC="img122.png"
+ ALT="$ P_i(\bar{x})$"></SPAN> will overflow
+    CLFloat (due to the distance in the Geometric term), and the straight
+    forward implementation is very long, hard to debug, and has a poor time
+    complexity. But the important part is the end result of their solution:
+
+<P>
+<P></P>
+<DIV ALIGN="CENTER" CLASS="mathdisplay"><TABLE CELLPADDING="0" WIDTH="100%" ALIGN="CENTER">
+<TR VALIGN="MIDDLE">
+<TD NOWRAP ALIGN="CENTER"><SPAN CLASS="MATH"><IMG
+ WIDTH="252" HEIGHT="102" ALIGN="MIDDLE" BORDER="0"
+ SRC="img123.png"
+ ALT="$\displaystyle r_i (\bar{x}) = \begin{cases}1.0f, &amp; i = s,\\ \frac{\overleftarro...
+...1}})}{\overleftarrow{P}(\bar{x_{i-1}})} * r_{i-1}(\bar{x}), &amp; i &gt; s \end{cases}$"></SPAN></TD>
+<TD NOWRAP CLASS="eqno" WIDTH="10" ALIGN="RIGHT">
+(<SPAN CLASS="arabic">31</SPAN>)</TD></TR>
+</TABLE></DIV>
+<BR CLEAR="ALL"><P></P>
+
+<P>
+However, DTOADQ can simplify a bit further; unlike above, there are two
+    paths for which to evaluate. Specifically, in the above term, for where
+    <SPAN CLASS="MATH"><IMG
+ WIDTH="38" HEIGHT="29" ALIGN="MIDDLE" BORDER="0"
+ SRC="img124.png"
+ ALT="$ i &lt; s$"></SPAN>, we have
+    <!-- MATH
+ $\frac{\overleftarrow{p}(\bar{x}_i)}{\overrightarrow{p}(\bar{x}_i)}$
+ -->
+<SPAN CLASS="MATH"><IMG
+ WIDTH="43" HEIGHT="42" ALIGN="MIDDLE" BORDER="0"
+ SRC="img125.png"
+ ALT="$ \frac{\overleftarrow{p}(\bar{x}_i)}{\overrightarrow{p}(\bar{x}_i)}$"></SPAN>, 
+    which is the light path (i is iterating towards light-length s). The eye
+    contribution is inversed from this, (also iterating towards s, hence why
+    <!-- MATH
+ $\bar{x}_{i-1}$
+ -->
+<SPAN CLASS="MATH"><IMG
+ WIDTH="35" HEIGHT="30" ALIGN="MIDDLE" BORDER="0"
+ SRC="img126.png"
+ ALT="$ \bar{x}_{i-1}$"></SPAN> is used). Another way of saying it, is <!-- MATH
+ $\bar{x} = \bar{y} ||
+    \bar{z}_{rev}$
+ -->
+<SPAN CLASS="MATH"><IMG
+ WIDTH="79" HEIGHT="32" ALIGN="MIDDLE" BORDER="0"
+ SRC="img127.png"
+ ALT="$ \bar{x} = \bar{y} \vert\vert
+\bar{z}_{rev}$"></SPAN>.
+    In DTOADQ's case, the weights are calculated in
+    the same direction relative to its originator; in this case the perspective
+    of the eye path.
+  <P></P>
+<DIV ALIGN="CENTER" CLASS="mathdisplay"><TABLE CELLPADDING="0" WIDTH="100%" ALIGN="CENTER">
+<TR VALIGN="MIDDLE">
+<TD NOWRAP ALIGN="CENTER"><SPAN CLASS="MATH"><IMG
+ WIDTH="102" HEIGHT="32" ALIGN="MIDDLE" BORDER="0"
+ SRC="img128.png"
+ ALT="$\displaystyle \mathcal{W}_i(\bar{x}) \equiv r_i(\bar{x})$"></SPAN></TD>
+<TD NOWRAP CLASS="eqno" WIDTH="10" ALIGN="RIGHT">
+(<SPAN CLASS="arabic">32</SPAN>)</TD></TR>
+<TR VALIGN="MIDDLE">
+<TD NOWRAP ALIGN="CENTER"><SPAN CLASS="MATH"><IMG
+ WIDTH="254" HEIGHT="66" ALIGN="MIDDLE" BORDER="0"
+ SRC="img129.png"
+ ALT="$\displaystyle \mathcal{W}_i (\bar{x}) = \begin{cases}1.0f, &amp; i = 0,\\ \frac{\ov...
+...errightarrow{p_i}(\bar{x_i})} * \mathcal{W}_{i-1}(\bar{x}), &amp; i &gt; 0 \end{cases}$"></SPAN></TD>
+<TD NOWRAP CLASS="eqno" WIDTH="10" ALIGN="RIGHT">
+(<SPAN CLASS="arabic">33</SPAN>)</TD></TR>
+</TABLE></DIV>
+<BR CLEAR="ALL"><P></P>
+And then the expanded form of <!-- MATH
+ $\mathcal{W}_i(\bar{x})$
+ -->
+<SPAN CLASS="MATH"><IMG
+ WIDTH="47" HEIGHT="32" ALIGN="MIDDLE" BORDER="0"
+ SRC="img130.png"
+ ALT="$ \mathcal{W}_i(\bar{x})$"></SPAN> looks like
+
+<P>
+<P></P>
+<DIV ALIGN="CENTER" CLASS="mathdisplay"><TABLE CELLPADDING="0" WIDTH="100%" ALIGN="CENTER">
+<TR VALIGN="MIDDLE">
+<TD NOWRAP ALIGN="CENTER"><SPAN CLASS="MATH"><IMG
+ WIDTH="279" HEIGHT="63" ALIGN="MIDDLE" BORDER="0"
+ SRC="img131.png"
+ ALT="$\displaystyle \mathcal{W}_i(\bar{x}) = \Pi_{n=2}^i(\frac{\overleftarrow {p_{\si...
+...ghtarrow{G}(x_n)}) * \frac{\overleftarrow{p_A}(x_1)}{\overrightarrow{p_A}(x_1)}$"></SPAN></TD>
+<TD NOWRAP CLASS="eqno" WIDTH="10" ALIGN="RIGHT">
+(<SPAN CLASS="arabic">34</SPAN>)</TD></TR>
+</TABLE></DIV>
+<BR CLEAR="ALL"><P></P>
+
+<P>
+And now the MIS looks like:
+  <P></P>
+<DIV ALIGN="CENTER" CLASS="mathdisplay"><TABLE CELLPADDING="0" WIDTH="100%" ALIGN="CENTER">
+<TR VALIGN="MIDDLE">
+<TD NOWRAP ALIGN="CENTER"><SPAN CLASS="MATH"><IMG
+ WIDTH="269" HEIGHT="52" ALIGN="MIDDLE" BORDER="0"
+ SRC="img132.png"
+ ALT="$\displaystyle MIS_{s, t}(\bar{y}, \bar{z}) = \frac{1.0f}{\mathcal{W}_s(\bar{y}) + \mathcal{W}_t(\bar{z}) + 1.0f}$"></SPAN></TD>
+<TD NOWRAP CLASS="eqno" WIDTH="10" ALIGN="RIGHT">
+(<SPAN CLASS="arabic">35</SPAN>)</TD></TR>
+</TABLE></DIV>
+<BR CLEAR="ALL"><P></P>
+Thus, the final rendering equation for DTOADQ looks like such:
+
+<P>
+<P></P>
+<DIV ALIGN="CENTER" CLASS="mathdisplay"><TABLE CELLPADDING="0" WIDTH="100%" ALIGN="CENTER">
+<TR VALIGN="MIDDLE">
+<TD NOWRAP ALIGN="CENTER"><SPAN CLASS="MATH"><IMG
+ WIDTH="314" HEIGHT="52" ALIGN="MIDDLE" BORDER="0"
+ SRC="img133.png"
+ ALT="$\displaystyle P = \frac{1.0f}{N} \Sigma_{0}^{\infty} \Sigma_{s \le 0} \Sigma_{t \le 0} \alpha^L_s c_{s,t} \alpha^E_t MIS_{s, t}(\bar{y}, \bar{z})$"></SPAN></TD>
+<TD NOWRAP CLASS="eqno" WIDTH="10" ALIGN="RIGHT">
+(<SPAN CLASS="arabic">36</SPAN>)</TD></TR>
+</TABLE></DIV>
+<BR CLEAR="ALL"><P></P>
+
+<P>
+<P></P>
+<DIV ALIGN="CENTER" CLASS="mathdisplay"><TABLE CELLPADDING="0" WIDTH="100%" ALIGN="CENTER">
+<TR VALIGN="MIDDLE">
+<TD NOWRAP ALIGN="CENTER"><SPAN CLASS="MATH"><IMG
+ WIDTH="118" HEIGHT="38" ALIGN="MIDDLE" BORDER="0"
+ SRC="img134.png"
+ ALT="$\displaystyle P_i(\bar{x}_{s, t}) = P^L_s p^E_t$"></SPAN></TD>
+<TD NOWRAP CLASS="eqno" WIDTH="10" ALIGN="RIGHT">
+(<SPAN CLASS="arabic">37</SPAN>)</TD></TR>
+</TABLE></DIV>
+<BR CLEAR="ALL"><P></P>
+
+<P>
+<P></P>
+<DIV ALIGN="CENTER" CLASS="mathdisplay"><TABLE CELLPADDING="0" WIDTH="100%" ALIGN="CENTER">
+<TR VALIGN="MIDDLE">
+<TD NOWRAP ALIGN="CENTER"><SPAN CLASS="MATH"><IMG
+ WIDTH="385" HEIGHT="87" ALIGN="MIDDLE" BORDER="0"
+ SRC="img135.png"
+ ALT="$\displaystyle p^{L\vert E}_i(\bar{x}) = \begin{cases}1.0f, &amp; i = 0,\\ P_A(x_i),...
+...row x_i) G(x_{i-1} \leftrightarrow x_i) P^{L\vert E}_{i-1}, &amp; i &gt; 1 \end{cases}$"></SPAN></TD>
+<TD NOWRAP CLASS="eqno" WIDTH="10" ALIGN="RIGHT">
+(<SPAN CLASS="arabic">38</SPAN>)</TD></TR>
+</TABLE></DIV>
+<BR CLEAR="ALL"><P></P>
+
+<P>
+
+<DIV CLASS="navigation"><HR>
+<!--Navigation Panel-->
+<A NAME="tex2html61"
+  HREF="node6.html">
+<IMG WIDTH="37" HEIGHT="24" ALIGN="BOTTOM" BORDER="0" ALT="next"
+ SRC="file:/usr/lib/latex2html/icons/next.png"></A> 
+<A NAME="tex2html59"
+  HREF="paper.html">
+<IMG WIDTH="26" HEIGHT="24" ALIGN="BOTTOM" BORDER="0" ALT="up"
+ SRC="file:/usr/lib/latex2html/icons/up.png"></A> 
+<A NAME="tex2html53"
+  HREF="node4.html">
+<IMG WIDTH="63" HEIGHT="24" ALIGN="BOTTOM" BORDER="0" ALT="previous"
+ SRC="file:/usr/lib/latex2html/icons/prev.png"></A>   
+<BR>
+<B> Next:</B> <A NAME="tex2html62"
+  HREF="node6.html">Video/Image Emitter</A>
+<B> Up:</B> <A NAME="tex2html60"
+  HREF="paper.html">DTOADQ</A>
+<B> Previous:</B> <A NAME="tex2html54"
+  HREF="node4.html">Light Transport Introduction</A></DIV>
+<!--End of Navigation Panel-->
+
+</BODY>
+</HTML>
