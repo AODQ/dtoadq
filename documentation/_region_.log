@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.14159265-2.6-1.40.18 (TeX Live 2017/Arch Linux) (preloaded format=pdflatex 2017.9.27)  5 OCT 2017 19:23
+This is pdfTeX, Version 3.14159265-2.6-1.40.18 (TeX Live 2017/Arch Linux) (preloaded format=pdflatex 2017.9.27)  10 OCT 2017 23:43
 entering extended mode
  restricted \write18 enabled.
  file:line:error style messages enabled.
@@ -2706,7 +2706,7 @@ r7.pk> </usr/share/texmf-dist/fonts/pk/ljfour/public/cm/dpi600/cmsy10.pk> </usr
 /share/texmf-dist/fonts/pk/ljfour/public/cm/dpi600/cmr10.pk> </usr/share/texmf-
 dist/fonts/pk/ljfour/public/cm/dpi600/cmmi10.pk> </home/aodq/.texlive/texmf-var
 /fonts/pk/ljfour/public/cm/cmbx12.720pk>
-Output written on _region_.pdf (148 pages, 229206 bytes).
+Output written on _region_.pdf (148 pages, 229212 bytes).
 PDF statistics:
  742 PDF objects out of 1000 (max. 8388607)
  373 compressed objects within 4 object streams

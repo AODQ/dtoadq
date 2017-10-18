@@ -109,6 +109,7 @@ struct KernelFile {
       default: assert(false);
       case DTOADQ_filename:    return FileType.DTOADQ;
       case Raytrace_filename:  return FileType.Raytracer;
+      case Raycast_filename:   return FileType.Raytracer;
       case Texture_filename:   return FileType.Texture;
     }
   }

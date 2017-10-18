@@ -10,7 +10,7 @@ bool running = true;
 
 void Initialize_Variables ( ) {
   debug_values = [ 0.0f, 0.0f, 0.0f ];
-  shared_info.camera = ocl.Camera([9.5f, 9.0f, 9.0f],
+  shared_info.camera = ocl.Camera([0.0f, 0.0f, 0.0f],
                                   [0.0f, 0.0f, 0.0f],
                                   [shared_info.image.x, shared_info.image.y]);
   shared_info.image_metadata.finished_samples = 0;
@@ -51,7 +51,7 @@ void Update_DTOADQ ( ) {
       ocl.CLPredefinedMem(imgs),
       shared_info.material,
       debug_values,
-      shared_info.rng,
+      ocl.CLStoreMem(shared_info.rng_states),
       // kernel size
       shared_info.image.x, shared_info.image.y
     );

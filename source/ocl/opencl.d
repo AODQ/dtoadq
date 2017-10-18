@@ -325,7 +325,7 @@ private string To_CL_Mixin ( string name ) {
   foreach ( i; 2 .. 5 ) {
     string si = name ~ i.to!string;
     res ~= q{
-      auto To_CL%s(%s[3] a) {
+      auto To_CL%s(%s[] a) {
         cl_%s vec;
         foreach ( i; 0 .. %s ) vec[i] = a[i];
         return vec;
@@ -338,3 +338,4 @@ private string To_CL_Mixin ( string name ) {
 // --- To_CLFloat#/To_CLInt#
 mixin(To_CL_Mixin("float"));
 mixin(To_CL_Mixin("int"  ));
+mixin(To_CL_Mixin("uint" ));

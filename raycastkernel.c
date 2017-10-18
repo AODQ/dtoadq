@@ -5,25 +5,7 @@
 #define TEXTURE_T __read_only image2d_array_t
 #define SCENE_T(S, T) SceneInfo* S , TEXTURE_T T
 
-#define DFLT2(V) ((V).x), ((V).y)
-#define DFLT3(V) ((V).x), ((V).y), ((V).z)
-#define DFLT4(V) ((V).x), ((V).y), ((V).z), ((V).w)
-
-#define writeln(X)     if (Is_Debug()){printf(X "\n");                         }
-#define writeint(X)    if (Is_Debug()){printf(#X " %d\n",                 (X));}
-#define writefloat(X)  if (Is_Debug()){printf(#X " %f\n",                 (X));}
-#define writefloat2(X) if (Is_Debug()){printf(#X " %f, %f\n",        DFLT2(X));}
-#define writefloat3(X) if (Is_Debug()){printf(#X " %f, %f, %f\n",    DFLT3(X));}
-#define writefloat4(X) if (Is_Debug()){printf(#X " %f, %f, %f, %f\n",DFLT4(X));}
-
 __constant float MARCH_ACC = //%MARCH_ACC.0f/1000.0f;
-// -----------------------------------------------------------------------------
-// --------------- DEBUG -------------------------------------------------------
-// Variadic functions not supported, so this is best you get :-(
-bool Is_Debug ( ) {
-  return get_global_id(0) == get_global_size(0)/2 &&
-         get_global_id(1) == get_global_size(1)/2;
-}
 // -----------------------------------------------------------------------------
 // --------------- GPU-CPU STRUCTS ---------------------------------------------
 typedef struct T_Camera {
@@ -73,13 +55,6 @@ typedef struct T_SampledPt {
   int material_index;
 } SampledPt;
 // -----------------------------------------------------------------------------
-// --------------- GENERAL UTILITIES      --------------------------------------
-float Distance(float3 u, float3 v) {
-  float x = u.x-v.x, y = u.y-v.y, z = u.z-v.z;
-  return sqrt(x*x + y*y + z*z);
-}
-float sqr(float t) { return t*t; }
-// -----------------------------------------------------------------------------
 // --------------- MAP GEOMETRY FUNCTIONS --------------------------------------
 
 //---MAP GEOMETRY INSERTION POINT---
@@ -121,27 +96,6 @@ SampledPt Map ( int a, float3 origin, SCENE_T(si, Tx) ) {
 }
 
 // -----------------------------------------------------------------------------
-// --------------- GRAPHIC FUNCS -----------------------------------------------
-float3 Normal ( float3 p, SCENE_T(si, Tx) ) {
-  float2 e = (float2)(1.0f, -1.0f)*0.5773f*0.0005f;
-  return normalize(
-    e.xyy*Map(-1, p + e.xyy, si, Tx).dist +
-    e.yyx*Map(-1, p + e.yyx, si, Tx).dist +
-    e.yxy*Map(-1, p + e.yxy, si, Tx).dist +
-    e.xxx*Map(-1, p + e.xxx, si, Tx).dist);
-}
-
-float3 reflect ( float3 V, float3 N ) {
-  return V - 2.0f*dot(V, N)*N;
-}
-
-float3 refract(float3 V, float3 N, float refraction) {
-  float cosI = -dot(N, V);
-  float cosT = 1.0f - refraction*refraction*(1.0f - cosI*cosI);
-  return (refraction*V) + (refraction*cosI - sqrt(cosT))*N;
-}
-
-// -----------------------------------------------------------------------------
 // --------------- RAYTRACING/MARCH --------------------------------------------
 SampledPt March ( int avoid, Ray ray, SCENE_T(si, Tx) ) {
   float distance = 0.0f;
@@ -161,85 +115,6 @@ SampledPt March ( int avoid, Ray ray, SCENE_T(si, Tx) ) {
 
 //----POSTPROCESS---
 //%POSTPROCESS
-
-float Visibility_Ray(float3 orig, float3 other, float sphere_radius,
-                     SCENE_T(si, Tx)) {
-  float theoretical = Distance(orig, other) - sphere_radius;
-  float3 dir = normalize(other - orig);
-  orig += dir*(MARCH_ACC*2.0f + 0.2f);
-  SampledPt ptinfo = March(-1, (Ray){orig, dir}, si, Tx);
-  float actual = ptinfo.dist + MARCH_ACC + 0.4f;
-  return 1.0f*(actual >= theoretical);
-}
-
-float3 BRDF_Specular(float3 L, float3 V, float3 N, float3 H, float3 col) {
-  float roughness = 0.4f, metallic = 0.3f, fresnel = 1.0f;
-  float3 F, G, D;
-  // --------- variables
-
-  {// ---------- Fresnel
-    // Schlick 1994
-    float3 f0 = fresnel * (1.0f - metallic) + col*metallic;
-    F = f0 + (1.0f - f0)*pow(dot(L, H), 5.0f);
-  }
-  {// ---------- Geometry
-    // Heits 2014, SmithGGXCorrelated
-    float a2 = roughness*roughness;
-    float GGXV = dot(N, L) * sqrt((dot(N, V) - a2*dot(N, V))*dot(N, V) + a2),
-          GGXL = dot(N, V) * sqrt((dot(N, L) - a2*dot(N, L))*dot(N, L) + a2);
-    G = (float3)(0.5f / (GGXV + GGXL));
-  }
-  {// ---------- Distribution
-    // Walter et al 2007
-    float cosN_H = dot(N, H);
-    float a = cosN_H * roughness,
-    k = roughness/(1.0f - (cosN_H*cosN_H));
-    D = (float3)(k*k*(1.0f/PI));
-  }
-
-  // ---------- add it all up
-
-  float3 val = (float3)(F*G*D);
-  return val;
-}
-
-float3 BRDF_Diffuse(float3 L, float3 V, float3 N, float3 H, float3 col) {
-  float roughness = 0.4f, metallic = 0.3f;
-  // Burley 2012, Physically-Based shading at disney
-  float f90 = 0.5f + 2.0f*roughness * sqr(dot(L, H));
-  float light_scatter = 1.0f + (f90 - 1.0f) * pow(1.0f - dot(L, N), 5.0f),
-        view_scatter  = 1.0f + (f90 - 1.0f) * pow(1.0f - dot(V, N), 5.0f);
-  float3 D = (float3)(light_scatter * view_scatter * (1.0f/PI));
-  return D * (1.0f - metallic) * col;
-}
-
-float3 Illuminate ( float3 O, float3 Wi, float3 col, SCENE_T(si, Tx) ) {
-  float3 colour = (float3)(0.0f);
-  for ( int i = 0; i != EMITTER_AMT; ++ i ) {
-    Emitter emit = REmission(i, si->debug_values, si->time);
-
-    float3 V = normalize(-Wi),
-           N = Normal(O, si, Tx),
-           L = normalize(emit.origin - O),
-           H = normalize(V + L);
-    float3 brdf_sp = BRDF_Specular(L, V, N, H, col);
-    float3 brdf_di = BRDF_Diffuse(L, V, N, H, col);
-    float shadow = Visibility_Ray(O, emit.origin, emit.radius, si, Tx);
-
-    colour += (brdf_di + brdf_sp) * dot(N, L) * normalize(emit.emission) *
-              shadow;
-  }
-  return colour / EMITTER_AMT;
-}
-
-SampledPt Colour_Pixel(Ray ray, SCENE_T(si, Tx)) {
-  SampledPt result = March(-1, ray, si, Tx);
-  float3 origin = ray.origin + ray.dir*result.dist;
-
-  result.colour = Illuminate(origin, ray.dir, result.colour, si, Tx);
-
-  return result;
-}
 
 // -----------------------------------------------------------------------------
 // --------------- CAMERA ------------------------------------------------------
@@ -294,25 +169,7 @@ __kernel void DTOADQ_Kernel (
   SceneInfo scene_info = New_SceneInfo(time, materials, dval, rng);
 
   Ray ray = Camera_Ray(&camera);
-  SampledPt result = Colour_Pixel(ray, &scene_info, textures);
-
-  float3 colour;
-  if ( result.dist >= 0.0f ) {
-    colour = result.colour;
-  } else {
-    colour = (float3)(0.0f);
-  }
-  // convert to Y CB R, from matlab
-  write_imagef(output_image, out, (float4)(colour, 1.0f));
-  colour = (float3)(
-      16.0f + (  65.481f*colour.x + 128.553f*colour.y + 24.966f*colour.z),
-      128.0f + (- 37.797f*colour.x - 74.2030f*colour.y + 112.00f*colour.z),
-      128.0f + ( 112.000f*colour.x - 93.7860f*colour.y - 18.214f*colour.z)
-  );
-  int irwx = (camera.dim.y - out.y)*camera.dim.x + out.x;
-  int irwy = irwx + camera.dim.x*camera.dim.y;
-  int irwz = irwx + camera.dim.x*camera.dim.y*2;
-  img[irwx] = (unsigned char)(colour.x);
-  img[irwy] = (unsigned char)(colour.y);
-  img[irwz] = (unsigned char)(colour.z);
+  SampledPt pt = March(-1, ray, &scene_info, textures);
+  pt.colour += pt.dist/MARCH_DIST;
+  write_imagef(output_image, out, (float4)(pt.colour, 1.0f));
 }

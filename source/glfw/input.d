@@ -79,6 +79,12 @@ private struct CameraInputInfo {
   }
 }
 
+float RKey_Velocity() {
+  if ( RKey_Input(32) ) return 0.01f;
+  if ( RKey_Input(340) ) return 0.001f;
+  return 0.005f;
+}
+
 import ocl : Camera;
 bool Update_Camera ( ref Camera camera ) {
   bool update_camera = false;
@@ -89,9 +95,10 @@ bool Update_Camera ( ref Camera camera ) {
     float A = stl.PI - camera.lookat[0]*2.0f*PI;
     float X = input_info.position.sin_theta,
           Y = -input_info.position.cos_theta;
-    camera.position[0] +=  (A.cos*X + -A.sin*Y)*0.1f;
-    camera.position[2] += -(A.sin*X + A.cos*Y)*0.1f;
-    camera.position[1] += cast(float)(RKey_Input(81) - RKey_Input(69))*0.1f;
+    float vel = RKey_Velocity();
+    camera.position[0] +=  (A.cos*X + -A.sin*Y)*vel;
+    camera.position[2] += -(A.sin*X + A.cos*Y)*vel;
+    camera.position[1] += cast(float)(RKey_Input(81) - RKey_Input(69))*vel;
     input_info.update_camera |= RKey_Input(81) | RKey_Input(69);
   }
   { // lookat

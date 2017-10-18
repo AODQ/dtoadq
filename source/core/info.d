@@ -1,7 +1,7 @@
 module core.info;
 static import stl, ocl, parser;
 
-enum KernelType { DTQ, Raytrace, Texture, VideoRender };
+enum KernelType { DTQ, Raytrace, Raycast, Texture, VideoRender };
 enum KernelVar  { March_Dist, March_Reps, March_Acc }
 private struct KernelInfo {
   string filename;

@@ -5,6 +5,7 @@ static import stl;
 
 static immutable string DTOADQ_filename   = "dtoadqkernel.c",
                         Raytrace_filename = "raytracekernel.c",
+                        Raycast_filename  = "raycastkernel.c",
                         Texture_filename  = "texturekernel.c";
 
 /// Parses kernel and returns resulting kernel source code string
@@ -29,6 +30,7 @@ void Change_Kernel ( core.info.KernelType kernel_type ) {
     case KT.VideoRender: assert(false, "Video Render kernel must be DTQ or RT");
     case KT.DTQ:      KernelFile.Create_File(DTOADQ_filename); break;
     case KT.Raytrace: KernelFile.Create_File(Raytrace_filename); break;
+    case KT.Raycast:  KernelFile.Create_File(Raycast_filename); break;
     case KT.Texture:  KernelFile.Create_File(Texture_filename); break;
   }
 }

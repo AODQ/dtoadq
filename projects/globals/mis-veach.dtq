@@ -28,37 +28,27 @@ void Update_Camera ( Camera* camera, float time ) {
 CAMERAEND
 
 EMITTERSTART
-__constant int EMITTER_AMT = 2;
+__constant int EMITTER_AMT = 1;
 Emitter REmission ( int index, float3 dval, float time ) {
   float f = (float)(index+1);
-  float3 origin = (float3)(8.5f + f*-12.4f, 6.0f, -4.5f);
-  origin.x += sin(time)*4.5f + 6.0f;
-  origin.z += 4.0f + cos(time*f + f)*2.5f;
-  origin.y += 1.0f*sin(time*f + f*f);
-  // float radius   = 1.0f/f * 0.25f + (4.0f-f)*0.18f,
-  //       emission = 1.0f;
-  if ( index == 0 )
-    return (Emitter){origin, (float3)(0.6f, 0.48f, 0.96f), 2.0f};
-  return (Emitter){origin, (float3)(1.0f, 0.48f, 0.66f), 2.0f};
+  return (Emitter){(float3)(-0.9f, 0.9f, 0.9f), (float3)(dval.x), 0.2f};
 }
 EMITTEREND
 
 UPDATEMAPSTART
 void Room ( int avoid, float3 origin, SampledPt* pt, float time, float3 dval ) {
   float dist;
-  dist = sdPlane(origin, normalize((float3)(0.0f, 0.0f, 1.0f)), 7.0f);
+  dist = sdPlane(origin, normalize((float3)(0.0f, 0.0f, 1.0f)), 1.0f);
   MapUnionG(avoid, pt, dist, 1, (float3)(0.2f, 0.2f, 0.9f));
-  dist = sdPlane(origin, normalize((float3)(0.0f, 1.0f, 0.0f)), 4.0f);
+  dist = sdPlane(origin, normalize((float3)(0.0f, 1.0f, 0.0f)), 1.0f);
   MapUnionG(avoid, pt, dist, 1, (float3)(0.25f, 0.3f, 0.3f));
-
-  // misc walls for speedup
-  dist = sdPlane(origin, normalize((float3)(0.0f, 0.0f, -1.0f)), 16.0f);
+  dist = sdPlane(origin, normalize((float3)(0.0f, 0.0f, -1.0f)), 1.0f);
   MapUnionG(avoid, pt, dist, 1, (float3)(0.2f, 0.2f, 0.2f));
-  dist = sdPlane(origin, normalize((float3)(0.0f, -1.0f, 0.0f)), 16.0f);
+  dist = sdPlane(origin, normalize((float3)(0.0f, -1.0f, 0.0f)), 1.0f);
   MapUnionG(avoid, pt, dist, 1, (float3)(0.2f, 0.9f, 0.9f));
-  dist = sdPlane(origin, normalize((float3)(1.0f, 0.0f, 0.0f)), 18.0f);
+  dist = sdPlane(origin, normalize((float3)(1.0f, 0.0f, 0.0f)), 1.0f);
   MapUnionG(avoid, pt, dist, 1, (float3)(0.2f, 0.9f, 0.9f));
-  dist = sdPlane(origin, normalize((float3)(-1.0f, 0.0f, 0.0f)), 18.0f);
+  dist = sdPlane(origin, normalize((float3)(-1.0f, 0.0f, 0.0f)), 1.0f);
   MapUnionG(avoid, pt, dist, 1, (float3)(0.2f, 0.0f, 0.9f));
 
   // dist = sdLineSegment(origin, (float3)(-25.13f, -19.47f, -27.74f),
@@ -66,34 +56,15 @@ void Room ( int avoid, float3 origin, SampledPt* pt, float time, float3 dval ) {
   MapUnionG(avoid, pt, dist, 1, (float3)(0.8f, 0.0f, 0.2f));
 }
 
-void Panel ( float id, int avoid, float3 origin, SampledPt* pt, float3 dval ) {
-  origin += (float3)(-2.434f, -1.693f, 3.204f);
-  float angle = id/4.0f * PI/2.0f; 
-  origin.y += sin(angle)*-1.9f + cos(angle)*1.0f;
-  origin.z += sin(angle)*2.0f + cos(angle)*-2.0f;
-  origin.yz = opRotate(origin.yz,  angle);
-  float dist = sdBox(origin, (float3)(3.0f, 0.116f, 0.4f));
-  MapUnionG(avoid, pt, dist, 0, (float3)(0.4f, 0.4f, 0.5f));
-}
-
 void Panels ( int avoid, float3 origin, SampledPt* pt, float3 dval, float time){
-  float3 torigin = origin;
-  float dist;
-
-  // using mod and then rotating with ID violates lipschitz continuity,
-  // try to fix ?
-  for ( int i = 0; i != 4; ++ i )
-    Panel((float)(i), avoid, origin, pt, dval);
-
-  
-  torigin.xy = opRotate(torigin.xy, time);
-  dist = sdTorus(torigin, 1.5f, 2.5f);
-  MapUnionG(avoid, pt, dist, 1,
-              (float3)(
-                cos(time),
-                sin(time),
-                0.5f
-              ));
+  float dist, dist2;
+  origin += (float3)(0.723f, dval.y, dval.z);
+  dist  = sdHexagonCircumcircle(origin, (float2)(0.096f, 0.032f));
+  dist2 = sdHexagonCircumcircle(origin, (float2)(0.078f, 0.151f));
+  dist = opUnionChamfer(dist, dist2, 0.073f);
+  dist2 = sdHexagonCircumcircle(origin, (float2)(0.079f, 0.047f));
+  dist = opSubtractRound(dist, dist2, 0.073f + fabs(sin(time))*(-0.01f));
+  MapUnionG(avoid, pt, dist, 1, (float3)(0.4f, 0.6f, 0.2f));
 }
 
 void Update_Map ( int avoid, float3 origin, SampledPt* pt, float time,
