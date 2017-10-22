@@ -164,11 +164,11 @@ SampledPt March ( int avoid, Ray ray, SCENE_T(si, Tx) ) {
 
 float Visibility_Ray(float3 orig, float3 other, float sphere_radius,
                      SCENE_T(si, Tx)) {
-  float theoretical = Distance(orig, other) - sphere_radius;
+  float theoretical = Distance(orig, other) - sphere_radius*2.0f;
   float3 dir = normalize(other - orig);
-  orig += dir*(MARCH_ACC*2.0f + 0.2f);
+  orig += dir*(MARCH_ACC*2.0f); // get out of our own intersection
   SampledPt ptinfo = March(-1, (Ray){orig, dir}, si, Tx);
-  float actual = ptinfo.dist + MARCH_ACC + 0.4f;
+  float actual = ptinfo.dist + MARCH_ACC*1.2f; // distance + leeway
   return 1.0f*(actual >= theoretical);
 }
 

@@ -65,6 +65,7 @@ typedef struct T_SharedInfo {
 
 __constant float PI   = 3.141592653589793f;
 __constant float IPI  = 0.318309886183791f;
+__constant float IPI2 = 0.159154943091895f;
 __constant float TAU  = 6.283185307179586f;
 __constant float ITAU = 0.159154943091895f;
 // -----------------------------------------------------------------------------
@@ -249,37 +250,51 @@ float3 To_Cartesian ( float sin_theta, float cos_theta, float phi ) {
   return (float3)(cos(phi)*sin_theta, sin(phi)*sin_theta, cos_theta);
 }
 
-float2 Sample_Concentric_Disk ( float2 u ) {
-  float2 offset = 2.0f*u - (float2)(1.0f);
-  if ( offset.x == 0.0f && offset.y == 0.0f ) return (float2)(0.0f);
+// from PBRT 3rd ed
+float2 Concentric_Sample_Disk(SceneInfo* si) {
+  float2 u = Uniform_Sample2(si);
+  // maps to [-1, 1]^2
+  float2 offset = 2.0f * u - (float2)(1.0f, 1.0f);
+  if ( offset.x == 0.0f && offset.y == 0.0f )
+    return (float2)(0.0f);
 
   float theta, r;
   if ( fabs(offset.x) > fabs(offset.y) ) {
     r = offset.x;
-    theta = (PI/4.0f)*(offset.y/offset.x);
+    theta = (PI/4.0f) * (offset.y/offset.x);
   } else {
     r = offset.y;
-    theta = (PI/2.0f) - (PI/4.0f)*(offset.x/offset.y);
+    theta = (PI/2.0f) * (offset.x/offset.y);
   }
-  return r*(float2)(cos(theta), sin(theta));
+  return r * (float2)(cos(theta), sin(theta));
 }
 
-float3 Sample_Cosine_Hemisphere ( float2 u ) {
-  float2 d = Sample_Concentric_Disk(u);
-  float z = sqrt(fmax(0.0f, 1.0f - SQR(d.x) - SQR(d.y)));
-  return (float3)(d.x, d.y, z);
+// from PBRT 3rd ed
+float3 Sample_Cosine_Hemisphere ( SceneInfo* si ) {
+  const float2 d = Concentric_Sample_Disk(si);
+  float phi = sqrt(fmax(0.0f, 1.0f - d.x*d.x - d.y*d.y));
+  return (float3)(d.x, d.y, phi);
 }
-
+float3 Sample_Cosine_Hemisphere_N ( float3 N, SceneInfo* si ) {
+  float3 wo = normalize(Sample_Cosine_Hemisphere(si));
+  float3 binormal = (fabs(N.x) < 1.0f ? (float3)(1.0f, 0.0f, 0.0f) :
+                                        (float3)(0.0f, 1.0f, 0.0f));
+  binormal = normalize(cross(N, binormal));
+  float3 bitangent = cross(binormal, N);
+  return bitangent*wo.x + binormal*wo.y + wo.z*N;
+}
 float Cosine_Hemisphere_PDF ( float3 N, float3 wi ) {
   return fmax(0.0f, dot(N, wi)) * IPI;
 }
-// Cosine weighted
-float3 Hemisphere_Direction ( SceneInfo* si ) {
-  const float2 samples = Uniform_Sample2(si);
-  const float phi  = TAU * samples.x,
-              sintheta = sqrt(1.0f - samples.y),
-              costheta = sqrt(samples.y);
-  return To_Cartesian(sintheta, costheta, phi);
+
+float3 Sample_Cosine_Sphere ( SceneInfo* si ) {
+  // TODO: improve this, it's awful!
+  float3 cos_hemi = Sample_Cosine_Hemisphere(si);
+  cos_hemi *= Uniform_Sample(si) > 0.5f ? 1.0f : -1.0f;
+  return cos_hemi;
+}
+float Cosine_Sphere_PDF ( float3 N, float3 wi ) {
+  return fmax(0.0f, fabs(dot(N, wi))) * IPI2;
 }
 
 //// from PBRT
@@ -302,16 +317,8 @@ void Calculate_Binormals ( float3 N, float3* T, float3* B ) {
 // -----------------------------------------------------------------------------
 // --------------- BSDF    FUNCS -----------------------------------------------
 float3 BSDF_Sample ( float3 wi, float3 N, Material* m, SCENE_T(si, Tx)) {
-  float3 wo;
-  wo = normalize(Hemisphere_Direction(si));
-  // Now I have to orient it with the normal . . .
-  // Using the normal, bitangent and binormal.
-  //
-  float3 binormal = (fabs(N.x) < 1.0f ? (float3)(1.0f, 0.0f, 0.0f) :
-                                        (float3)(0.0f, 1.0f, 0.0f));
-  binormal = normalize(cross(N, binormal));
-  float3 bitangent = cross(binormal, N);
-  return bitangent*wo.x + binormal*wo.y + wo.z*N;
+  float3 diffuse = Sample_Cosine_Hemisphere_N(N, si);
+  return diffuse;
 }
 
 
@@ -328,67 +335,40 @@ float BSDF_PDF ( float3 P, float3 wo, Material* m ) {
 float Visibility_Ray(float3 orig, float3 other, SCENE_T(si, Tx)) {
   float theoretical = Distance(orig, other);
   float3 dir = normalize(other - orig);
-  orig += dir*(MARCH_ACC*2.0f + 0.2f);
+  orig += dir*(0.001f);
   SampledPt ptinfo = March(-1, (Ray){orig, dir}, si, Tx);
-  float actual = ptinfo.dist + MARCH_ACC + 0.2f;
+  float actual = ptinfo.dist + MARCH_ACC + 0.1f;
   return 1.0f*(actual >= theoretical);
 }
-
-/*
-  The PDF from a light source on the surface of a light emitter. Since, as of
-  now, there is only support for one light source, the PDF is a constant.
-  Consider the surface area of a sphere is (2.0f*tau*r^2). Thus Pr(X <= x) =
-  x/(SA). p(x) = 1/(SA). Then to check, the integral from 0 to SA of p(x)dx = 1.
-*/
-float Light_PDF ( float3 P, Emitter* m ) {
-  float rad_sqr = m->radius*m->radius;
-  return 1.0f/(2.0f*TAU*rad_sqr);
-}
-
-float3 Light_Sample_Li ( float3 P, float3* wi, float* pdf, Emitter* m,
-                         SCENE_T(si, Tx)) {
-  float3 O = m->origin;
-  float theta = 2.0f * Uniform_Sample(si) * PI,
-        phi   = PI * Uniform_Sample(si);
-  O += (float3)(cos(theta)*sin(phi), sin(theta)*sin(phi), cos(phi))
-       * (2.0f * (Uniform_Sample(si)-0.5f)) * m->radius;
-  *wi = O - P;
-  if ( length(*wi) == 0.0f ) *pdf = 0.0f;
-  else {
-    *wi = normalize(*wi);
-    float sin_max = m->radius*m->radius/Distance_Sqr(O, P);
-    *pdf = Light_PDF(P, m);
-    if ( *pdf == INFINITY ) *pdf = 0.0f;
-  }
-  return O;
-}
-
 
 // -----------------------------------------------------------------------------
 // --------------- LIGHT TRANSPORT ---------------------------------------------
 
-/*
-  typedef struct T_Vertex {
-  float3 colour, origin, normal;
-  int mat_index;
-  } Vertex;
+/// Geometric term of e0 -> e1 no visibilty check, can be used to convert
+///   a PDF w.r.t. SA to area by multiplying it by this factor
+// ω -> A = PDF * |cosθ|/d²
+// Adapted from PBRT 3d edition pg 1011
+float Geometric_Term(Vertex* V0, Vertex* V1) {
+  float3 vec = V1->origin - V0->origin;
+  float3 dn = normalize(vec);
+  float  ds = sqr(length(vec));
+  return fabs(dot(V0->normal, dn)) * fabs(dot(V1->normal, dn)) / ds;
+}
 
-  typedef struct T_Subpath {
-  Vertex vertices[MAX_DEPTH];
-  uint length;
-  } Subpath;
- */
-Emitter Generate_Light_Subpath ( Subpath* path, SCENE_T(si, Tx)) {
+Emitter Generate_Light_Subpath ( Subpath* path, float* light_weight,
+                                 Spectrum* light_contrib, SCENE_T(si, Tx)) {
   // Grab a random light source to generate a subpath
   int light_index = Uniform_Sample(si)*EMITTER_AMT;
   Emitter light = REmission(light_index, si->debug_values, si->time);
   int mindex = EMIT_MAT - light_index;
   Ray ray;
+  float3 light_normal;
   {// Generate ray position/angle
-    float3 origin =
-      (normalize(Uniform_Sample3(si)) - (float3)(0.5f)) * (float3)(2.0f);
-    origin = light.origin + origin*light.radius;
-    ray = (Ray){origin, Uniform_Sample3(si)};
+    float3 N = Sample_Cosine_Sphere(si);
+    float3 origin = light.origin + light.radius*N;
+    float3 dir = Sample_Cosine_Hemisphere_N(N, si);
+    ray = (Ray){origin, dir};
+    light_normal = N;
   }
   // generate path, Σ₀iᴿᴿ(Vᵢ + ωₒ*Rd)
   // where Rd is raymarch-distance, RR is russian-roulette, and
@@ -397,12 +377,17 @@ Emitter Generate_Light_Subpath ( Subpath* path, SCENE_T(si, Tx)) {
   //         point on hemisphere Ω, but fᵢ ensures f(P, ωᵢ, ωₒ) > 0.0)
   // Also collect vertex data along the way
   path->length = 1;
-  // setup V0
+  // setup V0, point on the surface of sphere
   path->vertices[0].colour = light.emission;
   path->vertices[0].origin = ray.origin;
-  path->vertices[0].normal = Normal(ray.origin, si, Tx);
+  path->vertices[0].normal = light_normal;
   path->vertices[0].material = NULL;
-  for ( int depth = 1; depth != 2; ++ depth ) {
+
+  { // --- set up V1 weight/contrib ---
+    Vertex* V0 = path->vertices;
+  }
+
+  for ( int depth = 1; depth != 4; ++ depth ) {
     if ( Uniform_Sample(si) < 0.25f ) break;
     SampledPt ptinfo = March(mindex, ray, si, Tx);
     if ( ptinfo.dist < 0.0f )
@@ -418,7 +403,35 @@ Emitter Generate_Light_Subpath ( Subpath* path, SCENE_T(si, Tx)) {
       path->vertices[depth].normal = Normal(hit, si, Tx);
       path->vertices[depth].material = lt_material;
     }
+    { // --- set up weight/contrib ---
+      if ( depth == 1 ) { // s=1
+        Vertex* V0 = path->vertices, * V1 = path->vertices + 1;
+        float3 wo = normalize(V1->origin - V0->origin),
+               wi = normalize(V0->origin - V1->origin);
+        Spectrum bsdf_f = light.emission;
+        float f_g   = Geometric_Term(V0, V1),
+              b_g   = Geometric_Term(V1, V0),
+              f_pdf = Cosine_Sphere_PDF(V0->normal, wo) * f_g,
+              b_pdf = Cosine_Sphere_PDF(V0->normal, wi) * b_g;
+        light_contrib[1] = bsdf_f * b_g * light_contrib[depth-1];
+        light_weight[1] = (f_pdf/b_pdf) * (light_weight[depth-1]); /*XXX*/
+      } else { // s>1
+        Vertex* V0 = path->vertices + depth - 2,
+              * V1 = path->vertices + depth - 1,
+              * V2 = path->vertices + depth;
+        float3 wi = normalize(V1->origin - V0->origin),
+               wo = normalize(V2->origin - V1->origin);
+        Spectrum bsdf_f = BSDF_F(wo, wi, V1->material)*V1->colour;
+        float f_g   = Geometric_Term(V1, V2),
+              b_g   = Geometric_Term(V1, V0),
+              f_pdf = BSDF_PDF(wi, wo, V1->material) * f_g,
+              b_pdf = BSDF_PDF(wo, wi, V1->material) * b_g;
+        light_contrib[depth] = bsdf_f * b_g * light_contrib[depth-1];
+        light_weight [depth] = (f_pdf/b_pdf) *  (light_weight[depth-1]+1.0f);
+      }
+    }
 
+    path->length = 1;
     // W₀ = fᵢ(Wᵢ, N)
     float3 wo = BSDF_Sample(ray.dir, normal, lt_material, si, Tx);
     mindex = ptinfo.mat_index;
@@ -428,71 +441,19 @@ Emitter Generate_Light_Subpath ( Subpath* path, SCENE_T(si, Tx)) {
   return light;
 }
 
-/// Geometric term of e0 -> e1 no visibilty check, can be used to convert
-///   a PDF w.r.t. SA to area by multiplying it by this factor
-// ω -> A = PDF * |cosθ|/d²
-// Adapted from PBRT 3d edition pg 1011
-float Geometric_Term(Vertex* V0, Vertex* V1) {
-  float3 vec = V1->origin - V0->origin;
-  float3 dn = normalize(vec);
-  float  ds = sqr(length(vec));
-  return fabs(dot(V0->normal, dn)) * fabs(dot(V1->normal, dn)) / ds;
-}
-
 Spectrum BDPT_Integrate ( float3 pixel, float3 dir, SCENE_T(si, Tx)) {
-  Subpath light_path;
-  // instead of genearting a light and bsdf path, only the light path is
-  // generated and the BSDF path is walked while evaluating the vertex behind it
-  // to conserve GPU memory.
-  Emitter light = Generate_Light_Subpath(&light_path, si, Tx);
-  // generate weights and PDFs
+  Subpath path;
   float    eye_weight,  light_weight [MAX_DEPTH];
   Spectrum eye_contrib, light_contrib[MAX_DEPTH];
   // α₀⁽ᴸᴱ⁾ = 1
   light_contrib[0] = eye_contrib = eye_weight = light_weight[0] = 1.0f;
-
-  { // α₁ [vertex on light surface], gaurunteed to generate
-    // -------- unweighted contribution --------
-    // αᴸ₁ = Lₑ⁰(y₀ –> y₁) / Pₐ(y₀)
-    // Pₐ(y₀) = pᴸ₁
-    Vertex* V0 = light_path.vertices, * V1 = light_path.vertices + 1;
-    // Pₐ(y₀) = Pσ(y₀) * G(y₀ –> y₁)
-    float sigma_pdf = Light_PDF(V0->origin, &light);
-    float forward_g = Geometric_Term(V0, V1);
-    float forward_pdf = sigma_pdf * forward_g;
-    // consider an area light: Lₑ(P, ωₒ) ≡ Lₑ(P); Lₑ(V₀ –> V₁) = Lₑ⁰(V₀)
-    float3 Le = light.emission;
-    light_contrib[1] = Le;
-    // ---------- MIS weight -------------------
-    // <-PA / ->PA
-    float backward_g = Geometric_Term(V1, V0);
-    float backward_pdf = sigma_pdf * backward_g;
-    light_weight[1] = backward_pdf * (1.0f/forward_pdf);
-  }
-
-  for ( int i = 2; i < light_path.length; ++ i ) { // α₂ –> αₜ
-    // -------- unweighted contribution --------
-    Vertex* V0 = light_path.vertices + i - 2, * V1 = light_path.vertices + i - 1,
-          * V2 = light_path.vertices + i;
-    //       fₛ(V2 –> V1 –> V0)
-    // αᴸᵢ = —————————————————————– * αᴸᵢ₋₁
-    //         Pσ(V1 –> V0)
-    float3 wi = normalize(V1->origin - V0->origin),
-           wo = normalize(V2->origin - V1->origin);
-    Spectrum bsdf_f = BSDF_F(wo, wi, V1->material)*V1->colour;
-    float backward_g = Geometric_Term(V1, V0);
-    float backward_pdf = BSDF_PDF(wo, wi, V1->material) * backward_g;
-    light_contrib[i] = backward_g * bsdf_f * light_contrib[i-1];
-    // ---------- MIS weight -------------------
-    float forward_g  = Geometric_Term(V1, V2);
-    /* backward_pdf *= backward_g; //XXX not part of unweighted contrib? */
-    float forward_pdf = BSDF_PDF(wi, wo, V1->material) * forward_g;
-    light_weight[i] = backward_pdf/forward_pdf * light_weight[i-1];
-  }
-
+  // instead of genearting a light and bsdf path, only the light path is
+  // generated and the BSDF path is walked while evaluating the vertex behind it
+  // to conserve GPU memory.
+  Emitter light = Generate_Light_Subpath(&path, light_weight,
+                                         light_contrib, si, Tx);
   Spectrum sample_colour = (Spectrum)(-1.0f, -1.0f, -1.0f);
-  // Pretty much same exact code as generate light subpath, except with bdpt,
-  //  and I leave out the near-identical equations from L path equations
+  // --- generate eye path ---
   Ray ray = (Ray){pixel, dir};
   Vertex V0, V1, V2;
   {// set up V2 vertex [origin]
@@ -501,7 +462,7 @@ Spectrum BDPT_Integrate ( float3 pixel, float3 dir, SCENE_T(si, Tx)) {
     V2.normal = ray.dir;
   }
   int mindex = -1;
-  for ( int depth = 1; depth != 4; ++ depth ) {
+  for ( int depth = 1; depth != 2; ++ depth ) {
     /* if ( Uniform_Sample(si) < 0.25f ) break; */
     SampledPt ptinfo = March(mindex, ray, si, Tx);
     if ( ptinfo.dist < 0.0f )
@@ -520,42 +481,30 @@ Spectrum BDPT_Integrate ( float3 pixel, float3 dir, SCENE_T(si, Tx)) {
       V2.normal = Normal(hit, si, Tx);
     }
     // previous vertices
-    {// calculate contribution and weights
+    {// --- calculate contribution and weights ---
       if ( depth == 1 ) {
-        // What's defined: V1 -> V2 [we're evaluating V1] This is for a lens.
-        // So, it's ultimately completely useless until an
-        // actual lens exists in the SDF scene. Note that this isn't an actual
-        // point on a surface of the scene (that's V2, next up for eval), this
-        // is just an infinitesimal point based off where the camera currently
-        // is, just like a delta light. So while the point actually exists on a
-        // scene, the evaluation is on a "delta camera"
-        // -------- unweighted contribution --------
-        // αᴱ₁ = Wₑ⁰(z₀)/Pₐ(z₀)
-        Spectrum We = 1.0f; // XXX This is for lens, we don't have one.
-        // Pₐ = Pσ(z̆ᵢ₋₁ –> z̆ᵢ) * G(zᵢ₋₁ <–> zᵢ)
-        float sigma_pdf = 1.0f; // Still mathematically correct until a camera
-                                // is implemented [if ever]
-        float forward_g = 1.0f; // based off camera too
-        eye_contrib = We * forward_g;
-        // ---------- MIS weight -------------------
-        eye_weight = 1.0f;
+        // what's defined; V1 -> V2
+        // but there's no physical camera lens, so you can't do normal stuff
+        float3 wo = normalize(V2.origin - V1.origin),
+               wi = normalize(V0.origin - V1.origin);
+        Spectrum bsdf_f = 1.0f; // this is for lens, don't have one yet
+        float f_g   = Geometric_Term(&V0, &V1), // CANT work w/o lens
+              b_g   = Geometric_Term(&V1, &V0), // neither can this
+              f_pdf = 1.0f * f_g, // no lens... pdf must be 1.0f
+              b_pdf = 1.0f * b_g;
+        eye_contrib = 1.0f * eye_contrib;
+        eye_weight  = 1.0f;
       } else {
-        // What's defined: V0 -> V1 -> V2 [we're evaluating V1]
-        // -------- unweighted contribution --------
+        // what's defined; V0 -> V1 -> V2
         float3 wi = normalize(V1.origin - V0.origin),
                wo = normalize(V2.origin - V1.origin);
-        Spectrum forward_bsdf = BSDF_F(wi, wo, V1.material)*V1.colour;
-        float forward_g    = Geometric_Term(&V1, &V2);
-        float forward_pdf = BSDF_PDF(V1.origin, wo, V1.material);
-        eye_contrib = forward_bsdf * forward_g * eye_contrib;
-        writeint(depth);
-        writefloat3(eye_contrib);
-        writeln("----");
-        // ---------- MIS weight -------------------
-        float backward_g   = Geometric_Term(&V1, &V0);
-        float backward_pdf = BSDF_PDF(V1.origin, wi, V1.material);
-        backward_pdf *= backward_g;
-        eye_weight = (forward_pdf/backward_pdf) * eye_weight;
+        Spectrum bsdf_f = BSDF_F(wi, wo, V1.material)*V1.colour;
+        float f_g = Geometric_Term(&V1, &V2),
+              b_g = Geometric_Term(&V1, &V0),
+              f_pdf = BSDF_PDF(wi, wo, V1.material) * f_g,
+              b_pdf = BSDF_PDF(wo, wi, V1.material) * b_g;
+        eye_contrib = bsdf_f * f_g * eye_contrib;
+        eye_weight = (b_pdf/f_pdf) * (eye_weight + 1.0f);
       }
     }
 
@@ -567,65 +516,53 @@ Spectrum BDPT_Integrate ( float3 pixel, float3 dir, SCENE_T(si, Tx)) {
         sample_colour = normalize(REMIT(ptinfo.mat_index).emission);
         break;
       }
-      // we have V0 -> V1 -> V2 so we're good to go.
-      // We know αᴸ₀ is 1.0f, and we just computed αᴱₜ, and the light's
-      // contribution is Lₑ(zₜ₋₁ → zₜ₋₂), but there is no directional component
-      // So in other words, it is the simple C*(0, t) = αᴱₜ * Lₑ⁰(zₜ₋₁)
-      // This makes sense intuitively, this is just simple path tracing.
-      Emitter path_emitter = REMIT(ptinfo.mat_index);
-      Spectrum contribution = eye_contrib * path_emitter.emission;
-      // The difficult component is calculating the weight, not even PBRT gives
-      // a very good explanation. TODO I believe it's similar to above with just
-      // light path weight = 1.0, and using existing eye weight
-      float MIS = 1.0f/(1.0f + light_weight[0] + eye_weight);
-      if ( sample_colour.x < 0.0f )
-        sample_colour = (float3)(0.0f);
-      sample_colour += (contribution);
-      break; // no point in computing anymore [you can theoretically continue
-             //   which is something to look into the future but probably not
-             //   worthwhile]
+      // just throw it out, it's such a small contribution that it's
+      // not even worth computing
+      break; // light sources don't reflect [though, they could]
     }
 
-    // iterate over every light index & add to contribution sample_colour
-    // light_it = 0 => S = 1 strategy [vertex on surface of emission]
-    // The connection strategy only needs V1 -> V2, which are defined
+    // setup next ray and mindex
+    mindex = ptinfo.mat_index;
+    ray.origin = hit;
+    // W₀ = fᵢ(Wᵢ, N)
+    ray.dir = BSDF_Sample(ray.dir, normal, V2.material, si, Tx);
 
-    for ( int light_it = 0; light_it < light_path.length; ++ light_it ) {
-      Vertex* light_vertex = (light_path.vertices + light_it);
-      // calculate unweighted contribution alphaL/E
+    // --- calculate connection term ---
+    /* if ( depth == 1 ) */
+    /*   continue; // we're evaluating the "delta camera" which is pointless */
+
+    for ( int light_it = 0; light_it < path.length; ++ light_it ) {
+      Vertex* light_vertex = (path.vertices + light_it);
       Spectrum contribution;
-      // calculate unweighted contribution connection edge
       float vis = 0.0f;
       Vertex* Z2, * Z1, * Y1, * Y2;
       if ( light_it == 0 ) { // S == 1 connection strategy [vertex on light]
-        // what we know: Z2, Z1 [depth > 0 thus Z1 must exist]
-        //   However, for the light path, there is only one vertex
-        //  Thus the connection path must be Y1 -> Z1 -> Z2 [Y2 doesn't exist]
+        // Y1 -> Z1 -> Z2 [Y2 doesn't exist]
         Z2 = &V1; Z1 = &V2; Y1 = light_vertex; Y2 = NULL;
         float3 wi = normalize(Z1->origin - Y1->origin),
                wo = normalize(Z2->origin - Z1->origin);
-        Spectrum eye_path_bsdf = BSDF_F(wi, wo, Z1->material) * Z1->colour;
-        float G = Geometric_Term(Y1, Z1);
-        contribution = eye_contrib * light_contrib[light_it+1] *
-                        G * eye_path_bsdf;
+        Spectrum bsdf_f = BSDF_F(wi, wo, Z1->material) * Z1->colour;
+        float con_g = Geometric_Term(Y1, Z1);
+        contribution = eye_contrib * light_contrib[light_it+1] * con_g * bsdf_f;
       } else { // s >= 1, t >= 1 connection contrib
-        Y2 = (light_path.vertices + light_it - 1); Y1 = light_vertex;
-        Z2 = &V1;                                  Z1 = &V2;
         // Y2 -> Y1 <--> Z1 -> Z2
+        Y2 = (path.vertices + light_it - 1); Y1 = light_vertex;
+        Z2 = &V1;                            Z1 = &V2;
         float3 wi = normalize(Y1->origin - Y2->origin),
                wo = normalize(Z1->origin - Y1->origin);
-        Spectrum light_path_bsdf = BSDF_F(wi, wo, Y1->material) * Y1->colour;
+        Spectrum light_bsdf = BSDF_F(wi, wo, Y1->material) * Y1->colour;
         /*  */ wi = wo;
                wo = normalize(Z2->origin - Z1->origin);
-        Spectrum eye_path_bsdf   = BSDF_F(wi, wo, Z1->material) * Z1->colour;
-        float G = Geometric_Term(Y1, Z1);
-        contribution = eye_contrib * light_contrib[light_it+1] * G *
-                       light_path_bsdf * eye_path_bsdf;
+        Spectrum eye_bsdf   = BSDF_F(wi, wo, Z1->material) * Z1->colour;
+        float con_g = Geometric_Term(Y1, Z1);
+        contribution = eye_contrib * light_contrib[light_it+1] * con_g *
+                        light_bsdf * eye_bsdf;
       }
       // visibility ray
       vis = Visibility_Ray(Z1->origin, Y1->origin, si, Tx);
       // calculate MIS
-      float MIS = 1.0f/( 1.0f + eye_weight + light_weight[light_it] );
+      float MIS = 1.0f/( 1.0f + eye_weight + light_weight[light_it+1]);
+      writefloat(light_weight[light_it+1]);
       // add contrib
       if ( sample_colour.x < 0.0f && vis > 0.0f )
         sample_colour = (float3)(0.0f);
@@ -634,21 +571,14 @@ Spectrum BDPT_Integrate ( float3 pixel, float3 dir, SCENE_T(si, Tx)) {
         fmax(0.0f, contribution.y),
         fmax(0.0f, contribution.z)
       );
-      sample_colour += (contribution * vis);
+      sample_colour += MIS * (contribution * vis);
     }
-
-    // setup next ray and mindex
-    mindex = ptinfo.mat_index;
-    ray.origin = hit;
-    // W₀ = fᵢ(Wᵢ, N)
-    ray.dir = BSDF_Sample(ray.dir, normal, V2.material, si, Tx);
   }
   sample_colour = (float3)(
     fmin(1.0f, sample_colour.x),
     fmin(1.0f, sample_colour.y),
     fmin(1.0f, sample_colour.z)
   );
-  writefloat3(sample_colour);
   return sample_colour;
 }
 

@@ -28,10 +28,10 @@ void Change_Kernel ( core.info.KernelType kernel_type ) {
   alias KT = core.info.KernelType;
   final switch ( kernel_type ) {
     case KT.VideoRender: assert(false, "Video Render kernel must be DTQ or RT");
-    case KT.DTQ:      KernelFile.Create_File(DTOADQ_filename); break;
+    case KT.DTQ:      KernelFile.Create_File(DTOADQ_filename);   break;
     case KT.Raytrace: KernelFile.Create_File(Raytrace_filename); break;
-    case KT.Raycast:  KernelFile.Create_File(Raycast_filename); break;
-    case KT.Texture:  KernelFile.Create_File(Texture_filename); break;
+    case KT.Raycast:  KernelFile.Create_File(Raycast_filename);  break;
+    case KT.Texture:  KernelFile.Create_File(Texture_filename);  break;
   }
 }
 

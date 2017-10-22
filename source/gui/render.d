@@ -30,9 +30,12 @@ bool Imgui_Render ( ref ocl.Material[] materials, ref ocl.Camera camera ) {
         march_acc  = core.info.RVar(core.info.KernelVar.March_Acc)/1000.0f;
       }
       pkernel_type = kernel_type;
-      igRadioButton("DTQ", &kernel_type, 0); igSameLine();
-      igRadioButton("RT", &kernel_type, 1);
-      igRadioButton("RC", &kernel_type, 2);
+      { // render type
+        alias KT = core.info.KernelType;
+        igRadioButton("DTQ", &kernel_type, cast(int)KT.DTQ);      igSameLine();
+        igRadioButton("RT",  &kernel_type, cast(int)KT.Raytrace); igSameLine();
+        igRadioButton("RC",  &kernel_type, cast(int)KT.Raycast);  igSameLine();
+      }
       if ( kernel_type != pkernel_type ) {
         core.info.Set_Kernel_Type(cast(core.info.KernelType)kernel_type);
       }

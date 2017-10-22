@@ -443,6 +443,13 @@
   emittance and radius, will have a higher probability to be selected.
 
  
+        // What's defined: V1 -> V2 [we're evaluating V1] This is for a lens.
+        // So, it's ultimately completely useless until an
+        // actual lens exists in the SDF scene. Note that this isn't an actual
+        // point on a surface of the scene (that's V2, next up for eval), this
+        // is just an infinitesimal point based off where the camera currently
+        // is, just like a delta light. So while the point actually exists on a
+        // scene, the evaluation is on a "delta camera"
   
   \section{Bibliography}
   [1]

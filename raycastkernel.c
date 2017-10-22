@@ -5,6 +5,22 @@
 #define TEXTURE_T __read_only image2d_array_t
 #define SCENE_T(S, T) SceneInfo* S , TEXTURE_T T
 
+#define DFLT2(V) ((V).x), ((V).y)
+#define DFLT3(V) ((V).x), ((V).y), ((V).z)
+#define DFLT4(V) ((V).x), ((V).y), ((V).z), ((V).w)
+
+#define writeln(X)     if (Is_Debug()){printf(X "\n");                         }
+#define writeint(X)    if (Is_Debug()){printf(#X " %d\n",                 (X));}
+#define writefloat(X)  if (Is_Debug()){printf(#X " %f\n",                 (X));}
+#define writefloat2(X) if (Is_Debug()){printf(#X " %f, %f\n",        DFLT2(X));}
+#define writefloat3(X) if (Is_Debug()){printf(#X " %f, %f, %f\n",    DFLT3(X));}
+#define writefloat4(X) if (Is_Debug()){printf(#X " %f, %f, %f, %f\n",DFLT4(X));}
+
+bool Is_Debug ( ) {
+  return get_global_id(0) == get_global_size(0)/2 &&
+    get_global_id(1) == get_global_size(1)/2;
+}
+
 __constant float MARCH_ACC = //%MARCH_ACC.0f/1000.0f;
 // -----------------------------------------------------------------------------
 // --------------- GPU-CPU STRUCTS ---------------------------------------------
@@ -89,7 +105,7 @@ SampledPt Map ( int a, float3 origin, SCENE_T(si, Tx) ) {
   for ( int i = 0; i != EMITTER_AMT; ++ i ) {
     Emitter e = REmission(i, si->debug_values, si->time);
     float dist = sdSphere(origin - e.origin, e.radius);
-    MapUnionG(a, &res, dist, 0, (float3)(1.0f, 0.9f, 0.8f)*e.emission);
+    MapUnionG(a, &res, dist, -100 - i, (float3)(1.0f, 0.9f, 0.8f)*e.emission);
   }
 
   return res;
@@ -102,15 +118,30 @@ SampledPt March ( int avoid, Ray ray, SCENE_T(si, Tx) ) {
   SampledPt t_info;
   for ( int i = 0; i < MARCH_REPS; ++ i ) {
     t_info = Map(avoid, ray.origin + ray.dir*distance, si, Tx);
-    if ( t_info.dist < MARCH_ACC || t_info.dist > MARCH_DIST ) break;
+    if ( t_info.dist <= MARCH_ACC || t_info.dist > MARCH_DIST ) break;
     distance += t_info.dist;
   }
-  if ( t_info.dist > MARCH_DIST ) {
+  if ( t_info.dist > MARCH_DIST || t_info.dist < 0.0f ) {
     t_info.dist = -1.0f;
     return t_info;
   }
   t_info.dist = distance;
   return t_info;
+}
+
+float Distance(float3 u, float3 v) {
+  float x = u.x-v.x, y = u.y-v.y, z = u.z-v.z;
+  return sqrt(x*x + y*y + z*z);
+}
+
+float Visibility(float3 orig, float3 other, float sphrad, SceneInfo* si,
+                 TEXTURE_T Tx) {
+  float theoretical = Distance(orig, other);
+  float3 dir = normalize(other - orig);
+  orig += dir*(0.01f);
+  SampledPt ptinfo = March(-1, (Ray){orig, dir}, si, Tx);
+  float actual = ptinfo.dist + MARCH_ACC + 0.02f;
+  return 1.0f*(actual >= theoretical);
 }
 
 //----POSTPROCESS---
@@ -171,5 +202,11 @@ __kernel void DTOADQ_Kernel (
   Ray ray = Camera_Ray(&camera);
   SampledPt pt = March(-1, ray, &scene_info, textures);
   pt.colour += pt.dist/MARCH_DIST;
+  float3 O = ray.origin + pt.dist*ray.dir;
+  for ( int i = 0; i != EMITTER_AMT; ++ i ) {
+    Emitter emit = REmission(i, scene_info.debug_values, scene_info.time);
+    float res = Visibility(O, emit.origin, emit.radius, &scene_info, textures);
+    pt.colour *= (res > 0.0f ? 1.0f : 0.2f);
+  }
   write_imagef(output_image, out, (float4)(pt.colour, 1.0f));
 }
