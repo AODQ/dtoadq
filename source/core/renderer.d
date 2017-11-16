@@ -7,7 +7,7 @@ void Render ( ) {
   import gui : Imgui_Render;
   // Render GUI
   shared_info.image_metadata.clear_img |=
-       Imgui_Render(shared_info.material, shared_info.camera);
+       Imgui_Render(shared_info.camera);
   // Render texture or raytrace/dtq opengl texture
   if ( core.info.RType == core.info.KernelType.Texture ) {
     if ( shared_info.gl_image !is null )

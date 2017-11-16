@@ -1,6 +1,7 @@
 #define MAX_DEPTH 16
 #define MARCH_DIST //%MARCH_DIST.0f
 #define MARCH_REPS //%MARCH_REPS
+#define MAT_LEN //%MAT_LENGTH
 
 #define TEXTURE_T __read_only image2d_array_t
 #define SCENE_T(S, T) SceneInfo* S , TEXTURE_T T
@@ -34,7 +35,16 @@ typedef struct T_Camera {
 } Camera;
 
 typedef struct T_Material {
-  float diffuse, specular, glossy, retroreflective, transmittive;
+  // colour [set to (-1.0, -1.0, -1.0) to have map override it]
+  float3 albedo;
+  // pdf
+  float diffuse, specular, glossy, glossy_lobe;
+  float transmittive, ior;
+  // PBR material
+  float pbr_roughness, pbr_metallic, pbr_fresnel;
+  // disney material
+  float d_subsurface, d_specular_tint, d_anisotropic, d_sheen, d_sheen_tint,
+    d_clearcoat, d_clearcoat_gloss, d_specular;
 } Material;
 
 typedef struct T_Emitter {
@@ -45,17 +55,15 @@ typedef struct T_Emitter {
 typedef struct T_SceneInfo {
   float time;
   // __read_only image2d_array_t textures; IMAGES CANT BE USED AS FIELD TYPES:-(
-  __global Material* materials;
+  Material* materials;
   float3 debug_values;
-  __global int* rng;
 } SceneInfo;
-SceneInfo New_SceneInfo(float time, __global Material* materials,
-                        float3 debug_values, __global int* rng){
+SceneInfo New_SceneInfo(float time, Material* materials,
+                        float3 debug_values){
   SceneInfo si;
   si.time         = time;
   si.materials    = materials;
   si.debug_values = debug_values;
-  si.rng          = rng;
   return si;
 }
 
@@ -172,62 +180,125 @@ float Visibility_Ray(float3 orig, float3 other, float sphere_radius,
   return 1.0f*(actual >= theoretical);
 }
 
-float3 BRDF_Specular(float3 L, float3 V, float3 N, float3 H, float3 col) {
-  float roughness = 0.4f, metallic = 0.3f, fresnel = 1.0f;
-  float3 F, G, D;
-  // --------- variables
+// --- some brdf utility functions .. ---
+float3 Binormal ( float3 N ) {
+  float3 axis = (fabs(N.x) < 1.0f ? (float3)(1.0f, 0.0f, 0.0f) :
+                                    (float3)(0.0f, 1.0f, 0.0f));
+  return normalize(cross(N, axis));
+}
+float Schlick_Fresnel ( float u ) {
+  float m = clamp(1.0f - u, 0.0f, 1.0f);
+  float m2 = m*m;
+  return m2*m2*m;
+}
+float GTR1 ( float cosN_H, float a ) {
+  if ( a >= 1.0f ) return 1.0f/PI;
+  float a2 = a*a;
+  float t = 1.0f + (a2-1.0f) * sqr(cosN_H);
+  return (a2 - 1.0f)/(PI*log(a2)*t);
+}
+float GTR2 ( float cosN_H, float a ) {
+  float a2 = a*a;
+  float t = 1.0f + (a2 - 1.0f) * sqr(cosN_H);
+  return a2/(PI*sqr(t));
+}
+float GTR2_Aniso (float cosH_N, float cosH_X, float cosH_Y, float ax, float ay){
+  return 1.0f/(PI*ax*ay* sqr(sqr(cosH_X/ax) + sqr(cosH_Y/ay) + sqr(cosH_N)));
+}
+float Smith_G_GGX ( float cosN_V, float alpha_g ) {
+  float a = sqr(alpha_g),
+        b = sqr(cosN_V);
+  return 1.0f/(cosN_V + sqrt(a + b - a*b));
+}
+float Smith_G_GGX_Aniso(float cosV_N, float cosV_X, float cosV_Y,
+                        float ax, float ay) {
+  return 1.0/(cosV_N + sqrt(sqr(cosV_X*ax) + sqr(cosV_Y*ay) + sqr(cosV_N)));
+}
+float3 Mon_To_Lin ( float3 x ) { return pow(x, (float3)(2.2)); }
 
-  {// ---------- Fresnel
-    // Schlick 1994
-    float3 f0 = fresnel * (1.0f - metallic) + col*metallic;
-    F = f0 + (1.0f - f0)*pow(dot(L, H), 5.0f);
-  }
-  {// ---------- Geometry
-    // Heits 2014, SmithGGXCorrelated
-    float a2 = roughness*roughness;
-    float GGXV = dot(N, L) * sqrt((dot(N, V) - a2*dot(N, V))*dot(N, V) + a2),
-          GGXL = dot(N, V) * sqrt((dot(N, L) - a2*dot(N, L))*dot(N, L) + a2);
-    G = (float3)(0.5f / (GGXV + GGXL));
-  }
-  {// ---------- Distribution
-    // Walter et al 2007
-    float cosN_H = dot(N, H);
-    float a = cosN_H * roughness,
-    k = roughness/(1.0f - (cosN_H*cosN_H));
-    D = (float3)(k*k*(1.0f/PI));
-  }
+float3 BRDF_F ( float3 wi, float3 wo, float3 N, Material* m, float3 pcolour ) {
+  // get proper L, V, binormal (X) and bitangent (Y)
+  float3 L = wo, V = -wi, X = Binormal(N), Y = cross(X, N);
+  // get half vector (angle between L and V)
+  float3 H = normalize(wi + wo);
+  // useful normal angles
+  float cosN_L = dot(N, L), cosN_V = dot(N, V),
+        cosH_L = dot(H, L), cosH_N = dot(H, N);
+  // check that wi -> wo is within hemisphere/not degenerate
+  if ( cosN_L < 0.0f || cosN_V < 0.0f ) return (float3)(0.0f);
 
-  // ---------- add it all up
+  // luminance approximation
+  float3 albedo = Mon_To_Lin(pcolour);
+  float3 lumination = albedo * (float3)(0.3f, 0.6f, 0.1f);
 
-  float3 val = (float3)(F*G*D);
-  return val;
+  // normalize lumination to isolate hue and saturation; get specular/sheen
+  float3 tint = lumination > 0.0f ? albedo/lumination : (float3)(1.0f);
+  float3 specular = mix(m->d_specular * 0.08f *
+                        mix((float3)(1.0f), tint, (float3)(m->d_specular_tint)),
+                        albedo, m->pbr_metallic);
+  float3 sheen = mix((float3)(1.0f), tint, m->d_sheen_tint);
+
+  // Diffuse Fresnel - go from 1 at normal incidence to 0.5 at grazing
+  // and mix in diffuse retroreflection based on roughness
+  // [retroreflection s when light reflects towards the light source]
+  float F_L = Schlick_Fresnel(cosN_L),
+        F_V = Schlick_Fresnel(cosN_V),
+        F_diffuse = 0.5f + 2.0f * sqr(cosH_L) * m->pbr_roughness,
+        F = mix(1.0f, F_diffuse, F_L) *
+                  mix(1.0f, F_diffuse, F_V);
+
+  // Subsurface-Scattering Approximation. Based on Hanrahan-Kruger BRDF
+  // brdf approximation of isotropic BSSRDF. 1.25 scale is used to preserve
+  // albedo. Fss90 is used to flatten retroreflection
+  float F_ss90 = sqr(cosH_L)*m->pbr_roughness,
+        F_ss   = mix(1.0f, F_ss90, F_L) *
+                               mix(1.0f, F_ss90, F_V);
+  float subsurface = 1.25f * (F_ss *
+                              (1.0f/(cosN_L + cosN_V) - 0.5f) + 0.5f);
+
+  // specular
+  float aspect    = sqrt(1.0f - m->d_anisotropic * 0.9f),
+        ax        = fmax(0.001f, sqr(m->pbr_roughness)/aspect),
+        ay        = fmax(0.001f, sqr(m->pbr_roughness)*aspect),
+        D_specular        = GTR2_Aniso(cosH_N, dot(H, X), dot(H, Y), ax, ay),
+        F_H = Schlick_Fresnel(cosH_L);
+  float3 F_specular = mix(specular, (float3)(1.0f), F_H);
+  float G_specular = Smith_G_GGX_Aniso(cosN_L, dot(L, X), dot(L, Y), ax, ay) *
+             Smith_G_GGX_Aniso(cosN_V, dot(V, X), dot(V, Y), ax, ay);
+
+  // sheen
+  float3 F_sheen = F_H * m->d_sheen * sheen;
+
+  // clearcoat (ior = 1.5 -> f0 = 0.04)
+  float D_clearcoat = GTR1(cosH_N, mix(0.1f, 0.001f, m->d_clearcoat_gloss)),
+        F_clearcoat = mix(0.04f, 1.0f, F_H),
+        G_clearcoat = Smith_G_GGX(cosN_L, 0.25f) * Smith_G_GGX(cosN_V, 0.25f);
+
+  // final combinations
+  float3 final_subsurface = mix(F, subsurface, m->d_subsurface) * albedo,
+         final_albedo = (1.0f/PI) * final_subsurface + F_sheen,
+         final_metallic = (1.0f - m->pbr_metallic),
+         final_specular = G_specular * F_specular * D_specular,
+         final_clearcoat = 0.25f * m->d_clearcoat * D_clearcoat *
+                                    F_clearcoat * G_clearcoat;
+
+  return final_albedo * final_metallic + final_specular + final_clearcoat;
 }
 
-float3 BRDF_Diffuse(float3 L, float3 V, float3 N, float3 H, float3 col) {
-  float roughness = 0.4f, metallic = 0.3f;
-  // Burley 2012, Physically-Based shading at disney
-  float f90 = 0.5f + 2.0f*roughness * sqr(dot(L, H));
-  float light_scatter = 1.0f + (f90 - 1.0f) * pow(1.0f - dot(L, N), 5.0f),
-        view_scatter  = 1.0f + (f90 - 1.0f) * pow(1.0f - dot(V, N), 5.0f);
-  float3 D = (float3)(light_scatter * view_scatter * (1.0f/PI));
-  return D * (1.0f - metallic) * col;
-}
-
-float3 Illuminate ( float3 O, float3 Wi, float3 col, SCENE_T(si, Tx) ) {
+float3 Illuminate ( float3 O, float3 Wi, float3 col, Material* m,
+                    SCENE_T(si, Tx) ) {
   float3 colour = (float3)(0.0f);
   for ( int i = 0; i != EMITTER_AMT; ++ i ) {
     Emitter emit = REmission(i, si->debug_values, si->time);
 
-    float3 V = normalize(-Wi),
+    float3 V = normalize(Wi),
            N = Normal(O, si, Tx),
-           L = normalize(emit.origin - O),
-           H = normalize(V + L);
-    float3 brdf_sp = BRDF_Specular(L, V, N, H, col);
-    float3 brdf_di = BRDF_Diffuse(L, V, N, H, col);
+           L = normalize(emit.origin - O);
+    float3 pcolour = m->albedo.x < 0.0f ? col : m->albedo;
+    float3 brdf = BRDF_F(V, L, N, m, pcolour);
     float shadow = Visibility_Ray(O, emit.origin, emit.radius, si, Tx);
 
-    colour += (brdf_di + brdf_sp) * dot(N, L) * normalize(emit.emission) *
-              shadow;
+    colour += (brdf) * dot(N, L) * normalize(emit.emission);
   }
   return colour / EMITTER_AMT;
 }
@@ -235,8 +306,9 @@ float3 Illuminate ( float3 O, float3 Wi, float3 col, SCENE_T(si, Tx) ) {
 SampledPt Colour_Pixel(Ray ray, SCENE_T(si, Tx)) {
   SampledPt result = March(-1, ray, si, Tx);
   float3 origin = ray.origin + ray.dir*result.dist;
+  Material* m = si->materials + result.material_index;
 
-  result.colour = Illuminate(origin, ray.dir, result.colour, si, Tx);
+  result.colour = Illuminate(origin, ray.dir, result.colour, m, si, Tx);
 
   return result;
 }
@@ -279,7 +351,7 @@ __kernel void DTOADQ_Kernel (
     __global Camera* camera_ptr,
     __global float* time_ptr,
     __read_only image2d_array_t textures,
-    __global Material* materials,
+    __global Material* g_materials,
     __global float* debug_val,
     __global int*   rng
   ) {
@@ -291,7 +363,12 @@ __kernel void DTOADQ_Kernel (
   //    (counter is stored in alpha channel)
   Update_Camera(&camera, time);
 
-  SceneInfo scene_info = New_SceneInfo(time, materials, dval, rng);
+  Material materials[MAT_LEN];
+  for ( int i = 0; i != MAT_LEN; ++ i ) {
+    materials[i] = *(g_materials + i);
+  }
+
+  SceneInfo scene_info = New_SceneInfo(time, materials, dval);
 
   Ray ray = Camera_Ray(&camera);
   SampledPt result = Colour_Pixel(ray, &scene_info, textures);

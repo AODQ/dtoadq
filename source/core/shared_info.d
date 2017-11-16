@@ -4,11 +4,12 @@ static import stl, ocl, glfw, core;
 import ocl.opencl;
 
 // --- kernel arguments ----
-core.Image image;
-core.GLImage gl_image;
+core.Image        image;
+core.GLImage      gl_image;
 ocl.ImageMetaData image_metadata;
 ocl.Camera        camera;
-ocl.Material[]    material;
+ocl.Material[] material;
+ocl.OCLMaterial[] ocl_material;
 ubyte[] rw_image;
 cl_uint2[] rng_states;
 float timer = 0.0f;

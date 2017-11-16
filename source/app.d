@@ -82,7 +82,6 @@ void main(string[] arguments) {
       stl.writeln("++++++ callstack +++++++++++++++++++++++++++");
       stl.writeln(e.info);
       stl.writeln("--------------------------------------------");
-      static if ( true ) return;
     }
   }
 }

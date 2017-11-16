@@ -32,7 +32,7 @@ bool Recheck_Files ( ) {
   }
 
   // check files modified
-  foreach ( f; file.parsed_functions ) status |= f.Reprocess();
+  foreach ( ref f; file.parsed_functions ) status |= f.Reprocess();
   status |= file.parsed_kernel.Reprocess();
   status |= file.parsed_scene .Reprocess();
   return status;

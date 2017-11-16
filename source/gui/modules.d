@@ -1,20 +1,27 @@
 module gui.modules;
-static import stl, ocl, core.info, core;
+static import stl, ocl, functional, core.info, core;
 import derelict.imgui.imgui;
 import std.conv : to; import std.string : format;
+import std.traits;
 
-
-void Render_Materials ( ref ocl.Material[] materials, ref bool change ) {
+void Render_Materials ( ref bool change ) {
+  // return a GUI renderer for materials, with their corresponding
+  // attributes
+  static import sinfo = core.shared_info;
   string RMaterial_Mixin ( ) {
     import std.traits, std.string : format;
-    auto member_names = [ __traits(derivedMembers, ocl.Material) ];
-    string mix = `foreach ( i; 0 .. materials.length ) {`;
+    import functional : zip;
+    string mix = `foreach ( i; 0 .. sinfo.material.length ) {`;
     mix ~= `if ( igTreeNode(gui.Accum("Material ", i)) ) {`;
-      mix ~= `auto m = materials.ptr + i;`;
-      foreach ( member; member_names ) {
-        mix ~= q{change |= igSliderFloat(
-          gui.Accum("(", i.to!string, "): %s"),
-                            &m.%s, 0.0f, 1.0f);} .format(member, member);
+      mix ~= `auto m = &sinfo.material[i];`;
+      mix ~= q{change |= igColorEdit3(
+        gui.Accum("(", i.to!string, "): albedo"), m.albedo);};
+      foreach ( member, type; zip(ocl.Material_members, ocl.Material_types)) {
+        if ( type == "float" )
+          mix ~= q{change |= igSliderFloat(
+            gui.Accum("(", i.to!string, "): %s"), &sinfo.ocl_material[i].%s,
+                      0.0f, 2.0f);
+          }.format(member, member);
       }
     mix ~= `igTreePop(); }`;
     return mix ~ `}`;

@@ -93,7 +93,8 @@ bool Compile ( inout string source, string kernel_name ) {
   static import std.file;
   std.file.write("BUILD", source);
   working_program =
-    clBuildProgram(CL.program, 0, null, null, null, null) == CL_SUCCESS;
+    clBuildProgram(CL.program, 0, null, "-cl-no-signed-zeros -Werror",
+                   null, null) == CL_SUCCESS;
   if ( !working_program ) {
     import std.datetime;
     writeln("Compiling ", Clock.currTime());
@@ -266,7 +267,7 @@ auto Set_Current_Platform() {
     }
     write("CHOOSE A PLATFORM: ");
     // index = readln.chomp.to!int;
-    index = 0;
+    index = 1;
     writeln();
     assert(index >= 0 && index < platforms.length, " invalid platform index");
   }

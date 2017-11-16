@@ -40,6 +40,11 @@ void Update_DTOADQ ( ) {
   if ( reset_spp ) {
     shared_info.image_metadata.clear_img = true;
   }
+  // update colour
+  foreach ( ind; 0 .. shared_info.material.length ) {
+    shared_info.ocl_material[ind].albedo =
+        ocl.To_CLFloat3(shared_info.material[ind].albedo);
+  }
   { // Run kernel
     shared_info.image.Lock();
     ocl.Run(
@@ -49,7 +54,7 @@ void Update_DTOADQ ( ) {
       shared_info.camera,
       shared_info.timer,
       ocl.CLPredefinedMem(imgs),
-      shared_info.material,
+      ocl.CLStoreMem(shared_info.ocl_material),
       debug_values,
       ocl.CLStoreMem(shared_info.rng_states),
       // kernel size

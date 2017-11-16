@@ -2,20 +2,47 @@ TEXTURESSTART
 TEXTURESEND
 MATERIALSSTART
 {
+  
   "materials": [
     {
-      "diffuse": "1.0",
-      "specular": "0.0",
-      "glossy": "0.4",
-      "retroreflective": "0.0",
-      "transmittive": "0.0"
+      "albedo":            "[0.7, 0.6, 0.4]",
+      "pdf_diffuse":       "1.0",
+      "pdf_specular":      "0.0",
+      "pdf_glossy":        "0.0",
+      "pdf_glossy_lobe":   "0.0",
+      "pdf_transmittive":  "0.0",
+      "pdf_ior":           "0.0",
+      "pbr_roughness":     "0.0",
+      "pbr_metallic":      "0.0",
+      "pbr_fresnel":       "0.0",
+      "d_subsurface":      "0.0",
+      "d_specular_tint":   "0.0",
+      "d_anisotropic":     "0.0",
+      "d_sheen":           "0.0",
+      "d_sheen_tint":      "0.0",
+      "d_clearcoat":       "0.0",
+      "d_clearcoat_gloss": "0.0",
+      "d_specular":        "0.4"
     },
     {
-      "diffuse": "1.0",
-      "specular": "0.0",
-      "glossy": "0.0",
-      "retroreflective": "0.0",
-      "transmittive": "0.0"
+      "albedo":            "[0.2, 0.6, 0.4]",
+      "pdf_diffuse":       "1.0",
+      "pdf_specular":      "0.0",
+      "pdf_glossy":        "0.0",
+      "pdf_glossy_lobe":   "0.0",
+      "pdf_transmittive":  "0.0",
+      "pdf_ior":           "0.0",
+      "pbr_roughness":     "0.0",
+      "pbr_metallic":      "0.0",
+      "pbr_fresnel":       "0.0",
+      "d_subsurface":      "0.0",
+      "d_specular_tint":   "0.0",
+      "d_anisotropic":     "0.0",
+      "d_sheen":           "0.0",
+      "d_sheen_tint":      "0.0",
+      "d_clearcoat":       "0.0",
+      "d_clearcoat_gloss": "0.0",
+      "d_specular":        "0.4"
     }
   ]
 }
@@ -31,11 +58,11 @@ EMITTERSTART
 __constant int EMITTER_AMT = 1;
 Emitter REmission ( int index, float3 dval, float time ) {
   float f = (float)(index+1);
-  float3 origin = (float3)(-0.95f, 0.55f, 0.95f);
+  float3 origin = (float3)(-0.45f, 0.55f, 0.45f);
   origin.x += fabs(sin(time));
   origin.z -= fabs(sin(time));
   if ( index == 0 ) // most light
-    return (Emitter){origin, (float3)(dval.x), 0.1f};
+    return (Emitter){origin, (float3)(50.0f + dval.x), 0.1f};
   if ( index == 1 ) // bg light
     return (Emitter){(float3)( 0.6f, 0.0f,-0.6f), (float3)(2.0f), 0.1f};
 }
@@ -45,21 +72,18 @@ UPDATEMAPSTART
 void Room ( int avoid, float3 origin, SampledPt* pt, float time, float3 dval ) {
   float dist;
   dist = sdPlane(origin, normalize((float3)(0.0f, 0.0f, 1.0f)), 1.0f);
-  MapUnionG(avoid, pt, dist, 1, (float3)(0.2f, 0.3f, 0.9f));
+  MapUnionG(avoid, pt, dist, 0, (float3)(0.2f, 0.3f, 0.9f));
   dist = sdPlane(origin, normalize((float3)(0.0f, 1.0f, 0.0f)), 1.0f);
-  MapUnionG(avoid, pt, dist, 1, (float3)(0.2f, 0.3f, 0.2f));
+  MapUnionG(avoid, pt, dist, 0, (float3)(0.2f, 0.3f, 0.2f));
   dist = sdPlane(origin, normalize((float3)(0.0f, 0.0f, -1.0f)), 1.0f);
-  MapUnionG(avoid, pt, dist, 1, (float3)(0.2f, 0.9f, 0.2f));
+  MapUnionG(avoid, pt, dist, 0, (float3)(0.2f, 0.9f, 0.2f));
   dist = sdPlane(origin, normalize((float3)(0.0f, -1.0f, 0.0f)), 1.0f);
-  MapUnionG(avoid, pt, dist, 1, (float3)(0.9f, 0.3f, 0.2f));
+  MapUnionG(avoid, pt, dist, 0, (float3)(0.9f, 0.3f, 0.2f));
   dist = sdPlane(origin, normalize((float3)(1.0f, 0.0f, 0.0f)), 1.0f);
-  MapUnionG(avoid, pt, dist, 1, (float3)(0.2f, 0.9f, 0.9f));
+  MapUnionG(avoid, pt, dist, 0, (float3)(0.2f, 0.9f, 0.9f));
   dist = sdPlane(origin, normalize((float3)(-1.0f, 0.0f, 0.0f)), 1.0f);
-  MapUnionG(avoid, pt, dist, 1, (float3)(0.9f, 0.9f, 0.2f));
+  MapUnionG(avoid, pt, dist, 0, (float3)(0.9f, 0.9f, 0.2f));
 
-  // dist = sdLineSegment(origin, (float3)(-25.13f, -19.47f, -27.74f),
-  //                              (float3)(0.694059f, 0.371056f, -0.616927f)*200.0f);
-  MapUnionG(avoid, pt, dist, 1, (float3)(0.8f, 0.0f, 0.2f));
 }
 
 void Panels ( int avoid, float3 origin, SampledPt* pt, float3 dval, float time){
@@ -79,11 +103,16 @@ void Hider ( int avoid, float3 origin, SampledPt* pt, float3 dval, float time){
   float dist = sdBox(origin, (float3)(0.396f, 0.36f, 0.023f));
   // MapUnionG(avoid, pt, dist, 1, (float3)(0.4f, 0.6f, 0.2f));
 }
+void BSDFModel ( int avoid, float3 origin, SampledPt* pt, float3 dval, float time){
+  float dist = sdBox(origin, (float3)(0.2f));
+  MapUnionG(avoid, pt, dist, 1, (float3)(0.4f, 0.6f, 0.2f));
+}
 
 void Update_Map ( int avoid, float3 origin, SampledPt* pt, float time,
                   __read_only image2d_array_t textures, float3 dval ) {
   Room(avoid, origin, pt, time, dval);
   Panels(avoid, origin, pt, dval, time);
   Hider(avoid, origin, pt, dval, time);
+  BSDFModel(avoid, origin, pt, dval, time);
 }
 UPDATEMAPEND

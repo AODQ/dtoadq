@@ -43,7 +43,9 @@ struct File {
 
   /// Returns true on file update (including deletion)
   bool Reprocess ( bool force_reprocess = false ) {
-    if ( !Exists() ) return true;
+    if ( !Exists() ) {
+      return true;
+    }
     auto curr_modification = RModification_Time();
     if ( !force_reprocess && curr_modification == last_modification )
       return false;

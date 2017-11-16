@@ -65,22 +65,43 @@ void Set_Time ( float t ) { shared_info.timer = t;    }
 float RTime   (         ) { return shared_info.timer; }
 ///
 
-///
-void Set_Material(ocl.Material[] material) {
-  shared_info.material = material.dup;
+float RJS ( stl.json.JSONValue json_value, string str ) {
+  try {
+    import std.conv : to;
+    return json_value[str].str.to!float;
+  } catch ( Exception e ) {
+    return 0.0f;
+  }
 }
+
 ///
 void Set_Material(stl.json.JSONValue json_value) {
-  import stl : to;
-  ocl.Material[] materials;
+  shared_info.material.length = shared_info.ocl_material.length = 0;
+  float[3] albedo;
   foreach ( json; json_value["materials"].array ) {
-    materials ~= ocl.Material(json["diffuse"         ].str.to!float,
-                              json["specular"        ].str.to!float,
-                              json["glossy"          ].str.to!float,
-                              json["retroreflective" ].str.to!float,
-                              json["transmittive"    ].str.to!float);
+    try {
+      import std.conv : to;
+      albedo = json["albedo"].str.to!(float[3]);
+    } catch ( Exception e ) {
+      albedo = [0.0f, 0.0f, 0.0f];
+    }
+    shared_info.ocl_material ~= ocl.Set_OCLMaterial(
+      albedo,
+      [
+      RJS(json, "pdf_diffuse"),      RJS(json, "pdf_specular"),
+      RJS(json, "pdf_glossy"),       RJS(json, "pdf_glossy_lobe"),
+      RJS(json, "pdf_transmittive"), RJS(json, "pdf_ior"),
+      RJS(json, "pbr_roughness"),    RJS(json, "pbr_metallic"),
+      RJS(json, "pbr_fresnel"),      RJS(json, "d_subsurface"),
+      RJS(json, "d_specular_tint"),  RJS(json, "d_anisotropic"),
+      RJS(json, "d_sheen"),          RJS(json, "d_sheen_tint"),
+      RJS(json, "d_clearcoat"),      RJS(json, "d_clearcoat_gloss"),
+      RJS(json, "d_specular")
+      ]
+    );
+    auto ptr = &shared_info.ocl_material[$-1];
+    shared_info.material ~= ocl.Material(albedo);
   }
-  Set_Material(materials);
 }
 
 /// Sets image buffer (camera, gl images, etc) based off resolution.

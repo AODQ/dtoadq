@@ -33,7 +33,11 @@ string Parse ( ) {
   }
 
   { // materials
+    static import shared_info = core.shared_info;
     core.Set_Material(stl.json.parseJSON(materials));
+    kernel = kernel
+      .replace("//%MAT_LENGTH",
+          stl.to!string(shared_info.material.length));
   }
 
   // map and scene insert

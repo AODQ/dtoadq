@@ -40,13 +40,22 @@ string Truncate_DirExt ( string filename ) {
 }
 
 
-/// Eponomyous template that returns all members of T
+/// returns all members of T
 template AllMembers(alias T) {
   private template MemberFilter(string name) {
     mixin(`alias field = %s.%s;`.format(fullyQualifiedName!T, name));
     enum MemberFilter = !is(field) && field;
   }
   alias AllMembers = Filter!(MemberFilter, __traits(derivedMembers, T));
+}
+
+import std.traits; /// returns all derived types of T
+template AllTypes(alias T) {
+  private template TypeMap(string name) {
+    mixin(`alias field = %s.%s;`.format(fullyQualifiedName!T, name));
+    enum TypeMap = typeof(field).stringof;
+  }
+  alias AllTypes = staticMap!(TypeMap, __traits(derivedMembers, T));
 }
 
 

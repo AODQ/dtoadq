@@ -3,7 +3,7 @@ static import ocl, core.info, gui, core;
 import derelict.imgui.imgui;
 import gui.modules;
 
-bool Imgui_Render ( ref ocl.Material[] materials, ref ocl.Camera camera ) {
+bool Imgui_Render ( ref ocl.Camera camera ) {
   bool change;
   igBegin("Project Details");
     igText("FPS: %.3f ms/frame (%.1f FPS)", 1000.0f / igGetIO().Framerate,
@@ -34,7 +34,7 @@ bool Imgui_Render ( ref ocl.Material[] materials, ref ocl.Camera camera ) {
         alias KT = core.info.KernelType;
         igRadioButton("DTQ", &kernel_type, cast(int)KT.DTQ);      igSameLine();
         igRadioButton("RT",  &kernel_type, cast(int)KT.Raytrace); igSameLine();
-        igRadioButton("RC",  &kernel_type, cast(int)KT.Raycast);  igSameLine();
+        igRadioButton("RC",  &kernel_type, cast(int)KT.Raycast);
       }
       if ( kernel_type != pkernel_type ) {
         core.info.Set_Kernel_Type(cast(core.info.KernelType)kernel_type);
@@ -46,7 +46,7 @@ bool Imgui_Render ( ref ocl.Material[] materials, ref ocl.Camera camera ) {
       if ( igSliderInt("March Repetitions", &march_reps, 1, 1024) ) {
         core.info.Set_Kernel_Var(core.info.KernelVar.March_Reps, march_reps);
       }
-      if ( igSliderFloat("March Accuracy", &march_acc, 0.00f, 0.1f) ) {
+        if ( igSliderFloat("March Accuracy", &march_acc, 0.00f, 0.1f) ) {
         int acc_var = cast(int)(march_acc*1000);
         core.info.Set_Kernel_Var(core.info.KernelVar.March_Acc, acc_var);
       }
@@ -69,7 +69,7 @@ bool Imgui_Render ( ref ocl.Material[] materials, ref ocl.Camera camera ) {
     static bool open_materials = false;
     igCheckbox("Materials", &open_materials);
     if ( open_materials )
-      Render_Materials(materials, change);
+      Render_Materials(change);
 
     static bool open_editor = false;
     igCheckbox("Editor", &open_editor);

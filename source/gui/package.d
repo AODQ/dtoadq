@@ -2,9 +2,15 @@ module gui;
 static import ocl, core.info;
 import derelict.imgui.imgui, std.string : toStringz;
 
-bool Imgui_Render ( ref ocl.Material[] materials, ref ocl.Camera camera ) {
+auto TSTR ( int i )  {
+  switch ( i ) {
+    default: return "na";
+  }
+}
+
+bool Imgui_Render ( ref ocl.Camera camera ) {
   static import gui.render;
-  return gui.render.Imgui_Render ( materials, camera );
+  return gui.render.Imgui_Render ( camera );
 }
 
 // -- allow variadic calls to igFN, ei, igText(gui.Accum("lbl: ", l), ..);
