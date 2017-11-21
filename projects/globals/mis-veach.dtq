@@ -58,13 +58,14 @@ EMITTERSTART
 __constant int EMITTER_AMT = 1;
 Emitter REmission ( int index, float3 dval, float time ) {
   float f = (float)(index+1);
-  float3 origin = (float3)(-0.45f, 0.55f, 0.45f);
-  origin.x += fabs(sin(time));
-  origin.z -= fabs(sin(time));
+  float3 origin = (float3)(0.0f);
+  origin.x += (sin(time*0.2f))*0.8f;
+  origin.z -= (sin(time*0.01f + f*23.23f))*0.8f;
+  origin.y -= (cos(time + f*52345.02342f))*0.8f;
   if ( index == 0 ) // most light
-    return (Emitter){origin, (float3)(50.0f + dval.x), 0.1f};
+    return (Emitter){origin, (float3)(1.005f)+dval.x, 0.1f+dval.y};
   if ( index == 1 ) // bg light
-    return (Emitter){(float3)( 0.6f, 0.0f,-0.6f), (float3)(2.0f), 0.1f};
+    return (Emitter){(float3)( 0.6f, 0.0f,-0.6f), (float3)(1.00f)*cos(time), 0.1f};
 }
 EMITTEREND
 
@@ -87,24 +88,28 @@ void Room ( int avoid, float3 origin, SampledPt* pt, float time, float3 dval ) {
 }
 
 void Panels ( int avoid, float3 origin, SampledPt* pt, float3 dval, float time){
+
+  // meta balls
+
+  
   // weird thing
   float dist, dist2;
   origin += 0.5f*(float3)(cos(time), sin(time), sin(time));
   dist  = sdHexagonCircumcircle(origin, (float2)(0.096f, 0.032f));
   dist2 = sdHexagonCircumcircle(origin, (float2)(0.078f, 0.151f));
   dist = opUnionChamfer(dist, dist2, 0.073f);
-  dist2 = sdHexagonCircumcircle(origin, (float2)(0.079f, 0.047f));
-  dist = opSubtractRound(dist, dist2, 0.073f + fabs(sin(time))*(-0.01f));
   MapUnionG(avoid, pt, dist, 1, (float3)(0.4f, 0.6f, 0.2f));
 }
 void Hider ( int avoid, float3 origin, SampledPt* pt, float3 dval, float time){
   // hide light
-  origin -= (float3)(-0.938f, 0.813f, 0.777f);
+  origin += (float3)((sin(time*0.2f))*0.3f,
+                     (cos(time*0.5f))*0.6f,
+                     sin(time*0.01f)*0.1f);
   float dist = sdBox(origin, (float3)(0.396f, 0.36f, 0.023f));
-  // MapUnionG(avoid, pt, dist, 1, (float3)(0.4f, 0.6f, 0.2f));
+  MapUnionG(avoid, pt, dist, 1, (float3)(0.4f, 0.6f, 0.2f));
 }
 void BSDFModel ( int avoid, float3 origin, SampledPt* pt, float3 dval, float time){
-  float dist = sdBox(origin, (float3)(0.2f));
+  float dist = sdSphere(origin-(float3)(0.3f), 0.1f);
   MapUnionG(avoid, pt, dist, 1, (float3)(0.4f, 0.6f, 0.2f));
 }
 

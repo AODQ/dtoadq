@@ -105,7 +105,7 @@ SampledPt Map ( int a, float3 origin, SCENE_T(si, Tx) ) {
   for ( int i = 0; i != EMITTER_AMT; ++ i ) {
     Emitter e = REmission(i, si->debug_values, si->time);
     float dist = sdSphere(origin - e.origin, e.radius);
-    MapUnionG(a, &res, dist, -100 - i, (float3)(1.0f, 0.9f, 0.8f)*e.emission);
+    MapUnionG(a, &res, dist, -100 - i, e.emission);
   }
 
   return res;
