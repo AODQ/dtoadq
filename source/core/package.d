@@ -88,15 +88,11 @@ void Set_Material(stl.json.JSONValue json_value) {
     shared_info.ocl_material ~= ocl.Set_OCLMaterial(
       albedo,
       [
-      RJS(json, "pdf_diffuse"),      RJS(json, "pdf_specular"),
-      RJS(json, "pdf_glossy"),       RJS(json, "pdf_glossy_lobe"),
-      RJS(json, "pdf_transmittive"), RJS(json, "pdf_ior"),
-      RJS(json, "pbr_roughness"),    RJS(json, "pbr_metallic"),
-      RJS(json, "pbr_fresnel"),      RJS(json, "d_subsurface"),
-      RJS(json, "d_specular_tint"),  RJS(json, "d_anisotropic"),
-      RJS(json, "d_sheen"),          RJS(json, "d_sheen_tint"),
-      RJS(json, "d_clearcoat"),      RJS(json, "d_clearcoat_gloss"),
-      RJS(json, "d_specular")
+      RJS(json, "diffuse"),      RJS(json, "specular"),
+      RJS(json, "glossy"),       RJS(json, "glossy_lobe"),
+      RJS(json, "transmittive"), RJS(json, "roughness"),
+      RJS(json, "metallic"),     RJS(json, "fresnel"),
+      RJS(json, "subsurface"),   RJS(json, "anisotropic")
       ]
     );
     auto ptr = &shared_info.ocl_material[$-1];

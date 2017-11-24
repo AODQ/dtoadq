@@ -1,186 +1,42 @@
-This is pdfTeX, Version 3.14159265-2.6-1.40.18 (TeX Live 2017/Arch Linux) (preloaded format=pdflatex 2017.9.27)  18 OCT 2017 15:12
+This is pdfTeX, Version 3.14159265-2.6-1.40.18 (TeX Live 2017/Arch Linux) (preloaded format=prv_paper 2017.11.23)  23 NOV 2017 13:25
 entering extended mode
  restricted \write18 enabled.
- file:line:error style messages enabled.
  %&-line parsing enabled.
-**\nonstopmode\nofiles\PassOptionsToPackage{active,tightpage,auctex}{preview}\A
-tBeginDocument{\ifx\ifPreview\undefined\RequirePackage[displaymath,floats,graph
-ics,textmath,sections,footnotes]{preview}[2004/11/05]\fi} \input _region_.tex
-(./_region_.tex  !name(paper.tex)
-(/usr/share/texmf-dist/tex/latex/base/article.cls
-Document Class: article 2014/09/29 v1.4h Standard LaTeX document class
-(/usr/share/texmf-dist/tex/latex/base/size10.clo
-File: size10.clo 2014/09/29 v1.4h Standard LaTeX file (size option)
-)
-\c@part=\count79
-\c@section=\count80
-\c@subsection=\count81
-\c@subsubsection=\count82
-\c@paragraph=\count83
-\c@subparagraph=\count84
-\c@figure=\count85
-\c@table=\count86
-\abovecaptionskip=\skip41
-\belowcaptionskip=\skip42
-\bibindent=\dimen102
-)
-(/usr/share/texmf-dist/tex/latex/amsmath/amsmath.sty
-Package: amsmath 2016/11/05 v2.16a AMS math features
-\@mathmargin=\skip43
-
-For additional information on amsmath, use the `?' option.
-(/usr/share/texmf-dist/tex/latex/amsmath/amstext.sty
-Package: amstext 2000/06/29 v2.01 AMS text
-
-(/usr/share/texmf-dist/tex/latex/amsmath/amsgen.sty
-File: amsgen.sty 1999/11/30 v2.0 generic functions
-\@emptytoks=\toks14
-\ex@=\dimen103
-))
-(/usr/share/texmf-dist/tex/latex/amsmath/amsbsy.sty
-Package: amsbsy 1999/11/29 v1.2d Bold Symbols
-\pmbraise@=\dimen104
-)
-(/usr/share/texmf-dist/tex/latex/amsmath/amsopn.sty
-Package: amsopn 2016/03/08 v2.02 operator names
-)
-\inf@bad=\count87
-LaTeX Info: Redefining \frac on input line 213.
-\uproot@=\count88
-\leftroot@=\count89
-LaTeX Info: Redefining \overline on input line 375.
-\classnum@=\count90
-\DOTSCASE@=\count91
-LaTeX Info: Redefining \ldots on input line 472.
-LaTeX Info: Redefining \dots on input line 475.
-LaTeX Info: Redefining \cdots on input line 596.
-\Mathstrutbox@=\box26
-\strutbox@=\box27
-\big@size=\dimen105
-LaTeX Font Info:    Redeclaring font encoding OML on input line 712.
-LaTeX Font Info:    Redeclaring font encoding OMS on input line 713.
-\macc@depth=\count92
-\c@MaxMatrixCols=\count93
-\dotsspace@=\muskip10
-\c@parentequation=\count94
-\dspbrk@lvl=\count95
-\tag@help=\toks15
-\row@=\count96
-\column@=\count97
-\maxfields@=\count98
-\andhelp@=\toks16
-\eqnshift@=\dimen106
-\alignsep@=\dimen107
-\tagshift@=\dimen108
-\tagwidth@=\dimen109
-\totwidth@=\dimen110
-\lineht@=\dimen111
-\@envbody=\toks17
-\multlinegap=\skip44
-\multlinetaggap=\skip45
-\mathdisplay@stack=\toks18
-LaTeX Info: Redefining \[ on input line 2817.
-LaTeX Info: Redefining \] on input line 2818.
-)
-(/usr/share/texmf-dist/tex/latex/listings/listings.sty
-(/usr/share/texmf-dist/tex/latex/graphics/keyval.sty
-Package: keyval 2014/10/28 v1.15 key=value parser (DPC)
-\KV@toks@=\toks19
-)
-\lst@mode=\count99
-\lst@gtempboxa=\box28
-\lst@token=\toks20
-\lst@length=\count100
-\lst@currlwidth=\dimen112
-\lst@column=\count101
-\lst@pos=\count102
-\lst@lostspace=\dimen113
-\lst@width=\dimen114
-\lst@newlines=\count103
-\lst@lineno=\count104
-\lst@maxwidth=\dimen115
-
-(/usr/share/texmf-dist/tex/latex/listings/lstmisc.sty
-File: lstmisc.sty 2015/06/04 1.6 (Carsten Heinz)
-\c@lstnumber=\count105
-\lst@skipnumbers=\count106
-\lst@framebox=\box29
-)
-(/usr/share/texmf-dist/tex/latex/listings/listings.cfg
-File: listings.cfg 2015/06/04 1.6 listings configuration
-))
-Package: listings 2015/06/04 1.6 (Carsten Heinz)
-
-(/usr/share/texmf-dist/tex/latex/amsfonts/amssymb.sty
-Package: amssymb 2013/01/14 v3.01 AMS font symbols
-
-(/usr/share/texmf-dist/tex/latex/amsfonts/amsfonts.sty
-Package: amsfonts 2013/01/14 v3.01 Basic AMSFonts support
-\symAMSa=\mathgroup4
-\symAMSb=\mathgroup5
-LaTeX Font Info:    Overwriting math alphabet `\mathfrak' in version `bold'
-(Font)                  U/euf/m/n --> U/euf/b/n on input line 106.
-))
-(/usr/share/texmf-dist/tex/latex/graphics/color.sty
-Package: color 2016/07/10 v1.1e Standard LaTeX Color (DPC)
-
-(/usr/share/texmf-dist/tex/latex/graphics-cfg/color.cfg
-File: color.cfg 2016/01/02 v1.6 sample color configuration
-)
-Package color Info: Driver file: pdftex.def on input line 147.
-
-(/usr/share/texmf-dist/tex/latex/graphics-def/pdftex.def
-File: pdftex.def 2017/06/24 v1.0g Graphics/color driver for pdftex
-))
-(/usr/share/texmf-dist/tex/latex/graphics/graphicx.sty
-Package: graphicx 2017/06/01 v1.1a Enhanced LaTeX Graphics (DPC,SPQR)
-
-(/usr/share/texmf-dist/tex/latex/graphics/graphics.sty
-Package: graphics 2017/06/25 v1.2c Standard LaTeX Graphics (DPC,SPQR)
-
-(/usr/share/texmf-dist/tex/latex/graphics/trig.sty
-Package: trig 2016/01/03 v1.10 sin cos tan (DPC)
-)
-(/usr/share/texmf-dist/tex/latex/graphics-cfg/graphics.cfg
-File: graphics.cfg 2016/06/04 v1.11 sample graphics configuration
-)
-Package graphics Info: Driver file: pdftex.def on input line 99.
-)
-\Gin@req@height=\dimen116
-\Gin@req@width=\dimen117
-)
-(/usr/share/texmf-dist/tex/latex/geometry/geometry.sty
-Package: geometry 2010/09/12 v5.6 Page Geometry
-
-(/usr/share/texmf-dist/tex/generic/oberdiek/ifpdf.sty
-Package: ifpdf 2017/03/15 v3.2 Provides the ifpdf switch
-)
-(/usr/share/texmf-dist/tex/generic/oberdiek/ifvtex.sty
-Package: ifvtex 2016/05/16 v1.6 Detect VTeX and its facilities (HO)
-Package ifvtex Info: VTeX not detected.
-)
-(/usr/share/texmf-dist/tex/generic/ifxetex/ifxetex.sty
-Package: ifxetex 2010/09/12 v0.6 Provides ifxetex conditional
-)
-\Gm@cnth=\count107
-\Gm@cntv=\count108
-\c@Gm@tempcnt=\count109
-\Gm@bindingoffset=\dimen118
-\Gm@wd@mp=\dimen119
-\Gm@odd@mp=\dimen120
-\Gm@even@mp=\dimen121
-\Gm@layoutwidth=\dimen122
-\Gm@layoutheight=\dimen123
-\Gm@layouthoffset=\dimen124
-\Gm@layoutvoffset=\dimen125
-\Gm@dimlist=\toks21
-)
-(/usr/share/texmf-dist/tex/latex/listings/lstlang1.sty
-File: lstlang1.sty 2015/06/04 1.6 listings language file
-)
-(/usr/share/texmf-dist/tex/latex/listings/lstmisc.sty
-File: lstmisc.sty 2015/06/04 1.6 (Carsten Heinz)
-)
+**&prv_paper _region_.tex
+(./_region_.tex
+LaTeX2e <2017-04-15>
+Babel <3.15> and hyphenation patterns for 84 language(s) loaded.
+CUSTOMISED FORMAT. Preloaded files:
+        .
+ article.cls    2014/09/29 v1.4h Standard LaTeX document class
+  size10.clo    2014/09/29 v1.4h Standard LaTeX file (size option)
+ amsmath.sty    2017/09/02 v2.17a AMS math features
+ amstext.sty    2000/06/29 v2.01 AMS text
+  amsgen.sty    1999/11/30 v2.0 generic functions
+  amsbsy.sty    1999/11/29 v1.2d Bold Symbols
+  amsopn.sty    2016/03/08 v2.02 operator names
+listings.sty    2015/06/04 1.6 (Carsten Heinz)
+  keyval.sty    2014/10/28 v1.15 key=value parser (DPC)
+ lstmisc.sty    2015/06/04 1.6 (Carsten Heinz)
+listings.cfg    2015/06/04 1.6 listings configuration
+ amssymb.sty    2013/01/14 v3.01 AMS font symbols
+amsfonts.sty    2013/01/14 v3.01 Basic AMSFonts support
+   color.sty    2016/07/10 v1.1e Standard LaTeX Color (DPC)
+   color.cfg    2016/01/02 v1.6 sample color configuration
+  pdftex.def    2017/06/24 v1.0g Graphics/color driver for pdftex
+graphicx.sty    2017/06/01 v1.1a Enhanced LaTeX Graphics (DPC,SPQR)
+graphics.sty    2017/06/25 v1.2c Standard LaTeX Graphics (DPC,SPQR)
+    trig.sty    2016/01/03 v1.10 sin cos tan (DPC)
+graphics.cfg    2016/06/04 v1.11 sample graphics configuration
+geometry.sty    2010/09/12 v5.6 Page Geometry
+   ifpdf.sty    2017/03/15 v3.2 Provides the ifpdf switch
+  ifvtex.sty    2016/05/16 v1.6 Detect VTeX and its facilities (HO)
+ ifxetex.sty    2010/09/12 v0.6 Provides ifxetex conditional
+lstlang1.sty    2015/06/04 1.6 listings language file
+ lstmisc.sty    2015/06/04 1.6 (Carsten Heinz)
+    umsa.fd    2013/01/14 v3.01 AMS symbols A
+    umsb.fd    2013/01/14 v3.01 AMS symbols B
+        .
 No file _region_.aux.
 LaTeX Font Info:    Checking defaults for OML/cmm/m/it on input line 29.
 LaTeX Font Info:    ... okay on input line 29.
@@ -319,20 +175,10 @@ e
 * (1in=72.27pt=25.4mm, 1cm=28.453pt)
 
  !name(paper.tex) !offset(-3) 
-LaTeX Font Info:    Try loading font information for U+msa on input line 33.
-
-(/usr/share/texmf-dist/tex/latex/amsfonts/umsa.fd
-File: umsa.fd 2013/01/14 v3.01 AMS symbols A
-)
-LaTeX Font Info:    Try loading font information for U+msb on input line 33.
-
-(/usr/share/texmf-dist/tex/latex/amsfonts/umsb.fd
-File: umsb.fd 2013/01/14 v3.01 AMS symbols B
-)
 
 LaTeX Warning: No \author given.
 
-./_region_.tex:34: Preview: Snippet 1 started.
+! Preview: Snippet 1 started.
 <-><->
       
 l.34   \section
@@ -340,7 +186,7 @@ l.34   \section
 Not a real error.
 
 Preview: Tightpage -32891 -32891 32891 32891
-./_region_.tex:34: Preview: Snippet 1 ended.(655359+0x29365037).
+! Preview: Snippet 1 ended.(655359+0x29365037).
 <-><->
       
 l.34   \section{Introduction}
@@ -350,14 +196,14 @@ Not a real error.
 [1{/var/lib/texmf/fonts/map/pdftex/updmap/pdftex.map}
 
 ]
-./_region_.tex:36: Preview: Snippet 2 started.
+! Preview: Snippet 2 started.
 <-><->
       
 l.36   \section
                {SDFs}
 Not a real error.
 
-./_region_.tex:36: Preview: Snippet 2 ended.(647495+0x29365037).
+! Preview: Snippet 2 ended.(647495+0x29365037).
 <-><->
       
 l.36   \section{SDFs}
@@ -367,2349 +213,2336 @@ Not a real error.
 [2
 
 ]
-./_region_.tex:37: Preview: Snippet 3 started.
+! Preview: Snippet 3 started.
 <-><->
       
-l.37   \begin{align*}
-                     
+l.39   \[
+         \frac{(f(x+h) - f(x))}{h}\]
 Not a real error.
 
-./_region_.tex:42: Preview: Snippet 3 ended.(3751285+0x26628964).
+! Preview: Snippet 3 ended.(1384421+0x17281490).
 <-><->
       
-l.42   \end{align*}
-                   
+l.39   \[\frac{(f(x+h) - f(x))}{h}\]
+                                    
 Not a real error.
 
 [3]
-./_region_.tex:43: Preview: Snippet 4 started.
+! Preview: Snippet 4 started.
 <-><->
       
-l.43   \section
+l.40   \begin{align*}
+                     
+Not a real error.
+
+! Preview: Snippet 4 ended.(3751285+0x26628964).
+<-><->
+      
+l.45   \end{align*}
+                   
+Not a real error.
+
+[4]
+! Preview: Snippet 5 started.
+<-><->
+      
+l.46   \section
                {OpenCL}
 Not a real error.
 
-./_region_.tex:43: Preview: Snippet 4 ended.(647495+183500x29365037).
+! Preview: Snippet 5 ended.(647495+183500x29365037).
 <-><->
       
-l.43   \section{OpenCL}
+l.46   \section{OpenCL}
                        
-Not a real error.
-
-[4
-
-]
-./_region_.tex:44: Preview: Snippet 5 started.
-<-><->
-      
-l.44   \section
-               {Light Transport Introduction}
-Not a real error.
-
-./_region_.tex:44: Preview: Snippet 5 ended.(655359+183500x29365037).
-<-><->
-      
-l.44   \section{Light Transport Introduction}
-                                             
 Not a real error.
 
 [5
 
 ]
-./_region_.tex:45: Preview: Snippet 6 started.
+! Preview: Snippet 6 started.
 <-><->
       
-l.45   \section
-               {Bidirectional Path Tracing}
+l.47   \section
+               {Light Transport Introduction}
 Not a real error.
 
-./_region_.tex:45: Preview: Snippet 6 ended.(655359+183500x29365037).
+! Preview: Snippet 6 ended.(655359+183500x29365037).
 <-><->
       
-l.45   \section{Bidirectional Path Tracing}
-                                           
+l.47   \section{Light Transport Introduction}
+                                             
 Not a real error.
 
 [6
 
 ]
-./_region_.tex:57: Preview: Snippet 7 started.
+! Preview: Snippet 7 started.
 <-><->
       
-l.57       \[
-             \frac{(f(x+h) - f(x))}{h}\]
+l.48   \section
+               {Bidirectional Path Tracing}
 Not a real error.
 
-./_region_.tex:57: Preview: Snippet 7 ended.(1384421+0x17281490).
+! Preview: Snippet 7 ended.(655359+183500x29365037).
 <-><->
       
-l.57       \[\frac{(f(x+h) - f(x))}{h}\]
-                                        
+l.48   \section{Bidirectional Path Tracing}
+                                           
 Not a real error.
 
-[7]
-./_region_.tex:65: Preview: Snippet 8 started.
+[7
+
+]
+! Preview: Snippet 8 started.
 <-><->
       
-l.65     \begin{align}
+l.57     \begin{align}
                       
 Not a real error.
 
-./_region_.tex:67: Preview: Snippet 8 ended.(1548261+0x29365037).
+! Preview: Snippet 8 ended.(1548261+0x29365037).
 <-><->
       
-l.67     \end{align}
+l.59     \end{align}
                     
 Not a real error.
 
 [8]
-./_region_.tex:72: Preview: Snippet 9 started.
+! Preview: Snippet 9 started.
 <-><->
       
-l.72     hemisphere $
+l.64     hemisphere $
                      \Omega$, the probability for a random variable X to equal
 Not a real error.
 
-./_region_.tex:72: Preview: Snippet 9 ended.(447828+0x473316).
+! Preview: Snippet 9 ended.(447828+0x473316).
 <-><->
       
-l.72     hemisphere $\Omega$
+l.64     hemisphere $\Omega$
                             , the probability for a random variable X to equal
 Not a real error.
 
 [9]
-./_region_.tex:73: Preview: Snippet 10 started.
+! Preview: Snippet 10 started.
 <-><->
       
-l.73     $
+l.65     $
           \omega$ is 0. But this isn't what's happening here, this is all ab...
 
 Not a real error.
 
-./_region_.tex:73: Preview: Snippet 10 ended.(282168+0x431444).
+! Preview: Snippet 10 ended.(282168+0x431444).
 <-><->
       
-l.73     $\omega$
+l.65     $\omega$
                   is 0. But this isn't what's happening here, this is all ab...
 
 Not a real error.
 
 [10]
-./_region_.tex:74: Preview: Snippet 11 started.
+! Preview: Snippet 11 started.
 <-><->
       
-l.74 ...obability that X could potentially equal $
+l.66 ...obability that X could potentially equal $
                                                   \omega$ when compared to o...
 
 Not a real error.
 
-./_region_.tex:74: Preview: Snippet 11 ended.(282168+0x431444).
+! Preview: Snippet 11 ended.(282168+0x431444).
 <-><->
       
-l.74 ...ty that X could potentially equal $\omega$
+l.66 ...ty that X could potentially equal $\omega$
                                                    when compared to other va...
 
 Not a real error.
 
 [11]
-./_region_.tex:75: Preview: Snippet 12 started.
+! Preview: Snippet 12 started.
 <-><->
       
-l.75     in $
+l.67     in $
              \Omega$. It's all about comparing the probabilities of two pote...
 
 Not a real error.
 
-./_region_.tex:75: Preview: Snippet 12 ended.(447828+0x473316).
+! Preview: Snippet 12 ended.(447828+0x473316).
 <-><->
       
-l.75     in $\Omega$
+l.67     in $\Omega$
                     . It's all about comparing the probabilities of two pote...
 
 Not a real error.
 
 [12]
-./_region_.tex:76: Preview: Snippet 13 started.
+! Preview: Snippet 13 started.
 <-><->
       
-l.76     $
+l.68     $
           \omega$s with each other.
 Not a real error.
 
-./_region_.tex:76: Preview: Snippet 13 ended.(282168+0x431444).
+! Preview: Snippet 13 ended.(282168+0x431444).
 <-><->
       
-l.76     $\omega$
+l.68     $\omega$
                  s with each other.
 Not a real error.
 
 [13]
-./_region_.tex:82: Preview: Snippet 14 started.
+! Preview: Snippet 14 started.
 <-><->
       
-l.82 ...ind the cumulative distribution function $
+l.74 ...ind the cumulative distribution function $
                                                   CDF = Pr(X \leq x)$. Where...
 
 Not a real error.
 
-./_region_.tex:82: Preview: Snippet 14 ended.(491520+163840x5640437).
+! Preview: Snippet 14 ended.(491520+163840x5640437).
 <-><->
       
-l.82 ...distribution function $CDF = Pr(X \leq x)$
+l.74 ...distribution function $CDF = Pr(X \leq x)$
                                                   . Where $Pr$
 Not a real error.
 
 [14]
-./_region_.tex:82: Preview: Snippet 15 started.
+! Preview: Snippet 15 started.
 <-><->
       
-l.82 ...ion function $CDF = Pr(X \leq x)$. Where $
+l.74 ...ion function $CDF = Pr(X \leq x)$. Where $
                                                   Pr$
 Not a real error.
 
-./_region_.tex:82: Preview: Snippet 15 ended.(447828+0x825649).
+! Preview: Snippet 15 ended.(447828+0x825649).
 <-><->
       
-l.82 ... function $CDF = Pr(X \leq x)$. Where $Pr$
+l.74 ... function $CDF = Pr(X \leq x)$. Where $Pr$
                                                   
 Not a real error.
 
 [15]
-./_region_.tex:83: Preview: Snippet 16 started.
+! Preview: Snippet 16 started.
 <-><->
       
-l.83     is the probability, $
+l.75     is the probability, $
                               X$ is a uniformly random variable, and $x$ is ...
 
 Not a real error.
 
-./_region_.tex:83: Preview: Snippet 16 ended.(447828+0x594374).
+! Preview: Snippet 16 ended.(447828+0x594374).
 <-><->
       
-l.83     is the probability, $X$
+l.75     is the probability, $X$
                                  is a uniformly random variable, and $x$ is ...
 
 Not a real error.
 
 [16]
-./_region_.tex:83: Preview: Snippet 17 started.
+! Preview: Snippet 17 started.
 <-><->
       
-l.83 ... $X$ is a uniformly random variable, and $
+l.75 ... $X$ is a uniformly random variable, and $
                                                   x$ is a known
 Not a real error.
 
-./_region_.tex:83: Preview: Snippet 17 ended.(282168+0x374556).
+! Preview: Snippet 17 ended.(282168+0x374556).
 <-><->
       
-l.83 ...X$ is a uniformly random variable, and $x$
+l.75 ...X$ is a uniformly random variable, and $x$
                                                    is a known
 Not a real error.
 
 [17]
-./_region_.tex:85: Preview: Snippet 18 started.
+! Preview: Snippet 18 started.
 <-><->
       
-l.85     $
+l.77     $
           P$, where $X \in \Omega$, and $\Omega$ is the set of all possible ...
 
 Not a real error.
 
-./_region_.tex:85: Preview: Snippet 18 ended.(447828+0x511773).
+! Preview: Snippet 18 ended.(447828+0x511773).
 <-><->
       
-l.85     $P$
+l.77     $P$
             , where $X \in \Omega$, and $\Omega$ is the set of all possible ...
 
 Not a real error.
 
 [18]
-./_region_.tex:85: Preview: Snippet 19 started.
+! Preview: Snippet 19 started.
 <-><->
       
-l.85     $P$, where $
+l.77     $P$, where $
                      X \in \Omega$, and $\Omega$ is the set of all possible ...
 
 Not a real error.
 
-./_region_.tex:85: Preview: Snippet 19 ended.(447828+25623x1868678).
+! Preview: Snippet 19 ended.(447828+25623x1868678).
 <-><->
       
-l.85     $P$, where $X \in \Omega$
+l.77     $P$, where $X \in \Omega$
                                   , and $\Omega$ is the set of all possible ...
 
 Not a real error.
 
 [19]
-./_region_.tex:85: Preview: Snippet 20 started.
+! Preview: Snippet 20 started.
 <-><->
       
-l.85     $P$, where $X \in \Omega$, and $
+l.77     $P$, where $X \in \Omega$, and $
                                          \Omega$ is the set of all possible ...
 
 Not a real error.
 
-./_region_.tex:85: Preview: Snippet 20 ended.(447828+0x473316).
+! Preview: Snippet 20 ended.(447828+0x473316).
 <-><->
       
-l.85     $P$, where $X \in \Omega$, and $\Omega$
+l.77     $P$, where $X \in \Omega$, and $\Omega$
                                                  is the set of all possible ...
 
 Not a real error.
 
 [20]
-./_region_.tex:86: Preview: Snippet 21 started.
+! Preview: Snippet 21 started.
 <-><->
       
-l.86     for $
+l.78     for $
               CDF$,
 Not a real error.
 
-./_region_.tex:86: Preview: Snippet 21 ended.(447828+0x1588520).
+! Preview: Snippet 21 ended.(447828+0x1588520).
 <-><->
       
-l.86     for $CDF$
+l.78     for $CDF$
                   ,
 Not a real error.
 
 [21]
-./_region_.tex:87: Preview: Snippet 22 started.
+! Preview: Snippet 22 started.
 <-><->
       
-l.87     that $
+l.79     that $
                X \leq x$. The second step is to take the derivative of this,...
 
 Not a real error.
 
-./_region_.tex:87: Preview: Snippet 22 ended.(447828+89110x1842736).
+! Preview: Snippet 22 ended.(447828+89110x1842736).
 <-><->
       
-l.87     that $X \leq x$
+l.79     that $X \leq x$
                         . The second step is to take the derivative of this,...
 
 Not a real error.
 
 [22]
-./_region_.tex:88: Preview: Snippet 23 started.
+! Preview: Snippet 23 started.
 <-><->
       
-l.88     PDF $
+l.80     PDF $
               p$
 Not a real error.
 
-./_region_.tex:88: Preview: Snippet 23 ended.(282168+127431x329728).
+! Preview: Snippet 23 ended.(282168+127431x329728).
 <-><->
       
-l.88     PDF $p$
+l.80     PDF $p$
                 
 Not a real error.
 
 [23]
-./_region_.tex:89: Preview: Snippet 24 started.
+! Preview: Snippet 24 started.
 <-><->
       
-l.89     \begin{align}
+l.81     \begin{align}
                       
 Not a real error.
 
-./_region_.tex:91: Preview: Snippet 24 ended.(1384421+0x29365037).
+! Preview: Snippet 24 ended.(1384421+0x29365037).
 <-><->
       
-l.91     \end{align}
+l.83     \end{align}
                     
 Not a real error.
 
 [24]
-./_region_.tex:93: Preview: Snippet 25 started.
+! Preview: Snippet 25 started.
 <-><->
       
-l.93     over $
+l.85     over $
                \Omega$, this final value should equal 1. This makes sense in...
 
 Not a real error.
 
-./_region_.tex:93: Preview: Snippet 25 ended.(447828+0x473316).
+! Preview: Snippet 25 ended.(447828+0x473316).
 <-><->
       
-l.93     over $\Omega$
+l.85     over $\Omega$
                       , this final value should equal 1. This makes sense in...
 
 Not a real error.
 
 [25]
-./_region_.tex:97: Preview: Snippet 26 started.
+! Preview: Snippet 26 started.
 <-><->
       
-l.97       $
+l.89       $
             L^0_e(v) = L_o(P, \omega_o)$
 Not a real error.
 
-./_region_.tex:97: Preview: Snippet 26 ended.(533465+163840x5141522).
+! Preview: Snippet 26 ended.(533465+163840x5141522).
 <-><->
       
-l.97       $L^0_e(v) = L_o(P, \omega_o)$
+l.89       $L^0_e(v) = L_o(P, \omega_o)$
                                         
 Not a real error.
 
 [26]
-./_region_.tex:100: Preview: Snippet 27 started.
+! Preview: Snippet 27 started.
 <-><->
       
-l.100     $
-           \Omega = [0,\:2.0f*\tau*R^2]$.
+l.92     $
+          \Omega = [0,\:2.0f*\tau*R^2]$.
 Not a real error.
 
-./_region_.tex:100: Preview: Snippet 27 ended.(533465+163840x6099839).
+! Preview: Snippet 27 ended.(533465+163840x6099839).
 <-><->
       
-l.100     $\Omega = [0,\:2.0f*\tau*R^2]$
-                                        .
+l.92     $\Omega = [0,\:2.0f*\tau*R^2]$
+                                       .
 Not a real error.
 
 [27]
-./_region_.tex:101: Preview: Snippet 28 started.
+! Preview: Snippet 28 started.
 <-><->
       
-l.101     Thus for a given constant $
-                                     x$, and a uniformly random $X$,
+l.93     Thus for a given constant $
+                                    x$, and a uniformly random $X$,
 Not a real error.
 
-./_region_.tex:101: Preview: Snippet 28 ended.(282168+0x374556).
+! Preview: Snippet 28 ended.(282168+0x374556).
 <-><->
       
-l.101     Thus for a given constant $x$
-                                       , and a uniformly random $X$,
+l.93     Thus for a given constant $x$
+                                      , and a uniformly random $X$,
 Not a real error.
 
 [28]
-./_region_.tex:101: Preview: Snippet 29 started.
+! Preview: Snippet 29 started.
 <-><->
       
-l.101 ...en constant $x$, and a uniformly random $
+l.93 ...ven constant $x$, and a uniformly random $
                                                   X$,
 Not a real error.
 
-./_region_.tex:101: Preview: Snippet 29 ended.(447828+0x594374).
+! Preview: Snippet 29 ended.(447828+0x594374).
 <-><->
       
-l.101 ... constant $x$, and a uniformly random $X$
+l.93 ...n constant $x$, and a uniformly random $X$
                                                   ,
 Not a real error.
 
 [29]
-./_region_.tex:102: Preview: Snippet 30 started.
+! Preview: Snippet 30 started.
 <-><->
       
-l.102     \begin{align}
-                       
+l.94     \begin{align}
+                      
 Not a real error.
 
-./_region_.tex:106: Preview: Snippet 30 ended.(4979241+0x29365037).
+! Preview: Snippet 30 ended.(4979241+0x29365037).
 <-><->
       
-l.106     \end{align}
-                     
+l.98     \end{align}
+                    
 Not a real error.
 
 [30]
 LaTeX Font Info:    Font shape `OT1/cmtt/bx/n' in size <9> not available
-(Font)              Font shape `OT1/cmtt/m/n' tried instead on input line 109.
+(Font)              Font shape `OT1/cmtt/m/n' tried instead on input line 101.
 
-./_region_.tex:119: Preview: Snippet 31 started.
+! Preview: Snippet 31 started.
 <-><->
       
-l.119     each axis you compute $
+l.111     each axis you compute $
                                  f(x+h) - f(x-h)$, and normalize the result....
 
 Not a real error.
 
-./_region_.tex:119: Preview: Snippet 31 ended.(491520+163840x5709512).
+! Preview: Snippet 31 ended.(491520+163840x5709512).
 <-><->
       
-l.119     each axis you compute $f(x+h) - f(x-h)$
+l.111     each axis you compute $f(x+h) - f(x-h)$
                                                  , and normalize the result....
 
 Not a real error.
 
 [31]
-./_region_.tex:122: Preview: Snippet 32 started.
+! Preview: Snippet 32 started.
 <-><->
       
-l.122     point of the gradient is multiplied by $
+l.114     point of the gradient is multiplied by $
                                                   \epsilon$ before normalizi...
 
 Not a real error.
 
-./_region_.tex:122: Preview: Snippet 32 ended.(282168+0x266013).
+! Preview: Snippet 32 ended.(282168+0x266013).
 <-><->
       
-l.122 ... the gradient is multiplied by $\epsilon$
+l.114 ... the gradient is multiplied by $\epsilon$
                                                    before normalizing. The
 Not a real error.
 
 [32]
-./_region_.tex:131: Preview: Snippet 33 started.
+! Preview: Snippet 33 started.
 <-><->
       
-l.131   \begin{align}
+l.123   \begin{align}
                      
 Not a real error.
 
-./_region_.tex:134: Preview: Snippet 33 ended.(1489138+0x29365037).
+! Preview: Snippet 33 ended.(1489138+0x29365037).
 <-><->
       
-l.134   \end{align}
+l.126   \end{align}
                    
 Not a real error.
 
 [33]
-./_region_.tex:136: Preview: Snippet 34 started.
+! Preview: Snippet 34 started.
 <-><->
       
-l.136   \begin{align}
+l.128   \begin{align}
                      
 Not a real error.
 
-./_region_.tex:141: Preview: Snippet 34 ended.(2833781+0x29365037).
+! Preview: Snippet 34 ended.(2833781+0x29365037).
 <-><->
       
-l.141   \end{align}
+l.133   \end{align}
                    
 Not a real error.
 
 [34]
-./_region_.tex:142: Preview: Snippet 35 started.
+! Preview: Snippet 35 started.
 <-><->
       
-l.142     That is, instead of looking at a point $
+l.134     That is, instead of looking at a point $
                                                   P$ with an incoming and ou...
 
 Not a real error.
 
-./_region_.tex:142: Preview: Snippet 35 ended.(447828+0x511773).
+! Preview: Snippet 35 ended.(447828+0x511773).
 <-><->
       
-l.142 ...hat is, instead of looking at a point $P$
+l.134 ...hat is, instead of looking at a point $P$
                                                    with an incoming and outg...
 
 Not a real error.
 
 [35]
-./_region_.tex:143: Preview: Snippet 36 started.
+! Preview: Snippet 36 started.
 <-><->
       
-l.143     angle $
+l.135     angle $
                  (\omega_i,\:\omega_o)$, look at the path from $P_{-1}$ ($v$...
 
 Not a real error.
 
-./_region_.tex:143: Preview: Snippet 36 ended.(491520+163840x2272130).
+! Preview: Snippet 36 ended.(491520+163840x2272130).
 <-><->
       
-l.143     angle $(\omega_i,\:\omega_o)$
+l.135     angle $(\omega_i,\:\omega_o)$
                                        , look at the path from $P_{-1}$ ($v$...
 
 Not a real error.
 
 [36]
-./_region_.tex:143: Preview: Snippet 37 started.
+! Preview: Snippet 37 started.
 <-><->
       
-l.143 ...a_i,\:\omega_o)$, look at the path from $
+l.135 ...a_i,\:\omega_o)$, look at the path from $
                                                   P_{-1}$ ($v$) to
 Not a real error.
 
-./_region_.tex:143: Preview: Snippet 37 ended.(447828+152917x1124354).
+! Preview: Snippet 37 ended.(447828+152917x1124354).
 <-><->
       
-l.143 ...omega_o)$, look at the path from $P_{-1}$
+l.135 ...omega_o)$, look at the path from $P_{-1}$
                                                    ($v$) to
 Not a real error.
 
 [37]
-./_region_.tex:143: Preview: Snippet 38 started.
+! Preview: Snippet 38 started.
 <-><->
       
-l.143 ...ga_o)$, look at the path from $P_{-1}$ ($
+l.135 ...ga_o)$, look at the path from $P_{-1}$ ($
                                                   v$) to
 Not a real error.
 
-./_region_.tex:143: Preview: Snippet 38 ended.(282168+0x341181).
+! Preview: Snippet 38 ended.(282168+0x341181).
 <-><->
       
-l.143 ..._o)$, look at the path from $P_{-1}$ ($v$
+l.135 ..._o)$, look at the path from $P_{-1}$ ($v$
                                                   ) to
 Not a real error.
 
 [38]
-./_region_.tex:144: Preview: Snippet 39 started.
+! Preview: Snippet 39 started.
 <-><->
       
-l.144     $
+l.136     $
            P_{+1}$ ($\ddot{v}$). More accurately, it's the transport between
 Not a real error.
 
-./_region_.tex:144: Preview: Snippet 39 ended.(447828+152917x1117073).
+! Preview: Snippet 39 ended.(447828+152917x1117073).
 <-><->
       
-l.144     $P_{+1}$
+l.136     $P_{+1}$
                    ($\ddot{v}$). More accurately, it's the transport between
 Not a real error.
 
 [39]
-./_region_.tex:144: Preview: Snippet 40 started.
+! Preview: Snippet 40 started.
 <-><->
       
-l.144     $P_{+1}$ ($
+l.136     $P_{+1}$ ($
                      \ddot{v}$). More accurately, it's the transport between
 Not a real error.
 
-./_region_.tex:144: Preview: Snippet 40 ended.(437688+0x341181).
+! Preview: Snippet 40 ended.(437688+0x341181).
 <-><->
       
-l.144     $P_{+1}$ ($\ddot{v}$
+l.136     $P_{+1}$ ($\ddot{v}$
                               ). More accurately, it's the transport between
 Not a real error.
 
 [40]
-./_region_.tex:146: Preview: Snippet 41 started.
+! Preview: Snippet 41 started.
 <-><->
       
-l.146     is every point on an SDF map where $
+l.138     is every point on an SDF map where $
                                               |map| \leq \epsilon$. There's ...
 
 Not a real error.
 
-./_region_.tex:146: Preview: Snippet 41 ended.(491520+163840x2755468).
+! Preview: Snippet 41 ended.(491520+163840x2755468).
 <-><->
       
-l.146 ...on an SDF map where $|map| \leq \epsilon$
+l.138 ...on an SDF map where $|map| \leq \epsilon$
                                                   . There's no longer
 Not a real error.
 
 [41]
-./_region_.tex:147: Preview: Snippet 42 started.
+! Preview: Snippet 42 started.
 <-><->
       
-l.147 ...tion over a hemisphere with solid angle $
+l.139 ...tion over a hemisphere with solid angle $
                                                   \omega_i$, it's now over
 Not a real error.
 
-./_region_.tex:147: Preview: Snippet 42 ended.(282168+98303x626119).
+! Preview: Snippet 42 ended.(282168+98303x626119).
 <-><->
       
-l.147 ... a hemisphere with solid angle $\omega_i$
+l.139 ... a hemisphere with solid angle $\omega_i$
                                                   , it's now over
 Not a real error.
 
 [42]
-./_region_.tex:150: Preview: Snippet 43 started.
+! Preview: Snippet 43 started.
 <-><->
       
-l.150     In the case of $
+l.142     In the case of $
                           L_e$,
 Not a real error.
 
-./_region_.tex:150: Preview: Snippet 43 ended.(447828+98303x727429).
+! Preview: Snippet 43 ended.(447828+98303x727429).
 <-><->
       
-l.150     In the case of $L_e$
+l.142     In the case of $L_e$
                               ,
 Not a real error.
 
 [43]
-./_region_.tex:153: Preview: Snippet 44 started.
+! Preview: Snippet 44 started.
 <-><->
       
-l.153   \begin{align}
+l.145   \begin{align}
                      
 Not a real error.
 
-./_region_.tex:156: Preview: Snippet 44 ended.(1850741+0x29365037).
+! Preview: Snippet 44 ended.(1850741+0x29365037).
 <-><->
       
-l.156   \end{align}
+l.148   \end{align}
                    
 Not a real error.
 
 [44]
-./_region_.tex:159: Preview: Snippet 45 started.
+! Preview: Snippet 45 started.
 <-><->
       
-l.159 ...pplies when dealing with area. This and $
+l.151 ...pplies when dealing with area. This and $
                                                   d\omega_i$ now become a
 Not a real error.
 
-./_region_.tex:159: Preview: Snippet 45 ended.(455111+98303x967225).
+! Preview: Snippet 45 ended.(455111+98303x967225).
 <-><->
       
-l.159 ...n dealing with area. This and $d\omega_i$
+l.151 ...n dealing with area. This and $d\omega_i$
                                                    now become a
 Not a real error.
 
 [45]
-./_region_.tex:162: Preview: Snippet 46 started.
+! Preview: Snippet 46 started.
 <-><->
       
-l.162 ... angle between the geometric normals at $
+l.154 ... angle between the geometric normals at $
                                                   v$ and $\dot{v}$:
 Not a real error.
 
-./_region_.tex:162: Preview: Snippet 46 ended.(282168+0x341181).
+! Preview: Snippet 46 ended.(282168+0x341181).
 <-><->
       
-l.162 ...ngle between the geometric normals at $v$
+l.154 ...ngle between the geometric normals at $v$
                                                    and $\dot{v}$:
 Not a real error.
 
 [46]
-./_region_.tex:162: Preview: Snippet 47 started.
+! Preview: Snippet 47 started.
 <-><->
       
-l.162 ...etween the geometric normals at $v$ and $
+l.154 ...etween the geometric normals at $v$ and $
                                                   \dot{v}$:
 Not a real error.
 
-./_region_.tex:162: Preview: Snippet 47 ended.(437688+0x341181).
+! Preview: Snippet 47 ended.(437688+0x341181).
 <-><->
       
-l.162 ...he geometric normals at $v$ and $\dot{v}$
+l.154 ...he geometric normals at $v$ and $\dot{v}$
                                                   :
 Not a real error.
 
 [47]
-./_region_.tex:164: Preview: Snippet 48 started.
+! Preview: Snippet 48 started.
+<-><->
+      
+l.156   \begin{align}
+                     
+Not a real error.
+
+! Preview: Snippet 48 ended.(2715948+0x29365037).
+<-><->
+      
+l.160   \end{align}
+                   
+Not a real error.
+
+[48]
+! Preview: Snippet 49 started.
+<-><->
+      
+l.162     Where $
+                 V$ is the visibility test. Thus the rendering equation with...
+
+Not a real error.
+
+! Preview: Snippet 49 ended.(447828+0x527929).
+<-><->
+      
+l.162     Where $V$
+                    is the visibility test. Thus the rendering equation with...
+
+Not a real error.
+
+[49]
+! Preview: Snippet 50 started.
 <-><->
       
 l.164   \begin{align}
                      
 Not a real error.
 
-./_region_.tex:168: Preview: Snippet 48 ended.(2715948+0x29365037).
+! Preview: Snippet 50 ended.(1489138+0x29365037).
 <-><->
       
 l.168   \end{align}
                    
 Not a real error.
 
-[48]
-./_region_.tex:170: Preview: Snippet 49 started.
-<-><->
-      
-l.170     Where $
-                 V$ is the visibility test. Thus the rendering equation with...
-
-Not a real error.
-
-./_region_.tex:170: Preview: Snippet 49 ended.(447828+0x527929).
-<-><->
-      
-l.170     Where $V$
-                    is the visibility test. Thus the rendering equation with...
-
-Not a real error.
-
-[49]
-./_region_.tex:172: Preview: Snippet 50 started.
-<-><->
-      
-l.172   \begin{align}
-                     
-Not a real error.
-
-./_region_.tex:176: Preview: Snippet 50 ended.(1489138+0x29365037).
-<-><->
-      
-l.176   \end{align}
-                   
-Not a real error.
-
 [50]
-./_region_.tex:177: Preview: Snippet 51 started.
+! Preview: Snippet 51 started.
 <-><->
       
-l.177     where $
+l.169     where $
                  A$ is the area on $M$, and $M$ is the union of all scene su...
 
 Not a real error.
 
-./_region_.tex:177: Preview: Snippet 51 ended.(447828+0x491521).
+! Preview: Snippet 51 ended.(447828+0x491521).
 <-><->
       
-l.177     where $A$
+l.169     where $A$
                     is the area on $M$, and $M$ is the union of all scene su...
 
 Not a real error.
 
 [51]
-./_region_.tex:177: Preview: Snippet 52 started.
+! Preview: Snippet 52 started.
 <-><->
       
-l.177     where $A$ is the area on $
+l.169     where $A$ is the area on $
                                     M$, and $M$ is the union of all scene su...
 
 Not a real error.
 
-./_region_.tex:177: Preview: Snippet 52 ended.(447828+0x707242).
+! Preview: Snippet 52 ended.(447828+0x707242).
 <-><->
       
-l.177     where $A$ is the area on $M$
+l.169     where $A$ is the area on $M$
                                       , and $M$ is the union of all scene su...
 
 Not a real error.
 
 [52]
-./_region_.tex:177: Preview: Snippet 53 started.
+! Preview: Snippet 53 started.
 <-><->
       
-l.177     where $A$ is the area on $M$, and $
+l.169     where $A$ is the area on $M$, and $
                                              M$ is the union of all scene su...
 
 Not a real error.
 
-./_region_.tex:177: Preview: Snippet 53 ended.(447828+0x707242).
+! Preview: Snippet 53 ended.(447828+0x707242).
 <-><->
       
-l.177     where $A$ is the area on $M$, and $M$
+l.169     where $A$ is the area on $M$, and $M$
                                                 is the union of all scene su...
 
 Not a real error.
 
 [53]
-./_region_.tex:179: Preview: Snippet 54 started.
+! Preview: Snippet 54 started.
 <-><->
       
-l.179     recursively expanding$
+l.171     recursively expanding$
                                 ^{[1]}$, so that the three point form is int...
 
 Not a real error.
 
-./_region_.tex:179: Preview: Snippet 54 ended.(581889+0x590737).
+! Preview: Snippet 54 ended.(581889+0x590737).
 <-><->
       
-l.179     recursively expanding$^{[1]}$
+l.171     recursively expanding$^{[1]}$
                                        , so that the three point form is int...
 
 Not a real error.
 
 [54]
-./_region_.tex:182: Preview: Snippet 55 started.
+! Preview: Snippet 55 started.
 <-><->
       
-l.182   \begin{align}
+l.174   \begin{align}
                       I_j = \int_\Omega f_j(\bar{v}) d\mu(\bar{v}) \end{align}
 Not a real error.
 
-./_region_.tex:182: Preview: Snippet 55 ended.(1489138+0x29365037).
+! Preview: Snippet 55 ended.(1489138+0x29365037).
 <-><->
       
-l.182 ...ga f_j(\bar{v}) d\mu(\bar{v}) \end{align}
+l.174 ...ga f_j(\bar{v}) d\mu(\bar{v}) \end{align}
                                                   
 Not a real error.
 
 [55]
-./_region_.tex:183: Preview: Snippet 56 started.
+! Preview: Snippet 56 started.
 <-><->
       
-l.183     Where $
+l.175     Where $
                  \bar{v}$ is a path $z_0\rightarrow z_s \rightarrow y_t \rig...
 
 Not a real error.
 
-./_region_.tex:183: Preview: Snippet 56 ended.(372098+0x341181).
+! Preview: Snippet 56 ended.(372098+0x341181).
 <-><->
       
-l.183     Where $\bar{v}$
+l.175     Where $\bar{v}$
                           is a path $z_0\rightarrow z_s \rightarrow y_t \rig...
 
 Not a real error.
 
 [56]
-./_region_.tex:183: Preview: Snippet 57 started.
+! Preview: Snippet 57 started.
 <-><->
       
-l.183     Where $\bar{v}$ is a path $
+l.175     Where $\bar{v}$ is a path $
                                      z_0\rightarrow z_s \rightarrow y_t \rig...
 
 Not a real error.
 
-./_region_.tex:184: Preview: Snippet 57 ended.(491520+163840x9278232).
+! Preview: Snippet 57 ended.(491520+163840x9278232).
 <-><->
       
-l.184     y_0 (eye \rightarrow light)$
+l.176     y_0 (eye \rightarrow light)$
                                       , $\Omega$ is the combination of all p...
 
 Not a real error.
 
 [57]
-./_region_.tex:184: Preview: Snippet 58 started.
+! Preview: Snippet 58 started.
 <-><->
       
-l.184     y_0 (eye \rightarrow light)$, $
+l.176     y_0 (eye \rightarrow light)$, $
                                          \Omega$ is the combination of all p...
 
 Not a real error.
 
-./_region_.tex:184: Preview: Snippet 58 ended.(447828+0x473316).
+! Preview: Snippet 58 ended.(447828+0x473316).
 <-><->
       
-l.184     y_0 (eye \rightarrow light)$, $\Omega$
+l.176     y_0 (eye \rightarrow light)$, $\Omega$
                                                  is the combination of all p...
 
 Not a real error.
 
 [58]
-./_region_.tex:185: Preview: Snippet 59 started.
+! Preview: Snippet 59 started.
 <-><->
       
-l.185     paths of any length, and $
+l.177     paths of any length, and $
                                     \mu$ is the area-product measure [the pr...
 
 Not a real error.
 
-./_region_.tex:185: Preview: Snippet 59 ended.(282168+127431x394886).
+! Preview: Snippet 59 ended.(282168+127431x394886).
 <-><->
       
-l.185     paths of any length, and $\mu$
+l.177     paths of any length, and $\mu$
                                          is the area-product measure [the pr...
 
 Not a real error.
 
 [59]
-./_region_.tex:186: Preview: Snippet 60 started.
+! Preview: Snippet 60 started.
 <-><->
       
-l.186     all the expanded $
+l.178     all the expanded $
                             d_A$]. Special care has to be taken with the def...
 
 Not a real error.
 
-./_region_.tex:186: Preview: Snippet 60 ended.(455111+98303x768002).
+! Preview: Snippet 60 ended.(455111+98303x768002).
 <-><->
       
-l.186     all the expanded $d_A$
+l.178     all the expanded $d_A$
                                 ]. Special care has to be taken with the def...
 
 Not a real error.
 
 [60]
-./_region_.tex:187: Preview: Snippet 61 started.
+! Preview: Snippet 61 started.
 <-><->
       
-l.187 ... source code, there never exists a path $
+l.179 ... source code, there never exists a path $
                                                   \bar{v}$,
 Not a real error.
 
-./_region_.tex:187: Preview: Snippet 61 ended.(372098+0x341181).
+! Preview: Snippet 61 ended.(372098+0x341181).
 <-><->
       
-l.187 ...code, there never exists a path $\bar{v}$
+l.179 ...code, there never exists a path $\bar{v}$
                                                   ,
 Not a real error.
 
 [61]
-./_region_.tex:188: Preview: Snippet 62 started.
+! Preview: Snippet 62 started.
 <-><->
       
-l.188     only eye-path $
+l.180     only eye-path $
                          \bar{z}$ and light-path . Right now, this is analyt...
 
 Not a real error.
 
-./_region_.tex:188: Preview: Snippet 62 ended.(372098+0x333598).
+! Preview: Snippet 62 ended.(372098+0x333598).
 <-><->
       
-l.188     only eye-path $\bar{z}$
+l.180     only eye-path $\bar{z}$
                                   and light-path . Right now, this is analyt...
 
 Not a real error.
 
 [62]
-./_region_.tex:191: Preview: Snippet 63 started.
+! Preview: Snippet 63 started.
 <-><->
       
-l.191   \begin{align}
+l.183   \begin{align}
                      
 Not a real error.
 
-./_region_.tex:194: Preview: Snippet 63 ended.(3182081+0x29365037).
+! Preview: Snippet 63 ended.(3182081+0x29365037).
 <-><->
       
-l.194   \end{align}
+l.186   \end{align}
                    
 Not a real error.
 
 [63]
-./_region_.tex:196: Preview: Snippet 64 started.
+! Preview: Snippet 64 started.
 <-><->
       
-l.196     where $
+l.188     where $
                  s$ is the light-path length, and $t$ is the eye-path length...
 
 Not a real error.
 
-./_region_.tex:196: Preview: Snippet 64 ended.(282168+0x307200).
+! Preview: Snippet 64 ended.(282168+0x307200).
 <-><->
       
-l.196     where $s$
+l.188     where $s$
                     is the light-path length, and $t$ is the eye-path length...
 
 Not a real error.
 
 [64]
-./_region_.tex:196: Preview: Snippet 65 started.
+! Preview: Snippet 65 started.
 <-><->
       
-l.196 ...where $s$ is the light-path length, and $
+l.188 ...where $s$ is the light-path length, and $
                                                   t$ is the eye-path length. In
 
 Not a real error.
 
-./_region_.tex:196: Preview: Snippet 65 ended.(403098+0x236658).
+! Preview: Snippet 65 ended.(403098+0x236658).
 <-><->
       
-l.196 ...ere $s$ is the light-path length, and $t$
+l.188 ...ere $s$ is the light-path length, and $t$
                                                    is the eye-path length. In
 Not a real error.
 
 [65]
-./_region_.tex:197: Preview: Snippet 66 started.
+! Preview: Snippet 66 started.
 <-><->
       
-l.197     DTOADQ, they are limited to $
+l.189     DTOADQ, they are limited to $
                                        s+t \leq 8$[TODO]. Finally, to transform
 
 Not a real error.
 
-./_region_.tex:197: Preview: Snippet 66 ended.(422343+89110x2546335).
+! Preview: Snippet 66 ended.(422343+89110x2546335).
 <-><->
       
-l.197     DTOADQ, they are limited to $s+t \leq 8$
+l.189     DTOADQ, they are limited to $s+t \leq 8$
                                                   [TODO]. Finally, to transform
 
 Not a real error.
 
 [66]
-./_region_.tex:198: Preview: Snippet 67 started.
+! Preview: Snippet 67 started.
 <-><->
       
-l.198     $
+l.190     $
            \bar{v}$ into two seperate paths, $\frac{f_j(\bar{v}_{s,
 Not a real error.
 
-./_region_.tex:198: Preview: Snippet 67 ended.(372098+0x341181).
+! Preview: Snippet 67 ended.(372098+0x341181).
 <-><->
       
-l.198     $\bar{v}$
+l.190     $\bar{v}$
                     into two seperate paths, $\frac{f_j(\bar{v}_{s,
 Not a real error.
 
 [67]
-./_region_.tex:198: Preview: Snippet 68 started.
+! Preview: Snippet 68 started.
 <-><->
       
-l.198     $\bar{v}$ into two seperate paths, $
+l.190     $\bar{v}$ into two seperate paths, $
                                               \frac{f_j(\bar{v}_{s,
 Not a real error.
 
-./_region_.tex:199: Preview: Snippet 68 ended.(676475+355246x1916665).
+! Preview: Snippet 68 ended.(676475+355246x1916665).
 <-><->
       
-l.199         t})}{p(\bar{v}_{s, t})}$
+l.191         t})}{p(\bar{v}_{s, t})}$
                                        is split into two with a connection e...
 
 Not a real error.
 
 [68]
-./_region_.tex:199: Preview: Snippet 69 started.
+! Preview: Snippet 69 started.
 <-><->
       
-l.199 ...s split into two with a connection edge $
+l.191 ...s split into two with a connection edge $
                                                   c$
 Not a real error.
 
-./_region_.tex:199: Preview: Snippet 69 ended.(282168+0x283611).
+! Preview: Snippet 69 ended.(282168+0x283611).
 <-><->
       
-l.199 ...split into two with a connection edge $c$
+l.191 ...split into two with a connection edge $c$
                                                   
 Not a real error.
 
 [69]
-./_region_.tex:200: Preview: Snippet 70 started.
+! Preview: Snippet 70 started.
 <-><->
       
-l.200   \begin{align}
+l.192   \begin{align}
                      
 Not a real error.
 
-./_region_.tex:204: Preview: Snippet 70 ended.(1631711+0x29365037).
+! Preview: Snippet 70 ended.(1631711+0x29365037).
 <-><->
       
-l.204   \end{align}
+l.196   \end{align}
                    
 Not a real error.
 
 [70]
-./_region_.tex:207: Preview: Snippet 71 started.
+! Preview: Snippet 71 started.
 <-><->
       
-l.207   \begin{align}
+l.199   \begin{align}
                      
 Not a real error.
 
-./_region_.tex:209: Preview: Snippet 71 ended.(820006+0x29365037).
+! Preview: Snippet 71 ended.(820006+0x29365037).
 <-><->
       
-l.209   \end{align}
+l.201   \end{align}
                    
 Not a real error.
 
 [71]
-./_region_.tex:210: Preview: Snippet 72 started.
+! Preview: Snippet 72 started.
 <-><->
       
-l.210   \begin{align}
+l.202   \begin{align}
                      
 Not a real error.
 
-./_region_.tex:220: Preview: Snippet 72 ended.(2114491+0x29365037).
+! Preview: Snippet 72 ended.(2114491+0x29365037).
 <-><->
       
-l.220   \end{align}
+l.212   \end{align}
                    
 Not a real error.
 
 [72]
-./_region_.tex:221: Preview: Snippet 73 started.
+! Preview: Snippet 73 started.
 <-><->
       
-l.221     There is no case for $
+l.213     There is no case for $
                                 i = 0$ as either, the path doesn't exist, or...
 
 Not a real error.
 
-./_region_.tex:221: Preview: Snippet 73 ended.(432226+0x1427267).
+! Preview: Snippet 73 ended.(432226+0x1427267).
 <-><->
       
-l.221     There is no case for $i = 0$
+l.213     There is no case for $i = 0$
                                        as either, the path doesn't exist, or...
 
 Not a real error.
 
 [73]
-./_region_.tex:222: Preview: Snippet 74 started.
+! Preview: Snippet 74 started.
 <-><->
       
-l.222     does exist, $
+l.214     does exist, $
                        y_0$ and $z_0$ do not contribute to the image. Veach ...
 
 Not a real error.
 
-./_region_.tex:222: Preview: Snippet 74 ended.(282168+127431x615314).
+! Preview: Snippet 74 ended.(282168+127431x615314).
 <-><->
       
-l.222     does exist, $y_0$
+l.214     does exist, $y_0$
                             and $z_0$ do not contribute to the image. Veach ...
 
 Not a real error.
 
 [74]
-./_region_.tex:222: Preview: Snippet 75 started.
+! Preview: Snippet 75 started.
 <-><->
       
-l.222     does exist, $y_0$ and $
+l.214     does exist, $y_0$ and $
                                  z_0$ do not contribute to the image. Veach ...
 
 Not a real error.
 
-./_region_.tex:222: Preview: Snippet 75 ended.(282168+98303x598778).
+! Preview: Snippet 75 ended.(282168+98303x598778).
 <-><->
       
-l.222     does exist, $y_0$ and $z_0$
+l.214     does exist, $y_0$ and $z_0$
                                       do not contribute to the image. Veach ...
 
 Not a real error.
 
 [75]
-./_region_.tex:224: Preview: Snippet 76 started.
+! Preview: Snippet 76 started.
 <-><->
       
-l.224 ...needs to be handled, unfortunately, for $
+l.216 ...needs to be handled, unfortunately, for $
                                                   \alpha^E_0$ as it is being
 Not a real error.
 
-./_region_.tex:224: Preview: Snippet 76 ended.(551306+162667x864394).
+! Preview: Snippet 76 ended.(551306+162667x864394).
 <-><->
       
-l.224 ... handled, unfortunately, for $\alpha^E_0$
+l.216 ... handled, unfortunately, for $\alpha^E_0$
                                                    as it is being
 Not a real error.
 
 [76]
-./_region_.tex:225: Preview: Snippet 77 started.
+! Preview: Snippet 77 started.
 <-><->
       
-l.225     generated on the fly while $
+l.217     generated on the fly while $
                                       \bar{z}$ is being constructed. The two...
 
 Not a real error.
 
-./_region_.tex:225: Preview: Snippet 77 ended.(372098+0x333598).
+! Preview: Snippet 77 ended.(372098+0x333598).
 <-><->
       
-l.225     generated on the fly while $\bar{z}$
+l.217     generated on the fly while $\bar{z}$
                                                is being constructed. The two...
 
 Not a real error.
 
 [77]
-./_region_.tex:230: Preview: Snippet 78 started.
+! Preview: Snippet 78 started.
 <-><->
       
-l.230     There may be cases where $
+l.222     There may be cases where $
                                     s = 0$ ($t = 0$ is not possible without a
 Not a real error.
 
-./_region_.tex:230: Preview: Snippet 78 ended.(422343+0x1508687).
+! Preview: Snippet 78 ended.(422343+0x1508687).
 <-><->
       
-l.230     There may be cases where $s = 0$
+l.222     There may be cases where $s = 0$
                                            ($t = 0$ is not possible without a
 Not a real error.
 
 [78]
-./_region_.tex:230: Preview: Snippet 79 started.
+! Preview: Snippet 79 started.
 <-><->
       
-l.230     There may be cases where $s = 0$ ($
+l.222     There may be cases where $s = 0$ ($
                                              t = 0$ is not possible without a
 Not a real error.
 
-./_region_.tex:230: Preview: Snippet 79 ended.(422343+0x1438145).
+! Preview: Snippet 79 ended.(422343+0x1438145).
 <-><->
       
-l.230 ...There may be cases where $s = 0$ ($t = 0$
+l.222 ...There may be cases where $s = 0$ ($t = 0$
                                                    is not possible without a
 Not a real error.
 
 [79]
-./_region_.tex:232: Preview: Snippet 80 started.
+! Preview: Snippet 80 started.
 <-><->
       
-l.232 ...re is also to consider, what happens on $
+l.224 ...re is also to consider, what happens on $
                                                   s = 1$ and $t = 1$, %TODO
 Not a real error.
 
-./_region_.tex:232: Preview: Snippet 80 ended.(422343+0x1508687).
+! Preview: Snippet 80 ended.(422343+0x1508687).
 <-><->
       
-l.232 ...also to consider, what happens on $s = 1$
+l.224 ...also to consider, what happens on $s = 1$
                                                    and $t = 1$, %TODO
 Not a real error.
 
 [80]
-./_region_.tex:232: Preview: Snippet 81 started.
+! Preview: Snippet 81 started.
 <-><->
       
-l.232 ...o consider, what happens on $s = 1$ and $
+l.224 ...o consider, what happens on $s = 1$ and $
                                                   t = 1$, %TODO
 Not a real error.
 
-./_region_.tex:232: Preview: Snippet 81 ended.(422343+0x1438145).
+! Preview: Snippet 81 ended.(422343+0x1438145).
 <-><->
       
-l.232 ...ider, what happens on $s = 1$ and $t = 1$
+l.224 ...ider, what happens on $s = 1$ and $t = 1$
                                                   , %TODO
 Not a real error.
 
 [81]
-./_region_.tex:236: Preview: Snippet 82 started.
+! Preview: Snippet 82 started.
 <-><->
       
-l.236   \begin{align}
+l.228   \begin{align}
                      
 Not a real error.
 
-./_region_.tex:243: Preview: Snippet 82 ended.(1966099+0x29365037).
+! Preview: Snippet 82 ended.(1966099+0x29365037).
 <-><->
       
-l.243   \end{align}
+l.235   \end{align}
                    
 Not a real error.
 
 [82]
-./_region_.tex:244: Preview: Snippet 83 started.
+! Preview: Snippet 83 started.
 <-><->
       
-l.244 ... question to be made is if the strategy $
+l.236 ... question to be made is if the strategy $
                                                   s = 0, t > 0$ is worthwhil...
 
 Not a real error.
 
-./_region_.tex:244: Preview: Snippet 83 ended.(422343+127431x3238101).
+! Preview: Snippet 83 ended.(422343+127431x3238101).
 <-><->
       
-l.244 ...be made is if the strategy $s = 0, t > 0$
+l.236 ...be made is if the strategy $s = 0, t > 0$
                                                    is worthwhile to
 Not a real error.
 
 [83]
-./_region_.tex:250: Preview: Snippet 84 started.
+! Preview: Snippet 84 started.
 <-><->
       
-l.250 ...t worthwhile to implement. Anyways, the $
+l.242 ...t worthwhile to implement. Anyways, the $
                                                   s = 0$
 Not a real error.
 
-./_region_.tex:250: Preview: Snippet 84 ended.(422343+0x1508687).
+! Preview: Snippet 84 ended.(422343+0x1508687).
 <-><->
       
-l.250 ...hwhile to implement. Anyways, the $s = 0$
+l.242 ...hwhile to implement. Anyways, the $s = 0$
                                                   
 Not a real error.
 
 [84]
-./_region_.tex:255: Preview: Snippet 85 started.
+! Preview: Snippet 85 started.
 <-><->
       
-l.255     expand $
+l.247     expand $
                   I_j$, and take the V term from outside the G function
 Not a real error.
 
-./_region_.tex:255: Preview: Snippet 85 ended.(447828+187504x564226).
+! Preview: Snippet 85 ended.(447828+187504x564226).
 <-><->
       
-l.255     expand $I_j$
+l.247     expand $I_j$
                       , and take the V term from outside the G function
 Not a real error.
 
 [85]
-./_region_.tex:256: Preview: Snippet 86 started.
+! Preview: Snippet 86 started.
 <-><->
       
-l.256     [$
+l.248     [$
             G(v \rightarrow
 Not a real error.
 
-./_region_.tex:257: Preview: Snippet 86 ended.(491520+163840x5466263).
+! Preview: Snippet 86 ended.(491520+163840x5466263).
 <-><->
       
-l.257     \dot{v}) V(v \rightarrow \dot{v})$
+l.249     \dot{v}) V(v \rightarrow \dot{v})$
                                             ],
 Not a real error.
 
 [86]
-./_region_.tex:259: Preview: Snippet 87 started.
+! Preview: Snippet 87 started.
 <-><->
       
-l.259 ...quation, except for the connection term $
+l.251 ...quation, except for the connection term $
                                                   c$.
 Not a real error.
 
-./_region_.tex:259: Preview: Snippet 87 ended.(282168+0x283611).
+! Preview: Snippet 87 ended.(282168+0x283611).
 <-><->
       
-l.259 ...ation, except for the connection term $c$
+l.251 ...ation, except for the connection term $c$
                                                   .
 Not a real error.
 
 [87]
-./_region_.tex:261: Preview: Snippet 88 started.
+! Preview: Snippet 88 started.
 <-><->
       
-l.261     $
+l.253     $
            \bar{y}_{0} \ldots \bar{y}_s$ and $\bar{z}_0 \ldots \bar{z}_t$ being
 
 Not a real error.
 
-./_region_.tex:261: Preview: Snippet 88 ended.(372098+127431x2199778).
+! Preview: Snippet 88 ended.(372098+127431x2199778).
 <-><->
       
-l.261     $\bar{y}_{0} \ldots \bar{y}_s$
+l.253     $\bar{y}_{0} \ldots \bar{y}_s$
                                          and $\bar{z}_0 \ldots \bar{z}_t$ being
 
 Not a real error.
 
 [88]
-./_region_.tex:261: Preview: Snippet 89 started.
+! Preview: Snippet 89 started.
 <-><->
       
-l.261     $\bar{y}_{0} \ldots \bar{y}_s$ and $
+l.253     $\bar{y}_{0} \ldots \bar{y}_s$ and $
                                               \bar{z}_0 \ldots \bar{z}_t$ being
 
 Not a real error.
 
-./_region_.tex:261: Preview: Snippet 89 ended.(372098+98303x2117326).
+! Preview: Snippet 89 ended.(372098+98303x2117326).
 <-><->
       
-l.261 ...ar{y}_s$ and $\bar{z}_0 \ldots \bar{z}_t$
+l.253 ...ar{y}_s$ and $\bar{z}_0 \ldots \bar{z}_t$
                                                    being
 Not a real error.
 
 [89]
-./_region_.tex:264: Preview: Snippet 90 started.
+! Preview: Snippet 90 started.
 <-><->
       
-l.264     definition of $
+l.256     definition of $
                          V$ is
 Not a real error.
 
-./_region_.tex:264: Preview: Snippet 90 ended.(447828+0x527929).
+! Preview: Snippet 90 ended.(447828+0x527929).
 <-><->
       
-l.264     definition of $V$
+l.256     definition of $V$
                             is
 Not a real error.
 
 [90]
-./_region_.tex:265: Preview: Snippet 91 started.
+! Preview: Snippet 91 started.
 <-><->
       
-l.265   \begin{align}
+l.257   \begin{align}
                      
 Not a real error.
 
-./_region_.tex:268: Preview: Snippet 91 ended.(914055+0x29365037).
+! Preview: Snippet 91 ended.(914055+0x29365037).
 <-><->
       
-l.268   \end{align}
+l.260   \end{align}
                    
 Not a real error.
 
 [91]
-./_region_.tex:269: Preview: Snippet 92 started.
+! Preview: Snippet 92 started.
 <-><->
       
-l.269     where $
+l.261     where $
                  m$ is a march through the SDF map. A visibility check is only
 Not a real error.
 
-./_region_.tex:269: Preview: Snippet 92 ended.(282168+0x575415).
+! Preview: Snippet 92 ended.(282168+0x575415).
 <-><->
       
-l.269     where $m$
+l.261     where $m$
                     is a march through the SDF map. A visibility check is only
 Not a real error.
 
 [92]
-./_region_.tex:271: Preview: Snippet 93 started.
+! Preview: Snippet 93 started.
 <-><->
       
-l.271     \begin{align*}
+l.263     \begin{align*}
                         
 Not a real error.
 
-./_region_.tex:274: Preview: Snippet 93 ended.(1897095+0x18878567).
+! Preview: Snippet 93 ended.(1897095+0x18878567).
 <-><->
       
-l.274     \end{align*}
+l.266     \end{align*}
                       
 Not a real error.
 
 [93]
-./_region_.tex:276: Preview: Snippet 94 started.
+! Preview: Snippet 94 started.
 <-><->
       
-l.276     Moving on, for $
+l.268     Moving on, for $
                           \alpha^{L|E}_i$, these are equivalent for both $L$...
 
 Not a real error.
 
-./_region_.tex:276: Preview: Snippet 94 ended.(684486+182676x1379582).
+! Preview: Snippet 94 ended.(684486+182676x1379582).
 <-><->
       
-l.276     Moving on, for $\alpha^{L|E}_i$
+l.268     Moving on, for $\alpha^{L|E}_i$
                                          , these are equivalent for both $L$...
 
 Not a real error.
 
 [94]
-./_region_.tex:276: Preview: Snippet 95 started.
+! Preview: Snippet 95 started.
 <-><->
       
-l.276 ...{L|E}_i$, these are equivalent for both $
+l.268 ...{L|E}_i$, these are equivalent for both $
                                                   L$ and $E$,
 Not a real error.
 
-./_region_.tex:276: Preview: Snippet 95 ended.(447828+0x446010).
+! Preview: Snippet 95 ended.(447828+0x446010).
 <-><->
       
-l.276 ...|E}_i$, these are equivalent for both $L$
+l.268 ...|E}_i$, these are equivalent for both $L$
                                                    and $E$,
 Not a real error.
 
 [95]
-./_region_.tex:276: Preview: Snippet 96 started.
+! Preview: Snippet 96 started.
 <-><->
       
-l.276 ..., these are equivalent for both $L$ and $
+l.268 ..., these are equivalent for both $L$ and $
                                                   E$,
 Not a real error.
 
-./_region_.tex:276: Preview: Snippet 96 ended.(447828+0x521556).
+! Preview: Snippet 96 ended.(447828+0x521556).
 <-><->
       
-l.276 ...these are equivalent for both $L$ and $E$
+l.268 ...these are equivalent for both $L$ and $E$
                                                   ,
 Not a real error.
 
 [96]
-./_region_.tex:277: Preview: Snippet 97 started.
+! Preview: Snippet 97 started.
 <-><->
       
-l.277     the problem is that the $
+l.269     the problem is that the $
                                    \bar{y}$ path is generated in perspective...
 
 Not a real error.
 
-./_region_.tex:277: Preview: Snippet 97 ended.(372098+127431x344824).
+! Preview: Snippet 97 ended.(372098+127431x344824).
 <-><->
       
-l.277     the problem is that the $\bar{y}$
+l.269     the problem is that the $\bar{y}$
                                             path is generated in perspective...
 
 Not a real error.
 
 [97]
-./_region_.tex:279: Preview: Snippet 98 started.
+! Preview: Snippet 98 started.
 <-><->
       
-l.279     path is flipped. Handling $
+l.271     path is flipped. Handling $
                                      \bar{y}$ is significantly easier than $...
 
 Not a real error.
 
-./_region_.tex:279: Preview: Snippet 98 ended.(372098+127431x344824).
+! Preview: Snippet 98 ended.(372098+127431x344824).
 <-><->
       
-l.279     path is flipped. Handling $\bar{y}$
+l.271     path is flipped. Handling $\bar{y}$
                                               is significantly easier than $...
 
 Not a real error.
 
 [98]
-./_region_.tex:279: Preview: Snippet 99 started.
+! Preview: Snippet 99 started.
 <-><->
       
-l.279 ... $\bar{y}$ is significantly easier than $
+l.271 ... $\bar{y}$ is significantly easier than $
                                                   \bar{z}$,
 Not a real error.
 
-./_region_.tex:279: Preview: Snippet 99 ended.(372098+0x333598).
+! Preview: Snippet 99 ended.(372098+0x333598).
 <-><->
       
-l.279 ...}$ is significantly easier than $\bar{z}$
+l.271 ...}$ is significantly easier than $\bar{z}$
                                                   ,
 Not a real error.
 
 [99]
-./_region_.tex:280: Preview: Snippet 100 started.
+! Preview: Snippet 100 started.
 <-><->
       
-l.280     as $
+l.272     as $
               \bar{y}$ is precomputed. For $\bar{z}$, the next vertex $z_{+1}$
 Not a real error.
 
-./_region_.tex:280: Preview: Snippet 100 ended.(372098+127431x344824).
+! Preview: Snippet 100 ended.(372098+127431x344824).
 <-><->
       
-l.280     as $\bar{y}$
+l.272     as $\bar{y}$
                        is precomputed. For $\bar{z}$, the next vertex $z_{+1}$
 Not a real error.
 
 [100]
-./_region_.tex:280: Preview: Snippet 101 started.
+! Preview: Snippet 101 started.
 <-><->
       
-l.280     as $\bar{y}$ is precomputed. For $
+l.272     as $\bar{y}$ is precomputed. For $
                                             \bar{z}$, the next vertex $z_{+1}$
 Not a real error.
 
-./_region_.tex:280: Preview: Snippet 101 ended.(372098+0x333598).
+! Preview: Snippet 101 ended.(372098+0x333598).
 <-><->
       
-l.280 ...s $\bar{y}$ is precomputed. For $\bar{z}$
+l.272 ...s $\bar{y}$ is precomputed. For $\bar{z}$
                                                   , the next vertex $z_{+1}$
 Not a real error.
 
 [101]
-./_region_.tex:280: Preview: Snippet 102 started.
+! Preview: Snippet 102 started.
 <-><->
       
-l.280 ...omputed. For $\bar{z}$, the next vertex $
+l.272 ...omputed. For $\bar{z}$, the next vertex $
                                                   z_{+1}$
 Not a real error.
 
-./_region_.tex:280: Preview: Snippet 102 ended.(282168+152917x1001098).
+! Preview: Snippet 102 ended.(282168+152917x1001098).
 <-><->
       
-l.280 .... For $\bar{z}$, the next vertex $z_{+1}$
+l.272 .... For $\bar{z}$, the next vertex $z_{+1}$
                                                   
 Not a real error.
 
 [102]
-./_region_.tex:281: Preview: Snippet 103 started.
+! Preview: Snippet 103 started.
 <-><->
       
-l.281     ($
+l.273     ($
             \omega_o$ in the perspective of SA), is unknown. For example $\a...
 
 Not a real error.
 
-./_region_.tex:281: Preview: Snippet 103 ended.(282168+98303x699384).
+! Preview: Snippet 103 ended.(282168+98303x699384).
 <-><->
       
-l.281     ($\omega_o$
+l.273     ($\omega_o$
                       in the perspective of SA), is unknown. For example $\a...
 
 Not a real error.
 
 [103]
-./_region_.tex:281: Preview: Snippet 104 started.
+! Preview: Snippet 104 started.
 <-><->
       
-l.281 ...pective of SA), is unknown. For example $
+l.273 ...pective of SA), is unknown. For example $
                                                   \alpha^L_1$
 Not a real error.
 
-./_region_.tex:281: Preview: Snippet 104 ended.(551306+162667x813969).
+! Preview: Snippet 104 ended.(551306+162667x813969).
 <-><->
       
-l.281 ...SA), is unknown. For example $\alpha^L_1$
+l.273 ...SA), is unknown. For example $\alpha^L_1$
                                                   
 Not a real error.
 
 [104]
-./_region_.tex:293: Preview: Snippet 105 started.
+! Preview: Snippet 105 started.
 <-><->
       
-l.293     For $
+l.285     For $
                c_{s, t}$, there is no cases for $s = s, t = 0$ as
 Not a real error.
 
-./_region_.tex:293: Preview: Snippet 105 ended.(282168+187504x917355).
+! Preview: Snippet 105 ended.(282168+187504x917355).
 <-><->
       
-l.293     For $c_{s, t}$
+l.285     For $c_{s, t}$
                         , there is no cases for $s = s, t = 0$ as
 Not a real error.
 
 [105]
-./_region_.tex:293: Preview: Snippet 106 started.
+! Preview: Snippet 106 started.
 <-><->
       
-l.293     For $c_{s, t}$, there is no cases for $
+l.285     For $c_{s, t}$, there is no cases for $
                                                  s = s, t = 0$ as
 Not a real error.
 
-./_region_.tex:293: Preview: Snippet 106 ended.(422343+127431x3217620).
+! Preview: Snippet 106 ended.(422343+127431x3217620).
 <-><->
       
-l.293 ...t}$, there is no cases for $s = s, t = 0$
+l.285 ...t}$, there is no cases for $s = s, t = 0$
                                                    as
 Not a real error.
 
 [106]
-./_region_.tex:294: Preview: Snippet 107 started.
+! Preview: Snippet 107 started.
 <-><->
       
-l.294 ...ve a physical existence in the SDF map. $
+l.286 ...ve a physical existence in the SDF map. $
                                                   p_A$ is
 Not a real error.
 
-./_region_.tex:294: Preview: Snippet 107 ended.(282168+127431x756624).
+! Preview: Snippet 107 ended.(282168+127431x756624).
 <-><->
       
-l.294 ... physical existence in the SDF map. $p_A$
+l.286 ... physical existence in the SDF map. $p_A$
                                                    is
 Not a real error.
 
 [107]
-./_region_.tex:297: Preview: Snippet 108 started.
+! Preview: Snippet 108 started.
 <-><->
       
-l.297   \begin{align}
+l.289   \begin{align}
                      
 Not a real error.
 
-./_region_.tex:302: Preview: Snippet 108 ended.(3114395+0x29365037).
+! Preview: Snippet 108 ended.(3114395+0x29365037).
 <-><->
       
-l.302   \end{align}
+l.294   \end{align}
                    
 Not a real error.
 
 [108]
-./_region_.tex:303: Preview: Snippet 109 started.
+! Preview: Snippet 109 started.
 <-><->
       
-l.303     where $
+l.295     where $
                  R$ is the radius of the sphere, note $y_0$ is a point on th...
 
 Not a real error.
 
-./_region_.tex:303: Preview: Snippet 109 ended.(447828+0x502671).
+! Preview: Snippet 109 ended.(447828+0x502671).
 <-><->
       
-l.303     where $R$
+l.295     where $R$
                     is the radius of the sphere, note $y_0$ is a point on th...
 
 Not a real error.
 
 [109]
-./_region_.tex:303: Preview: Snippet 110 started.
+! Preview: Snippet 110 started.
 <-><->
       
-l.303 ...e $R$ is the radius of the sphere, note $
+l.295 ...e $R$ is the radius of the sphere, note $
                                                   y_0$ is a point on the sur...
 
 Not a real error.
 
-./_region_.tex:303: Preview: Snippet 110 ended.(282168+127431x615314).
+! Preview: Snippet 110 ended.(282168+127431x615314).
 <-><->
       
-l.303 ...$ is the radius of the sphere, note $y_0$
+l.295 ...$ is the radius of the sphere, note $y_0$
                                                    is a point on the surface
 Not a real error.
 
 [110]
-./_region_.tex:305: Preview: Snippet 111 started.
+! Preview: Snippet 111 started.
 <-><->
       
-l.305     \\$
+l.297     \\$
              p_A^E(x_0 \rightarrow x_1)$ doesn't exist, as there is no physi...
 
 Not a real error.
 
-./_region_.tex:305: Preview: Snippet 111 ended.(551306+180508x3638746).
+! Preview: Snippet 111 ended.(551306+180508x3638746).
 <-><->
       
-l.305     \\$p_A^E(x_0 \rightarrow x_1)$
+l.297     \\$p_A^E(x_0 \rightarrow x_1)$
                                          doesn't exist, as there is no physi...
 
 Not a real error.
 
 [111]
-./_region_.tex:307: Preview: Snippet 112 started.
+! Preview: Snippet 112 started.
 <-><->
       
-l.307 ...e are no special cases for pathes where $
+l.299 ...e are no special cases for pathes where $
                                                   t = 0$, which is
 Not a real error.
 
-./_region_.tex:307: Preview: Snippet 112 ended.(422343+0x1438145).
+! Preview: Snippet 112 ended.(422343+0x1438145).
 <-><->
       
-l.307 ...no special cases for pathes where $t = 0$
+l.299 ...no special cases for pathes where $t = 0$
                                                   , which is
 Not a real error.
 
 [112]
-./_region_.tex:310: Preview: Snippet 113 started.
+! Preview: Snippet 113 started.
 <-><->
       
-l.310   \begin{align}
+l.302   \begin{align}
                      
 Not a real error.
 
-./_region_.tex:312: Preview: Snippet 113 ended.(820006+0x29365037).
+! Preview: Snippet 113 ended.(820006+0x29365037).
 <-><->
       
-l.312   \end{align}
+l.304   \end{align}
                    
 Not a real error.
 
 [113]
-./_region_.tex:313: Preview: Snippet 114 started.
+! Preview: Snippet 114 started.
 <-><->
       
-l.313     The $
+l.305     The $
                L^0_e$ is contribution from the light source. As of right now...
 
 Not a real error.
 
-./_region_.tex:313: Preview: Snippet 114 ended.(533465+162016x740013).
+! Preview: Snippet 114 ended.(533465+162016x740013).
 <-><->
       
-l.313     The $L^0_e$
+l.305     The $L^0_e$
                       is contribution from the light source. As of right now...
 
 Not a real error.
 
 [114]
-./_region_.tex:314: Preview: Snippet 115 started.
+! Preview: Snippet 115 started.
 <-><->
       
-l.314     only supports area lights, so $
+l.306     only supports area lights, so $
                                          L^0_e$ is set a constant for the em...
 
 Not a real error.
 
-./_region_.tex:314: Preview: Snippet 115 ended.(533465+162016x740013).
+! Preview: Snippet 115 ended.(533465+162016x740013).
 <-><->
       
-l.314     only supports area lights, so $L^0_e$
+l.306     only supports area lights, so $L^0_e$
                                                 is set a constant for the em...
 
 Not a real error.
 
 [115]
-./_region_.tex:316: Preview: Snippet 116 started.
+! Preview: Snippet 116 started.
 <-><->
       
-l.316     The $
+l.308     The $
                W_e^0$ is contribution from the eye source, that is, the lens...
 
 Not a real error.
 
-./_region_.tex:316: Preview: Snippet 116 ended.(533465+162016x1003977).
+! Preview: Snippet 116 ended.(533465+162016x1003977).
 <-><->
       
-l.316     The $W_e^0$
+l.308     The $W_e^0$
                       is contribution from the eye source, that is, the lens...
 
 Not a real error.
 
 [116]
-./_region_.tex:318: Preview: Snippet 117 started.
+! Preview: Snippet 117 started.
 <-><->
       
-l.318     later], there is no $
+l.310     later], there is no $
                                W_e^0$. While this should be implemented in t...
 
 Not a real error.
 
-./_region_.tex:318: Preview: Snippet 117 ended.(533465+162016x1003977).
+! Preview: Snippet 117 ended.(533465+162016x1003977).
 <-><->
       
-l.318     later], there is no $W_e^0$
+l.310     later], there is no $W_e^0$
                                      . While this should be implemented in t...
 
 Not a real error.
 
 [117]
-./_region_.tex:320: Preview: Snippet 118 started.
+! Preview: Snippet 118 started.
 <-><->
       
-l.320     paths where $
+l.312     paths where $
                        t = 0$, which is impossible to handle on the GPU as a...
 
 Not a real error.
 
-./_region_.tex:320: Preview: Snippet 118 ended.(422343+0x1438145).
+! Preview: Snippet 118 ended.(422343+0x1438145).
 <-><->
       
-l.320     paths where $t = 0$
+l.312     paths where $t = 0$
                              , which is impossible to handle on the GPU as a...
 
 Not a real error.
 
 [118]
-./_region_.tex:323: Preview: Snippet 119 started.
+! Preview: Snippet 119 started.
 <-><->
       
-l.323   \begin{align}
+l.315   \begin{align}
                      
 Not a real error.
 
-./_region_.tex:325: Preview: Snippet 119 ended.(820006+0x29365037).
+! Preview: Snippet 119 ended.(820006+0x29365037).
 <-><->
       
-l.325   \end{align}
+l.317   \end{align}
                    
 Not a real error.
 
 [119]
-./_region_.tex:330: Preview: Snippet 120 started.
+! Preview: Snippet 120 started.
 <-><->
       
-l.330   \begin{align}
+l.322   \begin{align}
                      
 Not a real error.
 
-<../screenshots/bdpt_unweighted.png, id=392, 411.5375pt x 250.9375pt>
-File: ../screenshots/bdpt_unweighted.png Graphic file (type png)
-<use ../screenshots/bdpt_unweighted.png>
-Package pdftex.def Info: ../screenshots/bdpt_unweighted.png  used on input line
- 332. on input line 332.
-Package pdftex.def Info: Requested size: 411.5365pt x 250.93687pt on input line
- 332.
-File: ../screenshots/bdpt_unweighted.png Graphic file (type png)
-<use ../screenshots/bdpt_unweighted.png>
-Package pdftex.def Info: ../screenshots/bdpt_unweighted.png  used on input line
- 332. on input line 332.
-Package pdftex.def Info: Requested size: 411.5365pt x 250.93687pt on input line
- 332.
-./_region_.tex:332: Preview: Snippet 120 ended.(16681331+0x29365037).
+! Preview: Snippet 120 ended.(786432+0x29365037).
 <-><->
       
-l.332   \end{align}
+l.323   \end{align}
                    
 Not a real error.
 
-[120 <../screenshots/bdpt_unweighted.png>]
-./_region_.tex:337: Preview: Snippet 121 started.
+[120]
+! Preview: Snippet 121 started.
 <-><->
       
-l.337   \begin{align*}
+l.328   \begin{align*}
                       
 Not a real error.
 
-./_region_.tex:340: Preview: Snippet 121 ended.(1868582+0x17576661).
+! Preview: Snippet 121 ended.(1868582+0x17576661).
 <-><->
       
-l.340   \end{align*}
+l.331   \end{align*}
                     
 Not a real error.
 
 [121]
-./_region_.tex:341: Preview: Snippet 122 started.
+! Preview: Snippet 122 started.
 <-><->
       
-l.341     where $
+l.332     where $
                  W_{s, t}$ is the MIS weight of path $\bar{y} \leftarrow \ba...
 
 Not a real error.
 
-./_region_.tex:341: Preview: Snippet 122 ended.(447828+187504x1252695).
+! Preview: Snippet 122 ended.(447828+187504x1252695).
 <-><->
       
-l.341     where $W_{s, t}$
+l.332     where $W_{s, t}$
                            is the MIS weight of path $\bar{y} \leftarrow \ba...
 
 Not a real error.
 
 [122]
-./_region_.tex:341: Preview: Snippet 123 started.
+! Preview: Snippet 123 started.
 <-><->
       
-l.341 ...re $W_{s, t}$ is the MIS weight of path $
+l.332 ...re $W_{s, t}$ is the MIS weight of path $
                                                   \bar{y} \leftarrow \bar{z}...
 
 Not a real error.
 
-./_region_.tex:341: Preview: Snippet 123 ended.(372098+127431x1697863).
+! Preview: Snippet 123 ended.(372098+127431x1697863).
 <-><->
       
-l.341 ...ight of path $\bar{y} \leftarrow \bar{z}$
+l.332 ...ight of path $\bar{y} \leftarrow \bar{z}$
                                                   , and
 Not a real error.
 
 [123]
-./_region_.tex:342: Preview: Snippet 124 started.
+! Preview: Snippet 124 started.
 <-><->
       
-l.342     $
+l.333     $
            C_{s, t}$ is the unweighted contribution of the same path. For cl...
 
 Not a real error.
 
-./_region_.tex:342: Preview: Snippet 124 ended.(447828+187504x1102144).
+! Preview: Snippet 124 ended.(447828+187504x1102144).
 <-><->
       
-l.342     $C_{s, t}$
+l.333     $C_{s, t}$
                      is the unweighted contribution of the same path. For cl...
 
 Not a real error.
 
 [124]
-./_region_.tex:343: Preview: Snippet 125 started.
+! Preview: Snippet 125 started.
 <-><->
       
-l.343     $
+l.334     $
            C^U_{s, t}$ as described below is the unweighted contribution of the
 
 Not a real error.
 
-./_region_.tex:343: Preview: Snippet 125 ended.(551306+251217x1102144).
+! Preview: Snippet 125 ended.(551306+251217x1102144).
 <-><->
       
-l.343     $C^U_{s, t}$
+l.334     $C^U_{s, t}$
                        as described below is the unweighted contribution of the
 
 Not a real error.
 
 [125]
-./_region_.tex:345: Preview: Snippet 126 started.
+! Preview: Snippet 126 started.
+<-><->
+      
+l.336   \begin{align}
+                     
+Not a real error.
+
+! Preview: Snippet 126 ended.(1548261+0x29365037).
+<-><->
+      
+l.339   \end{align}
+                   
+Not a real error.
+
+[126]
+! Preview: Snippet 127 started.
+<-><->
+      
+l.341   \begin{align}
+                     
+Not a real error.
+
+! Preview: Snippet 127 ended.(801717+0x29365037).
+<-><->
+      
+l.343   \end{align}
+                   
+Not a real error.
+
+[127]
+! Preview: Snippet 128 started.
 <-><->
       
 l.345   \begin{align}
                      
 Not a real error.
 
-./_region_.tex:348: Preview: Snippet 126 ended.(1548261+0x29365037).
+! Preview: Snippet 128 ended.(1548261+0x29365037).
 <-><->
       
-l.348   \end{align}
-                   
-Not a real error.
-
-[126]
-./_region_.tex:350: Preview: Snippet 127 started.
-<-><->
-      
-l.350   \begin{align}
-                     
-Not a real error.
-
-./_region_.tex:352: Preview: Snippet 127 ended.(801717+0x29365037).
-<-><->
-      
-l.352   \end{align}
-                   
-Not a real error.
-
-[127]
-./_region_.tex:354: Preview: Snippet 128 started.
-<-><->
-      
-l.354   \begin{align}
-                     
-Not a real error.
-
-./_region_.tex:356: Preview: Snippet 128 ended.(1548261+0x29365037).
-<-><->
-      
-l.356   \end{align}
+l.347   \end{align}
                    
 Not a real error.
 
 [128]
-./_region_.tex:357: Preview: Snippet 129 started.
+! Preview: Snippet 129 started.
 <-><->
       
-l.357     Conceptually, the numerator $
+l.348     Conceptually, the numerator $
                                        P_s(\bar{x})$ is the path density tha...
 
 Not a real error.
 
-./_region_.tex:357: Preview: Snippet 129 ended.(491520+163840x1585154).
+! Preview: Snippet 129 ended.(491520+163840x1585154).
 <-><->
       
-l.357 ...onceptually, the numerator $P_s(\bar{x})$
+l.348 ...onceptually, the numerator $P_s(\bar{x})$
                                                    is the path density that was
 
 Not a real error.
 
 [129]
-./_region_.tex:359: Preview: Snippet 130 started.
+! Preview: Snippet 130 started.
 <-><->
       
-l.359 ...tegies that could could have, in theory,$
+l.350 ...tegies that could could have, in theory,$
                                                   ^{[1]}$ created the path. The
 
 Not a real error.
 
-./_region_.tex:359: Preview: Snippet 130 ended.(581889+0x590737).
+! Preview: Snippet 130 ended.(581889+0x590737).
 <-><->
       
-l.359 ...that could could have, in theory,$^{[1]}$
+l.350 ...that could could have, in theory,$^{[1]}$
                                                    created the path. The
 Not a real error.
 
 [130]
-./_region_.tex:362: Preview: Snippet 131 started.
+! Preview: Snippet 131 started.
 <-><->
       
-l.362 ...and describe these problems. Primarily, $
+l.353 ...and describe these problems. Primarily, $
                                                   P_i(\bar{x})$ will overflow
 Not a real error.
 
-./_region_.tex:362: Preview: Snippet 131 ended.(491520+163840x1523220).
+! Preview: Snippet 131 ended.(491520+163840x1523220).
 <-><->
       
-l.362 ...these problems. Primarily, $P_i(\bar{x})$
+l.353 ...these problems. Primarily, $P_i(\bar{x})$
                                                    will overflow
 Not a real error.
 
 [131]
-./_region_.tex:367: Preview: Snippet 132 started.
+! Preview: Snippet 132 started.
 <-><->
       
-l.367   \begin{align}
+l.358   \begin{align}
                      
 Not a real error.
 
-./_region_.tex:376: Preview: Snippet 132 ended.(3538980+0x29365037).
+! Preview: Snippet 132 ended.(3538980+0x29365037).
 <-><->
       
-l.376   \end{align}
+l.367   \end{align}
                    
 Not a real error.
 
 [132]
-./_region_.tex:380: Preview: Snippet 133 started.
+! Preview: Snippet 133 started.
 <-><->
       
-l.380     $
+l.371     $
            i < s$, we have
 Not a real error.
 
-./_region_.tex:380: Preview: Snippet 133 ended.(432226+25623x1406786).
+! Preview: Snippet 133 ended.(432226+25623x1406786).
 <-><->
       
-l.380     $i < s$
+l.371     $i < s$
                  , we have
 Not a real error.
 
 [133]
-./_region_.tex:381: Preview: Snippet 134 started.
+! Preview: Snippet 134 started.
 <-><->
       
-l.381     $
+l.372     $
            \frac{\overleftarrow{p}(\bar{x}_i)}{\overrightarrow{p}(\bar{x}_i)}$,
 
 Not a real error.
 
-./_region_.tex:381: Preview: Snippet 134 ended.(691563+363883x1586064).
+! Preview: Snippet 134 ended.(691563+363883x1586064).
 <-><->
       
-l.381 ...ar{x}_i)}{\overrightarrow{p}(\bar{x}_i)}$
+l.372 ...ar{x}_i)}{\overrightarrow{p}(\bar{x}_i)}$
                                                   ,
 Not a real error.
 
 [134]
-./_region_.tex:384: Preview: Snippet 135 started.
+! Preview: Snippet 135 started.
 <-><->
       
-l.384     $
+l.375     $
            \bar{x}_{i-1}$ is used). Another way of saying it, is $\bar{x} = ...
 
 Not a real error.
 
-./_region_.tex:384: Preview: Snippet 135 ended.(372098+152917x1263580).
+! Preview: Snippet 135 ended.(372098+152917x1263580).
 <-><->
       
-l.384     $\bar{x}_{i-1}$
+l.375     $\bar{x}_{i-1}$
                           is used). Another way of saying it, is $\bar{x} = ...
 
 Not a real error.
 
 [135]
-./_region_.tex:384: Preview: Snippet 136 started.
+! Preview: Snippet 136 started.
 <-><->
       
-l.384 ... is used). Another way of saying it, is $
+l.375 ... is used). Another way of saying it, is $
                                                   \bar{x} = \bar{y} ||
 Not a real error.
 
-./_region_.tex:385: Preview: Snippet 136 ended.(491520+163840x3079518).
+! Preview: Snippet 136 ended.(491520+163840x3079518).
 <-><->
       
-l.385     \bar{z}_{rev}$
+l.376     \bar{z}_{rev}$
                         .
 Not a real error.
 
 [136]
-./_region_.tex:389: Preview: Snippet 137 started.
+! Preview: Snippet 137 started.
 <-><->
       
-l.389   \begin{align}
+l.380   \begin{align}
                      
 Not a real error.
 
-./_region_.tex:397: Preview: Snippet 137 ended.(3047737+0x29365037).
+! Preview: Snippet 137 ended.(3047737+0x29365037).
 <-><->
       
-l.397   \end{align}
+l.388   \end{align}
                    
 Not a real error.
 
 [137]
-./_region_.tex:398: Preview: Snippet 138 started.
+! Preview: Snippet 138 started.
 <-><->
       
-l.398     And then the expanded form of $
+l.389     And then the expanded form of $
                                          \mathcal{W}_i(\bar{x})$ looks like
 Not a real error.
 
-./_region_.tex:398: Preview: Snippet 138 ended.(491520+163840x1749823).
+! Preview: Snippet 138 ended.(491520+163840x1749823).
 <-><->
       
-l.398 ...expanded form of $\mathcal{W}_i(\bar{x})$
+l.389 ...expanded form of $\mathcal{W}_i(\bar{x})$
                                                    looks like
 Not a real error.
 
 [138]
-./_region_.tex:400: Preview: Snippet 139 started.
+! Preview: Snippet 139 started.
 <-><->
       
-l.400   \begin{align}
+l.391   \begin{align}
                      
 Not a real error.
 
-./_region_.tex:405: Preview: Snippet 139 ended.(1911628+0x29365037).
+! Preview: Snippet 139 ended.(1911628+0x29365037).
 <-><->
       
-l.405   \end{align}
+l.396   \end{align}
                    
 Not a real error.
 
 [139]
-./_region_.tex:408: Preview: Snippet 140 started.
+! Preview: Snippet 140 started.
 <-><->
       
-l.408   \begin{align}
+l.399   \begin{align}
                      
 Not a real error.
 
-./_region_.tex:411: Preview: Snippet 140 ended.(1511852+0x29365037).
+! Preview: Snippet 140 ended.(1511852+0x29365037).
 <-><->
       
-l.411   \end{align}
+l.402   \end{align}
                    
 Not a real error.
 
 [140]
-./_region_.tex:414: Preview: Snippet 141 started.
+! Preview: Snippet 141 started.
 <-><->
       
-l.414   \begin{align}
+l.405   \begin{align}
                      
 Not a real error.
 
-./_region_.tex:417: Preview: Snippet 141 ended.(1348012+0x29365037).
+! Preview: Snippet 141 ended.(1348012+0x29365037).
 <-><->
       
-l.417   \end{align}
+l.408   \end{align}
                    
 Not a real error.
 
 [141]
-./_region_.tex:420: Preview: Snippet 142 started.
+! Preview: Snippet 142 started.
 <-><->
       
-l.420   \begin{align}
+l.411   \begin{align}
                      
 Not a real error.
 
-./_region_.tex:422: Preview: Snippet 142 ended.(820006+0x29365037).
+! Preview: Snippet 142 ended.(820006+0x29365037).
 <-><->
       
-l.422   \end{align}
+l.413   \end{align}
                    
 Not a real error.
 
 [142]
-./_region_.tex:424: Preview: Snippet 143 started.
+! Preview: Snippet 143 started.
 <-><->
       
-l.424   \begin{align}
+l.415   \begin{align}
                      
 Not a real error.
 
-./_region_.tex:432: Preview: Snippet 143 ended.(2855033+0x29365037).
+! Preview: Snippet 143 ended.(2855033+0x29365037).
 <-><->
       
-l.432   \end{align}
+l.423   \end{align}
                    
 Not a real error.
 
 [143]
-./_region_.tex:436: Preview: Snippet 144 started.
+! Preview: Snippet 144 started.
 <-><->
       
-l.436   \section
+l.427   \section
                 {Video/Image Emitter}
 Not a real error.
 
-./_region_.tex:436: Preview: Snippet 144 ended.(707788+235929x29365037).
+! Preview: Snippet 144 ended.(707788+235929x29365037).
 <-><->
       
-l.436   \section{Video/Image Emitter}
+l.427   \section{Video/Image Emitter}
                                      
 Not a real error.
 
 [144
 
 ]
-./_region_.tex:438: Preview: Snippet 145 started.
+! Preview: Snippet 145 started.
 <-><->
       
-l.438   \section
+l.429   \section
                 {Future Improvements}
 Not a real error.
 
-./_region_.tex:438: Preview: Snippet 145 ended.(647495+183500x29365037).
+! Preview: Snippet 145 ended.(647495+183500x29365037).
 <-><->
       
-l.438   \section{Future Improvements}
+l.429   \section{Future Improvements}
                                      
 Not a real error.
 
 [145
 
 ]
-./_region_.tex:442: Preview: Snippet 146 started.
+! Preview: Snippet 146 started.
 <-><->
       
-l.442   \[
+l.433   \[
           
 Not a real error.
 
-./_region_.tex:444: Preview: Snippet 146 ended.(1475443+0x16362013).
+! Preview: Snippet 146 ended.(1475443+0x16362013).
 <-><->
       
-l.444   \]
+l.435   \]
           
 Not a real error.
 
 [146]
-./_region_.tex:450: Preview: Snippet 147 started.
+! Preview: Snippet 147 started.
 <-><->
       
-l.450   \section
+l.448   \section
                 {Bibliography}
 Not a real error.
 
-./_region_.tex:450: Preview: Snippet 147 ended.(655359+183500x29365037).
+! Preview: Snippet 147 ended.(655359+183500x29365037).
 <-><->
       
-l.450   \section{Bibliography}
+l.448   \section{Bibliography}
                               
 Not a real error.
 
 [147
 
 ]
-./_region_.tex:452: Preview: Snippet 148 started.
+! Preview: Snippet 148 started.
 <-><->
       
-l.452   \begin{align*}
+l.450   \begin{align*}
                       
 Not a real error.
 
-./_region_.tex:458: Preview: Snippet 148 ended.(2561365+0x25519634).
+! Preview: Snippet 148 ended.(2561365+0x25519634).
 <-><->
       
-l.458   \end{align*}
+l.456   \end{align*}
                     
 Not a real error.
 
 [148] ) 
 Here is how much of TeX's memory you used:
- 4387 strings out of 492990
- 60023 string characters out of 6138688
- 146765 words of memory out of 5000000
- 7865 multiletter control sequences out of 15000+600000
- 11354 words of font info for 45 fonts, out of 8000000 for 9000
+ 1131 strings out of 489701
+ 16695 string characters out of 6094798
+ 146087 words of memory out of 5000000
+ 7880 multiletter control sequences out of 15000+600000
+ 12840 words of font info for 50 fonts, out of 8000000 for 9000
  1141 hyphenation exceptions out of 8191
- 41i,29n,49p,496b,1526s stack positions out of 5000i,500n,10000p,200000b,80000s
- </home/aodq/.texlive/texmf-var/fonts/pk/ljfour/public/cm/cmsy5.600pk> <
-/home/aodq/.texlive/texmf-var/fonts/pk/ljfour/public/cm/cmr5.600pk> </home/aodq
-/.texlive/texmf-var/fonts/pk/ljfour/public/cm/cmmi5.600pk> </usr/share/texmf-di
-st/fonts/pk/ljfour/public/cm/dpi600/cmsy7.pk> </usr/share/texmf-dist/fonts/pk/l
-jfour/public/cm/dpi600/cmex10.pk> </usr/share/texmf-dist/fonts/pk/ljfour/public
-/cm/dpi600/cmmi7.pk> </usr/share/texmf-dist/fonts/pk/ljfour/public/cm/dpi600/cm
-r7.pk> </usr/share/texmf-dist/fonts/pk/ljfour/public/cm/dpi600/cmsy10.pk> </usr
-/share/texmf-dist/fonts/pk/ljfour/public/cm/dpi600/cmr10.pk> </usr/share/texmf-
-dist/fonts/pk/ljfour/public/cm/dpi600/cmmi10.pk> </home/aodq/.texlive/texmf-var
-/fonts/pk/ljfour/public/cm/cmbx12.720pk>
-Output written on _region_.pdf (148 pages, 229212 bytes).
+ 41i,29n,25p,471b,996s stack positions out of 5000i,500n,10000p,200000b,80000s
+</usr/share/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx12.pfb></usr/s
+hare/texmf-dist/fonts/type1/public/amsfonts/cm/cmex10.pfb></usr/share/texmf-dis
+t/fonts/type1/public/amsfonts/cm/cmmi10.pfb></usr/share/texmf-dist/fonts/type1/
+public/amsfonts/cm/cmmi5.pfb></usr/share/texmf-dist/fonts/type1/public/amsfonts
+/cm/cmmi7.pfb></usr/share/texmf-dist/fonts/type1/public/amsfonts/cm/cmr10.pfb><
+/usr/share/texmf-dist/fonts/type1/public/amsfonts/cm/cmr5.pfb></usr/share/texmf
+-dist/fonts/type1/public/amsfonts/cm/cmr7.pfb></usr/share/texmf-dist/fonts/type
+1/public/amsfonts/cm/cmsy10.pfb></usr/share/texmf-dist/fonts/type1/public/amsfo
+nts/cm/cmsy5.pfb></usr/share/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy7.pf
+b>
+Output written on _region_.pdf (148 pages, 160922 bytes).
 PDF statistics:
- 742 PDF objects out of 1000 (max. 8388607)
- 373 compressed objects within 4 object streams
+ 526 PDF objects out of 1000 (max. 8388607)
+ 361 compressed objects within 4 object streams
  0 named destinations out of 1000 (max. 500000)
- 6 words of extra memory for PDF output out of 10000 (max. 10000000)
+ 1 words of extra memory for PDF output out of 10000 (max. 10000000)
 

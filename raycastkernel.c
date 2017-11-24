@@ -32,7 +32,13 @@ typedef struct T_Camera {
 } Camera;
 
 typedef struct T_Material {
-  float diffuse, specular, glossy, retroreflective, transmittive;
+  // colour [set to (-1.0, -1.0, -1.0) to have map override it]
+  float3 albedo;
+  // sampling strategy
+  float diffuse, specular, glossy, glossy_lobe;
+  float transmittive;
+  // PBR material
+  float roughness, metallic, fresnel, subsurface, anisotropic;
 } Material;
 
 typedef struct T_Emitter {
@@ -134,14 +140,8 @@ float Distance(float3 u, float3 v) {
   return sqrt(x*x + y*y + z*z);
 }
 
-float Visibility(float3 orig, float3 other, float sphrad, SceneInfo* si,
-                 TEXTURE_T Tx) {
-  float theoretical = Distance(orig, other);
-  float3 dir = normalize(other - orig);
-  orig += dir*(0.01f);
-  SampledPt ptinfo = March(-1, (Ray){orig, dir}, si, Tx);
-  float actual = ptinfo.dist + MARCH_ACC + 0.02f;
-  return 1.0f*(actual >= theoretical);
+float3 RColour ( float3 pt_colour, Material* m ) {
+  return (pt_colour.x >= 0.0f) ? pt_colour : m->albedo;
 }
 
 //----POSTPROCESS---
@@ -201,12 +201,18 @@ __kernel void DTOADQ_Kernel (
 
   Ray ray = Camera_Ray(&camera);
   SampledPt pt = March(-1, ray, &scene_info, textures);
-  pt.colour += pt.dist/MARCH_DIST;
-  float3 O = ray.origin + pt.dist*ray.dir;
-  for ( int i = 0; i != EMITTER_AMT; ++ i ) {
-    Emitter emit = REmission(i, scene_info.debug_values, scene_info.time);
-    float res = Visibility(O, emit.origin, emit.radius, &scene_info, textures);
-    pt.colour *= (res > 0.0f ? 1.0f : 0.2f);
+  if ( pt.dist >= 0 ) {
+    float3 O = ray.origin + pt.dist*ray.dir;
+    for ( int i = 0; i != EMITTER_AMT; ++ i ) {
+      Emitter emit = REmission(i, scene_info.debug_values, scene_info.time);
+      Material m = materials[pt.material_index];
+      float3 col = RColour(pt.colour, &m);
+      // diffusive component i made up, no normal needed
+      float3 V = -ray.dir, L = normalize(emit.origin-O);
+      pt.colour = col + dot(V, L)*0.1f;
+    }
+    write_imagef(output_image, out, (float4)(pt.colour, 1.0f));
+  } else {
+    write_imagef(output_image, out, (float4)(0.0f, 0.0f, 0.0f, 1.0f));
   }
-  write_imagef(output_image, out, (float4)(pt.colour, 1.0f));
 }

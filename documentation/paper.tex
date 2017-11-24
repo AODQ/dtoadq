@@ -24,13 +24,16 @@
 
 \lstset{language=C}
 
-\title{DTOADQ}
+\title{DTOADRe}
 
 \begin{document}
   \maketitle
   \section{Introduction}
 
   \section{SDFs}
+  In order to compute a normal of an SDF, you must perform a gradient approximation: the central distance onf the SDF at
+  P. For example, the difference quotient:
+  \[\frac{(f(x+h) - f(x))}{h}\]
   \begin{align*}
     S(P, R) &= P - R^2   & \text{SDF of a sphere Radius  }\\
     S(P, N) &= P \cdot N  & \text{SDF of a plane at Normal}\\
@@ -40,18 +43,7 @@
   \section{OpenCL}
   \section{Light Transport Introduction}
   \section{Bidirectional Path Tracing}
-    All the materials in here, about path tracing, have come from Veach's PhD
-    thesis. So, in a way, DTOADQ, at this stage, is just an implementation of
-    BDPT as described in veach's thesis to the GPU, along with pulling from
-    other resources such as Physically Based Render [PBR] 3rd ed. In order
-    to understand the mathematics for BDPT, it must be worked up starting from
-    light transport. So this section is about transforming the algorithms and
-    mathematical models into something easily and efficiently implementable for
-    the GPU, even if some of it is a rewrite of the mathematical model so that a
-    programmer could understand it. In order to compute a normal of an SDF, you
-    must perform a gradient approximation: the central distance onf the SDF at
-    P. For example, the difference quotient:
-      \[\frac{(f(x+h) - f(x))}{h}\]
+    The main foundation of the mathematics and theory have come from many sources, from Veach's PhD thesis to PBR 3rd ed. and various open source path tracing kernels such as NanoRT, Embree, etc. However, the implementation differs from these in that the algorithm is optimized for the GPU. This section is about transforming the algorithms and mathematical models from Veach's thesis into something easily and efficiently implementable the GPU.
 
     Calculating probability distribution functions is a very vital component in
     Monte Carlo Sampling. The PDF states the probability of a random variable to
@@ -324,8 +316,7 @@
   weighing each contribution uniformly by something like 1.0f, or even, by
   inverse path length, will producy very noisy images, and would not be
   worth the additional computation time that BDPT requires, as shown below.
-  \begin{align}
- \includegraphics{bdpt_unweighted}
+  \begin{align}  
   \end{align}
   In order to get good
   samples from the contributions, they must be combined in an optimal manner

@@ -4,32 +4,72 @@ import derelict.imgui.imgui;
 import std.conv : to; import std.string : format;
 import std.traits;
 
+void Mat_Normalize(T)(T* important, T*[] x) {
+  import std.math : abs;
+  float rval = *important;
+  // TODO: i'm sure there's a better way, you have to play with it a little at
+  //       1.0 unfortunately
+  foreach ( cnt; 0 .. 250 ) {
+    float len = 0.0f;
+    *important = rval;
+    // accum
+    foreach ( i; x )
+      len += *i;
+    foreach ( i; x ) {
+      *i /= len;
+      *i = cast(int)((*i) * 100.0f)/100.0f;
+    }
+    if ( abs(*important - rval) >= 0.01f ) break;
+  }
+}
+
 void Render_Materials ( ref bool change ) {
   // return a GUI renderer for materials, with their corresponding
   // attributes
   static import sinfo = core.shared_info;
-  string RMaterial_Mixin ( ) {
-    import std.traits, std.string : format;
-    import functional : zip;
-    string mix = `foreach ( i; 0 .. sinfo.material.length ) {`;
-    mix ~= `if ( igTreeNode(gui.Accum("Material ", i)) ) {`;
-      mix ~= `auto m = &sinfo.material[i];`;
-      mix ~= q{change |= igColorEdit3(
-        gui.Accum("(", i.to!string, "): albedo"), m.albedo);};
-      foreach ( member, type; zip(ocl.Material_members, ocl.Material_types)) {
-        if ( type == "float" )
-          mix ~= q{change |= igSliderFloat(
-            gui.Accum("(", i.to!string, "): %s"), &sinfo.ocl_material[i].%s,
-                      0.0f, 2.0f);
-          }.format(member, member);
-      }
-    mix ~= `igTreePop(); }`;
-    return mix ~ `}`;
-  }
+  import std.typecons;
+  import std.traits, std.string : format;
+  import functional : zip;
 
   igBegin("Material Properties");
     import std.conv;
-    mixin(RMaterial_Mixin());
+    alias OCLM = ocl.OCLMaterial;
+    float* importance_member;
+    OCLM*  importance_mat;
+    // ---- gui render
+    foreach ( i; 0 .. sinfo.material.length ) {
+      if ( !igTreeNode(gui.Accum("Material ", i)) ) continue;
+      auto m  = &sinfo.material[i],
+          om = &sinfo.ocl_material[i];
+      float* importance = null;
+      // colour
+      auto col3_acc = gui.Accum("(%s): albedo".format(i.to!string));
+      change |= igColorEdit3(col3_acc, m.albedo);
+      // floatz
+      float* fmem;
+      string acc;
+      static foreach(member; stl.AllFilteredAttributes!(OCLM, `"ModifyFloat"`)){
+        mixin(q{fmem = &om.%s;}.format(member));
+        acc = "(%s): %s".format(i.to!string, member);
+        if ( igSliderFloat(gui.Accum(acc), fmem, 0.0f, 1.0f) ) {
+          change = true;
+          static if (stl.HasAttribute!(OCLM, member, `"Normalize"`)){
+            importance_member = fmem;
+            importance_mat = om;
+          }
+        }
+      }
+      igTreePop();
+    }
+
+    if ( importance_mat && importance_member ) {
+      float*[] mats;
+      static foreach ( member; __traits(allMembers, OCLM) ) {
+        static if ( stl.HasAttribute!(ocl.OCLMaterial, member, `"Normalize"`) )
+          mixin(q{mats ~= &importance_mat.%s;}.format(member));
+      }
+      Mat_Normalize(importance_member, mats);
+    }
   igEnd();
 }
 

@@ -45,8 +45,9 @@ void Update_DTOADQ ( ) {
     shared_info.ocl_material[ind].albedo =
         ocl.To_CLFloat3(shared_info.material[ind].albedo);
   }
+  // stl.writeln(ocl.OCLMaterial.sizeof);
   { // Run kernel
-    shared_info.image.Lock();
+    shared_info.image.Lock(); // Acquire OCL Mem from OGL image object
     ocl.Run(
       ocl.CLStoreMem(shared_info.rw_image),
       shared_info.image.RWrite(),

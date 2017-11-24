@@ -37,14 +37,11 @@ typedef struct T_Camera {
 typedef struct T_Material {
   // colour [set to (-1.0, -1.0, -1.0) to have map override it]
   float3 albedo;
-  // pdf
+  // sampling strategy
   float diffuse, specular, glossy, glossy_lobe;
-  float transmittive, ior;
+  float transmittive;
   // PBR material
-  float pbr_roughness, pbr_metallic, pbr_fresnel;
-  // disney material
-  float d_subsurface, d_specular_tint, d_anisotropic, d_sheen, d_sheen_tint,
-    d_clearcoat, d_clearcoat_gloss, d_specular;
+  float roughness, metallic, fresnel, subsurface, anisotropic;
 } Material;
 
 typedef struct T_Emitter {
@@ -67,8 +64,11 @@ SceneInfo New_SceneInfo(float time, Material* materials,
   return si;
 }
 
-__constant float PI  = 3.141592654f;
-__constant float TAU = 6.283185307f;
+__constant float PI   = 3.141592653589793f;
+__constant float IPI  = 0.318309886183791f;
+__constant float IPI2 = 0.159154943091895f;
+__constant float TAU  = 6.283185307179586f;
+__constant float ITAU = 0.159154943091895f;
 // -----------------------------------------------------------------------------
 // --------------- GENERAL STRUCTS ---------------------------------------------
 typedef struct T_Ray {
@@ -186,103 +186,78 @@ float3 Binormal ( float3 N ) {
                                     (float3)(0.0f, 1.0f, 0.0f));
   return normalize(cross(N, axis));
 }
+
 float Schlick_Fresnel ( float u ) {
-  float m = clamp(1.0f - u, 0.0f, 1.0f);
-  float m2 = m*m;
-  return m2*m2*m;
+  float f = clamp(1.0f - u, 0.0f, 1.0f);
+  float f2 = f*f;
+  return f2*f2*f; // f^5
 }
-float GTR1 ( float cosN_H, float a ) {
-  if ( a >= 1.0f ) return 1.0f/PI;
-  float a2 = a*a;
-  float t = 1.0f + (a2-1.0f) * sqr(cosN_H);
-  return (a2 - 1.0f)/(PI*log(a2)*t);
+
+float Smith_G_GGX_Correlated ( float L, float R, float a ) {
+  return L * sqrt(R - a*sqr(R) + a);
 }
-float GTR2 ( float cosN_H, float a ) {
-  float a2 = a*a;
-  float t = 1.0f + (a2 - 1.0f) * sqr(cosN_H);
-  return a2/(PI*sqr(t));
-}
-float GTR2_Aniso (float cosH_N, float cosH_X, float cosH_Y, float ax, float ay){
-  return 1.0f/(PI*ax*ay* sqr(sqr(cosH_X/ax) + sqr(cosH_Y/ay) + sqr(cosH_N)));
-}
-float Smith_G_GGX ( float cosN_V, float alpha_g ) {
-  float a = sqr(alpha_g),
-        b = sqr(cosN_V);
-  return 1.0f/(cosN_V + sqrt(a + b - a*b));
-}
-float Smith_G_GGX_Aniso(float cosV_N, float cosV_X, float cosV_Y,
-                        float ax, float ay) {
-  return 1.0/(cosV_N + sqrt(sqr(cosV_X*ax) + sqr(cosV_Y*ay) + sqr(cosV_N)));
-}
-float3 Mon_To_Lin ( float3 x ) { return pow(x, (float3)(2.2)); }
 
-float3 BRDF_F ( float3 wi, float3 wo, float3 N, Material* m, float3 pcolour ) {
-  // get proper L, V, binormal (X) and bitangent (Y)
-  float3 L = wo, V = -wi, X = Binormal(N), Y = cross(X, N);
-  // get half vector (angle between L and V)
-  float3 H = normalize(wi + wo);
-  // useful normal angles
-  float cosN_L = dot(N, L), cosN_V = dot(N, V),
-        cosH_L = dot(H, L), cosH_N = dot(H, N);
-  // check that wi -> wo is within hemisphere/not degenerate
-  if ( cosN_L < 0.0f || cosN_V < 0.0f ) return (float3)(0.0f);
+float3 BRDF_F ( float3 wi, float3 N, float3 wo, Material* m ) {
+  // get binormal, bitangent, half vec etc
+  const float3 binormal  = Binormal(N),
+               bitangent = cross(binormal, N),
+               L         =  wo, V = -wi,
+               H         = normalize(L+V);
+  const float  cos_NV    = dot(N, V), cos_NL     = dot(N, L),
+               cos_HV    = dot(H, V), cos_HL     = dot(H, L),
+               Fresnel_L = Schlick_Fresnel(cos_NL),
+               Fresnel_V = Schlick_Fresnel(cos_NV);
+  // Diffusive component, just made it up
+  float3 diffusive_albedo = m->albedo * pow(cos_HL * cos_NV, 0.5f) * IPI;
 
-  // luminance approximation
-  float3 albedo = Mon_To_Lin(pcolour);
-  float3 lumination = albedo * (float3)(0.3f, 0.6f, 0.1f);
+  float3 microfacet = (float3)(1.0f);
 
-  // normalize lumination to isolate hue and saturation; get specular/sheen
-  float3 tint = lumination > 0.0f ? albedo/lumination : (float3)(1.0f);
-  float3 specular = mix(m->d_specular * 0.08f *
-                        mix((float3)(1.0f), tint, (float3)(m->d_specular_tint)),
-                        albedo, m->pbr_metallic);
-  float3 sheen = mix((float3)(1.0f), tint, m->d_sheen_tint);
+  /* if ( cos_NL < 0.0f || cos_NV < 0.0f ) */
+  /*   return (float3)(0.0f); */
 
-  // Diffuse Fresnel - go from 1 at normal incidence to 0.5 at grazing
-  // and mix in diffuse retroreflection based on roughness
-  // [retroreflection s when light reflects towards the light source]
-  float F_L = Schlick_Fresnel(cosN_L),
-        F_V = Schlick_Fresnel(cosN_V),
-        F_diffuse = 0.5f + 2.0f * sqr(cosH_L) * m->pbr_roughness,
-        F = mix(1.0f, F_diffuse, F_L) *
-                  mix(1.0f, F_diffuse, F_V);
+  { // ------- Fresnel
+    // modified diffusive fresnel from disney, modified to use albedo & F0
+    const float F0 = m->fresnel * m->metallic,
+                Fresnel_diffuse_90 = F0 * sqr(cos_HL);
+    microfacet *= (1.0f - F0) * diffusive_albedo +
+                    mix(1.0f, Fresnel_diffuse_90, Fresnel_L) *
+                    mix(1.0f, Fresnel_diffuse_90, Fresnel_V);
+  }
+  { // ------- Geometric
+    // Heits 2014, SmithGGXCorrelated with half vec combined with anisotropic
+    // term using disney's GTR2_aniso model
+    const float Param  = sqr(0.5f + sqr(m->roughness)),
+                Aspect = sqrt(1.0f - m->anisotropic*0.9f),
+                Ax     = Param/Aspect, Ay = Param*Aspect,
+                GGX_NV = Smith_G_GGX_Correlated(cos_HL, cos_NV, Ax),
+                GGX_HL = Smith_G_GGX_Correlated(cos_NV, cos_HL, Ay);
+    microfacet *= 0.5f / (GGX_NV*Ax + GGX_HL*Ay);
+  }
+  { // ------- Distribution
+    // Hyper-Cauchy Distribution using roughness and metallic
+    const float Param = 1.0f + m->roughness,
+                Shape = (1.1f - sqrt(m->metallic)),
+                tan_HL = length(cross(H, L))/cos_HL;
+    const float Upper  = (Param - 1.0f)*pow(sqrt(2.0f), (2.0f*Param - 2.0f)),
+                LowerL = (PI*sqr(Shape) * pow(cos_HL, 4.0f)),
+                LowerR = pow(2.0f + sqr(tan_HL)/sqr(Shape), Param);
+    microfacet *= (Upper / (LowerL * LowerR));
+  }
 
-  // Subsurface-Scattering Approximation. Based on Hanrahan-Kruger BRDF
-  // brdf approximation of isotropic BSSRDF. 1.25 scale is used to preserve
-  // albedo. Fss90 is used to flatten retroreflection
-  float F_ss90 = sqr(cosH_L)*m->pbr_roughness,
-        F_ss   = mix(1.0f, F_ss90, F_L) *
-                               mix(1.0f, F_ss90, F_V);
-  float subsurface = 1.25f * (F_ss *
-                              (1.0f/(cosN_L + cosN_V) - 0.5f) + 0.5f);
+  // Since microfacet is described using half vec, the following energy
+  // conservation model may be used [Edwards et al. 2006]
+  microfacet /= 4.0f * cos_HV * fmax(cos_NL, cos_NV);
 
-  // specular
-  float aspect    = sqrt(1.0f - m->d_anisotropic * 0.9f),
-        ax        = fmax(0.001f, sqr(m->pbr_roughness)/aspect),
-        ay        = fmax(0.001f, sqr(m->pbr_roughness)*aspect),
-        D_specular        = GTR2_Aniso(cosH_N, dot(H, X), dot(H, Y), ax, ay),
-        F_H = Schlick_Fresnel(cosH_L);
-  float3 F_specular = mix(specular, (float3)(1.0f), F_H);
-  float G_specular = Smith_G_GGX_Aniso(cosN_L, dot(L, X), dot(L, Y), ax, ay) *
-             Smith_G_GGX_Aniso(cosN_V, dot(V, X), dot(V, Y), ax, ay);
+  { // --------- Subsurface
+    // modified disney retro reflection based off Hanrahan-Grueger BSSRDF
+    //   approximation
+    const float Rr_term = (2.0f * (0.5f + m->roughness) * sqr(dot(N, H)));
+    const float3 Retro_reflection = diffusive_albedo * Rr_term *
+      (Fresnel_L + Fresnel_V + (Fresnel_L*Fresnel_V*(Rr_term - 1.0f)));
+    diffusive_albedo = mix(diffusive_albedo, Retro_reflection, m->subsurface);
+  }
 
-  // sheen
-  float3 F_sheen = F_H * m->d_sheen * sheen;
-
-  // clearcoat (ior = 1.5 -> f0 = 0.04)
-  float D_clearcoat = GTR1(cosH_N, mix(0.1f, 0.001f, m->d_clearcoat_gloss)),
-        F_clearcoat = mix(0.04f, 1.0f, F_H),
-        G_clearcoat = Smith_G_GGX(cosN_L, 0.25f) * Smith_G_GGX(cosN_V, 0.25f);
-
-  // final combinations
-  float3 final_subsurface = mix(F, subsurface, m->d_subsurface) * albedo,
-         final_albedo = (1.0f/PI) * final_subsurface + F_sheen,
-         final_metallic = (1.0f - m->pbr_metallic),
-         final_specular = G_specular * F_specular * D_specular,
-         final_clearcoat = 0.25f * m->d_clearcoat * D_clearcoat *
-                                    F_clearcoat * G_clearcoat;
-
-  return final_albedo * final_metallic + final_specular + final_clearcoat;
+  return (microfacet + diffusive_albedo);
 }
 
 float3 Illuminate ( float3 O, float3 Wi, float3 col, Material* m,
@@ -295,10 +270,10 @@ float3 Illuminate ( float3 O, float3 Wi, float3 col, Material* m,
            N = Normal(O, si, Tx),
            L = normalize(emit.origin - O);
     float3 pcolour = m->albedo.x < 0.0f ? col : m->albedo;
-    float3 brdf = BRDF_F(V, L, N, m, pcolour);
+    float3 brdf = BRDF_F(V, N, L, m);
     float shadow = Visibility_Ray(O, emit.origin, emit.radius, si, Tx);
 
-    colour += (brdf) * dot(N, L) * normalize(emit.emission);
+    colour += (brdf) * dot(N, L) * (emit.emission);
   }
   return colour / EMITTER_AMT;
 }

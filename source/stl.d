@@ -40,6 +40,8 @@ string Truncate_DirExt ( string filename ) {
 }
 
 
+import std.traits, std.meta;
+
 /// returns all members of T
 template AllMembers(alias T) {
   private template MemberFilter(string name) {
@@ -49,15 +51,29 @@ template AllMembers(alias T) {
   alias AllMembers = Filter!(MemberFilter, __traits(derivedMembers, T));
 }
 
-import std.traits; /// returns all derived types of T
-template AllTypes(alias T) {
-  private template TypeMap(string name) {
-    mixin(`alias field = %s.%s;`.format(fullyQualifiedName!T, name));
-    enum TypeMap = typeof(field).stringof;
+bool HasAttribute(alias T, alias member, string name)() {
+  bool result = false; // To avoid "statement is not reachable"
+                       //   ( Yes, really, wtf! )
+  foreach ( attr; __traits(getAttributes, __traits(getMember, T, member)) ) {
+    if ( attr.stringof == name ) result |= true;
   }
-  alias AllTypes = staticMap!(TypeMap, __traits(derivedMembers, T));
+  return result;
 }
 
+// Returns string of all members of filtered type
+string[] AllFilteredAttributes(alias T, string name)() {
+  import functional;
+  string[] results;
+  foreach ( member; __traits(derivedMembers, T) ) {
+    foreach ( attr; __traits(getAttributes, __traits(getMember, T, member)) ) {
+      if ( attr.stringof == name ) {
+        results ~= member;
+        pragma(msg, "ADD: " ~ member);
+      }
+    }
+  }
+  return results;
+}
 
 /// RVal Reference (idiom written by Randy Schutt)
 mixin template RValRef ( ) {

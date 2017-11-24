@@ -120,11 +120,6 @@ OUTPUT paper.pdf
 INPUT /var/lib/texmf/fonts/map/pdftex/updmap/pdftex.map
 INPUT /usr/share/texmf-dist/fonts/tfm/public/cm/cmr9.tfm
 INPUT /usr/share/texmf-dist/fonts/tfm/public/cm/cmtt9.tfm
-INPUT ../screenshots/bdpt_unweighted.png
-INPUT ../screenshots/bdpt_unweighted.png
-INPUT ../screenshots/bdpt_unweighted.png
-INPUT ../screenshots/bdpt_unweighted.png
-INPUT ../screenshots/bdpt_unweighted.png
 INPUT paper.aux
 INPUT /usr/share/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx12.pfb
 INPUT /usr/share/texmf-dist/fonts/type1/public/amsfonts/cm/cmex10.pfb
