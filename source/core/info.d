@@ -28,7 +28,7 @@ void Set_Recompile ( ) { kernel_info.recompile = true; }
 void Clear_Recompile ( ) { kernel_info.recompile = false; }
 
 void Set_Map_Function ( string filename ){
-  Set_Kernel_Type(KernelType.DTQ);
+  Set_Kernel_Type(RType);
   kernel_info.recompile = true;
   kernel_info.filename  = filename;
   parser.Change_Scene(filename);

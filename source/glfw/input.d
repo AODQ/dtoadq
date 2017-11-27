@@ -72,6 +72,7 @@ private struct CameraInputInfo {
       float cos_theta = cast(float)(RKey_Input(u) - RKey_Input(d)),
             sin_theta = cast(float)(RKey_Input(l) - RKey_Input(r));
       update_camera |= stl.fabs(cos_theta)+stl.fabs(sin_theta) > float.epsilon;
+      update_camera |= RKey_Input(cast(int)('R'));
       return InputAxis(cos_theta, sin_theta);
     }
     return CameraInputInfo(Input_Arr(87, 65, 68, 83), Input_Arr(75, 72, 76, 74),

@@ -11,6 +11,7 @@ MATERIALSSTART
       "glossy":       "0.0",
       "glossy_lobe":  "0.95",
       "transmittive": "0.0",
+      "ior": "0.5",
       "roughness":    "0.6",
       "metallic":     "0.2",
       "fresnel":      "0.9",
@@ -20,10 +21,11 @@ MATERIALSSTART
     {
       "albedo":       "[0.2, 0.1, 0.4]",
       "diffuse":      "0.0",
-      "specular":     "1.0",
+      "specular":     "0.0",
       "glossy":       "0.0",
       "glossy_lobe":  "0.9",
-      "transmittive": "0.0",
+      "transmittive": "1.0",
+      "ior": "0.284",
       "roughness":    "0.8",
       "metallic":     "0.2",
       "fresnel":      "0.8",
@@ -37,6 +39,7 @@ MATERIALSSTART
       "glossy":       "0.2",
       "glossy_lobe":  "0.6",
       "transmittive": "0.0",
+      "ior": "0.5",
       "roughness":    "0.912",
       "metallic":     "0.0",
       "fresnel":      "0.882",
@@ -60,9 +63,9 @@ EMITTERSTART
 __constant int EMITTER_AMT = 1;
 Emitter REmission ( int index, float3 dval, float time ) {
   float f = (float)(index+1);
-  float3 origin = (float3)(0.6f+sin(time)*0.3f);
+  float3 origin = (float3)(0.6f, 0.6f, 0.6f*sin(time));
   if ( index == 0 ) // most light
-    return (Emitter){origin, (float3)(0.0f)+dval.x, 0.0f+dval.y};
+    return (Emitter){origin, (float3)(0.1f)+dval.x, 0.303f+dval.y};
   if ( index == 1 ) // bg light
     return (Emitter){(float3)( 0.6f, 0.0f,-0.6f), (float3)(1.00f)*cos(time), 0.1f};
 }
@@ -94,15 +97,12 @@ void Room ( int avoid, float3 origin, SampledPt* pt, float time, float3 dval ) {
 
 void Panels ( int avoid, float3 origin, SampledPt* pt, float3 dval, float time){
 
-  // meta balls
-
-  
-  // weird thing
-  float dist, dist2;
-  origin += 0.5f*(float3)(cos(time), sin(time), sin(time));
-  dist  = sdHexagonCircumcircle(origin, (float2)(0.096f, 0.032f));
-  dist2 = sdHexagonCircumcircle(origin, (float2)(0.078f, 0.151f));
-  dist = opUnionChamfer(dist, dist2, 0.073f)*0.5f;
+  float3 torig = (float3)(0.6f);
+  torig.x += sin(time)*3.0f;
+  float dist = sdSphere(origin-torig, 0.137f);
+  dist = Shell(dist, 0.0f)*0.5f;
+  MapUnionG(avoid, pt, dist, 1, (float3)(0.4f, 0.6f, 0.2f));
+  dist = sdSphere(origin-(float3)(1.17f, 0.7f, 0.25f), 0.2f);
   MapUnionG(avoid, pt, dist, 1, (float3)(0.4f, 0.6f, 0.2f));
 }
 void Hider ( int avoid, float3 origin, SampledPt* pt, float3 dval, float time){

@@ -48,11 +48,12 @@ struct OCLMaterial {
       cl_float diffuse, specular, glossy;
     }
     cl_float glossy_lobe;
-    cl_float transmittive;
+    @("Normalize") { cl_float transmittive; }
+    float ior;
     // PBR material
     cl_float roughness, metallic, fresnel, subsurface, anisostropic;
   }
-  cl_float padding_1, padding_2;
+  cl_float padding_1;
 }
 
 auto Set_OCLMaterial ( float[3] colour, float[] vals ) {

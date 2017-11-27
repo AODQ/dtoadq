@@ -18,7 +18,7 @@ string Parse ( ) {
   import stl : replace;
   string kernel = parser.file.parsed_kernel.Reprocess_Data.data,
          scene  = parser.file.parsed_scene .Reprocess_Data.data;
-  if ( parser.file.parsed_kernel.file_type != parser.file.FileType.DTOADQ )
+  if ( parser.file.parsed_kernel.file_type == parser.file.FileType.Texture )
     return scene;
 
   string camera     = RData_Subsection!("CAMERA"    )(scene),

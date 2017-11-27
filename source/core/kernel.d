@@ -79,8 +79,9 @@ void Update_Video_Render ( ) {
 ///
 float[] Run_Texture ( string filename ) {
   // save current state
-  auto prev_filename = core.info.RFilename,
-      prev_recompile = core.info.Should_Recompile;
+  auto prev_filename  = core.info.RFilename,
+       prev_recompile = core.info.Should_Recompile,
+       prev_type      = core.info.RType;
   // set map function and run
   core.info.Set_Texture_Function(filename);
   {
@@ -94,6 +95,7 @@ float[] Run_Texture ( string filename ) {
   ocl.Run(ocl.CLStoreMem(t_img), 1024.0f, 1024, 1024);
   // restore previous state
   core.info.Set_Map_Function(prev_filename);
+  core.info.Set_Kernel_Type(prev_type);
   if ( !prev_recompile ) {
     core.info.Clear_Recompile();
   }

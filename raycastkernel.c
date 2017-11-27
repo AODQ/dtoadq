@@ -36,7 +36,7 @@ typedef struct T_Material {
   float3 albedo;
   // sampling strategy
   float diffuse, specular, glossy, glossy_lobe;
-  float transmittive;
+  float transmittive, ior;
   // PBR material
   float roughness, metallic, fresnel, subsurface, anisotropic;
 } Material;

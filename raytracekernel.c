@@ -17,6 +17,10 @@
 #define writefloat3(X) if (Is_Debug()){printf(#X " %f, %f, %f\n",    DFLT3(X));}
 #define writefloat4(X) if (Is_Debug()){printf(#X " %f, %f, %f, %f\n",DFLT4(X));}
 
+// math macros
+#define SQR(T) ((T)*(T))
+#define Spectrum float3
+
 __constant float MARCH_ACC = //%MARCH_ACC.0f/1000.0f;
 // -----------------------------------------------------------------------------
 // --------------- DEBUG -------------------------------------------------------
@@ -39,7 +43,7 @@ typedef struct T_Material {
   float3 albedo;
   // sampling strategy
   float diffuse, specular, glossy, glossy_lobe;
-  float transmittive;
+  float transmittive, ior;
   // PBR material
   float roughness, metallic, fresnel, subsurface, anisotropic;
 } Material;
@@ -82,6 +86,9 @@ typedef struct T_SampledPt {
 } SampledPt;
 // -----------------------------------------------------------------------------
 // --------------- GENERAL UTILITIES      --------------------------------------
+float To_IOR ( float ior ) {
+  return 0.0f + 2.5f*ior;
+}
 float Distance(float3 u, float3 v) {
   float x = u.x-v.x, y = u.y-v.y, z = u.z-v.z;
   return sqrt(x*x + y*y + z*z);
@@ -143,10 +150,10 @@ float3 reflect ( float3 V, float3 N ) {
   return V - 2.0f*dot(V, N)*N;
 }
 
-float3 refract(float3 V, float3 N, float refraction) {
-  float cosI = -dot(N, V);
-  float cosT = 1.0f - refraction*refraction*(1.0f - cosI*cosI);
-  return (refraction*V) + (refraction*cosI - sqrt(cosT))*N;
+float3 refract(float3 I, float3 N, float ior) {
+  float cos_NI = dot(N, I);
+  float k = 1.0f - SQR(ior)*(1.0f - sqr(cos_NI));
+  return k < 0.0f ? (float3)(0.0f) : ior*I - (ior*cos_NI + sqrt(k))*N;
 }
 
 // -----------------------------------------------------------------------------
@@ -197,7 +204,7 @@ float Smith_G_GGX_Correlated ( float L, float R, float a ) {
   return L * sqrt(R - a*sqr(R) + a);
 }
 
-float3 BRDF_F ( float3 wi, float3 N, float3 wo, Material* m ) {
+float3 BRDF_F ( float3 wi, float3 N, float3 wo, Material* m, float3 col ) {
   // get binormal, bitangent, half vec etc
   const float3 binormal  = Binormal(N),
                bitangent = cross(binormal, N),
@@ -207,26 +214,27 @@ float3 BRDF_F ( float3 wi, float3 N, float3 wo, Material* m ) {
                cos_HV    = dot(H, V), cos_HL     = dot(H, L),
                Fresnel_L = Schlick_Fresnel(cos_NL),
                Fresnel_V = Schlick_Fresnel(cos_NV);
-  // Diffusive component, just made it up
-  float3 diffusive_albedo = m->albedo * pow(cos_HL * cos_NV, 0.5f) * IPI;
+  // Diffusive component
+  float3 diffusive_albedo = pow(col, 0.5f) * IPI;
 
   float3 microfacet = (float3)(1.0f);
 
-  /* if ( cos_NL < 0.0f || cos_NV < 0.0f ) */
-  /*   return (float3)(0.0f); */
+  if ( isnan(cos_NL) || isnan(cos_NV) || cos_NL < 0.0f || cos_NV < 0.0f )
+    return diffusive_albedo;
 
   { // ------- Fresnel
     // modified diffusive fresnel from disney, modified to use albedo & F0
     const float F0 = m->fresnel * m->metallic,
-                Fresnel_diffuse_90 = F0 * sqr(cos_HL);
-    microfacet *= (1.0f - F0) * diffusive_albedo +
+                Fresnel_diffuse_90 = F0 * SQR(cos_HL);
+     microfacet *= (1.0f - F0) * diffusive_albedo +
                     mix(1.0f, Fresnel_diffuse_90, Fresnel_L) *
                     mix(1.0f, Fresnel_diffuse_90, Fresnel_V);
   }
+
   { // ------- Geometric
     // Heits 2014, SmithGGXCorrelated with half vec combined with anisotropic
-    // term using disney's GTR2_aniso model
-    const float Param  = sqr(0.5f + sqr(m->roughness)),
+    // term using GTR2_aniso model
+    const float Param  = 0.5f + m->roughness,
                 Aspect = sqrt(1.0f - m->anisotropic*0.9f),
                 Ax     = Param/Aspect, Ay = Param*Aspect,
                 GGX_NV = Smith_G_GGX_Correlated(cos_HL, cos_NV, Ax),
@@ -235,8 +243,8 @@ float3 BRDF_F ( float3 wi, float3 N, float3 wo, Material* m ) {
   }
   { // ------- Distribution
     // Hyper-Cauchy Distribution using roughness and metallic
-    const float Param = 1.0f + m->roughness,
-                Shape = (1.1f - sqrt(m->metallic)),
+    const float Param = 1.2f + m->anisotropic,
+                Shape = (1.1f - m->roughness*0.55f),
                 tan_HL = length(cross(H, L))/cos_HL;
     const float Upper  = (Param - 1.0f)*pow(sqrt(2.0f), (2.0f*Param - 2.0f)),
                 LowerL = (PI*sqr(Shape) * pow(cos_HL, 4.0f)),
@@ -249,41 +257,95 @@ float3 BRDF_F ( float3 wi, float3 N, float3 wo, Material* m ) {
   microfacet /= 4.0f * cos_HV * fmax(cos_NL, cos_NV);
 
   { // --------- Subsurface
-    // modified disney retro reflection based off Hanrahan-Grueger BSSRDF
-    //   approximation
-    const float Rr_term = (2.0f * (0.5f + m->roughness) * sqr(dot(N, H)));
+    // based off the Henyey-Greenstein equation
+    const float R = 0.7f*(1.0 - m->roughness),
+                M = 0.2f + m->subsurface;
+    const float Rr_term = M * (1.0f - sqr(R))*(4.0f*IPI) *
+                          (1.0f/(pow(1.0f + sqr(R) - 2.0f*R*cos_HL, 3.0f/2.0f)));
     const float3 Retro_reflection = diffusive_albedo * Rr_term *
-      (Fresnel_L + Fresnel_V + (Fresnel_L*Fresnel_V*(Rr_term - 1.0f)));
-    diffusive_albedo = mix(diffusive_albedo, Retro_reflection, m->subsurface);
+                      (Fresnel_L + Fresnel_V + (Fresnel_L*Fresnel_V*(Rr_term)));
+    diffusive_albedo = mix(diffusive_albedo, pow(Retro_reflection, (float3)(0.5f)),
+                           m->subsurface*0.5f);
   }
 
-  return (microfacet + diffusive_albedo);
+  return mix((microfacet + diffusive_albedo),
+             col,
+             m->specular+m->transmittive);
 }
 
-float3 Illuminate ( float3 O, float3 Wi, float3 col, Material* m,
-                    SCENE_T(si, Tx) ) {
+float3 RColour ( float3 pt_colour, Material* m ) {
+  return (pt_colour.x >= 0.0f) ? pt_colour : m->albedo;
+}
+
+typedef struct T_IlluminateHorcrux {
+  float3 colour;
+  float3 N;
+} IlluminateHorcrux;
+IlluminateHorcrux Illuminate ( float3 O, float3 Wi, float3 col, Material* m,
+                               SCENE_T(si, Tx) ) {
   float3 colour = (float3)(0.0f);
+  float3 N = Normal(O, si, Tx);
   for ( int i = 0; i != EMITTER_AMT; ++ i ) {
     Emitter emit = REmission(i, si->debug_values, si->time);
 
     float3 V = normalize(Wi),
-           N = Normal(O, si, Tx),
            L = normalize(emit.origin - O);
-    float3 pcolour = m->albedo.x < 0.0f ? col : m->albedo;
-    float3 brdf = BRDF_F(V, N, L, m);
-    float shadow = Visibility_Ray(O, emit.origin, emit.radius, si, Tx);
+    float3 brdf = BRDF_F(V, N, L, m, RColour(col, m));
 
-    colour += (brdf) * dot(N, L) * (emit.emission);
+    colour += (brdf);
   }
-  return colour / EMITTER_AMT;
+  return (IlluminateHorcrux){colour / EMITTER_AMT, N};
+}
+
+typedef struct T_SpecularApproxHorcrux {
+  float3 origin, colour, N;
+  Material* mat;
+} SpecularApproxHorcrux;
+SpecularApproxHorcrux Specular_Approx(Ray ray, SCENE_T(si, Tx)) {
+  ray.origin += ray.dir*0.01f;
+  SampledPt spec_result = March(-1, ray, si, Tx);
+  if ( spec_result.dist < 0.0f )
+    return (SpecularApproxHorcrux){ray.origin, ray.origin, NULL};
+  Material* sm = si->materials + spec_result.material_index;
+  float3 colour = spec_result.colour;
+  float3 origin = ray.origin + ray.dir*spec_result.dist;
+  IlluminateHorcrux ih = Illuminate(origin, ray.dir, colour, sm, si, Tx);
+  return (SpecularApproxHorcrux){origin, ih.colour, ih.N, sm};
 }
 
 SampledPt Colour_Pixel(Ray ray, SCENE_T(si, Tx)) {
   SampledPt result = March(-1, ray, si, Tx);
+  if ( result.dist < 0.0f ) return result;
   float3 origin = ray.origin + ray.dir*result.dist;
   Material* m = si->materials + result.material_index;
 
-  result.colour = Illuminate(origin, ray.dir, result.colour, m, si, Tx);
+  IlluminateHorcrux res = Illuminate(origin, ray.dir, result.colour, m, si, Tx);
+  result.colour = res.colour;
+  // specular approximation
+  if ( m->specular > 0.0f ) {
+    ray = (Ray){origin, reflect(ray.dir, res.N)};
+    SpecularApproxHorcrux sah = Specular_Approx(ray, si, Tx);
+    if ( sah.mat )
+      result.colour = mix(result.colour, sah.colour, m->specular);
+  }
+  // transmittive approximation
+  if ( m->transmittive > 0.0f ) {
+    ray = (Ray){origin, refract(ray.dir, res.N, To_IOR(m->ior))};
+    SpecularApproxHorcrux first = Specular_Approx(ray, si, Tx);
+    if ( first.mat ) {
+      float3 realcol = mix(result.colour, first.colour, m->transmittive);
+      if ( first.mat->transmittive > 0.0f ) {
+        ray = (Ray){first.origin,
+                    refract(ray.dir, first.N, To_IOR(first.mat->ior))};
+        SpecularApproxHorcrux sec = Specular_Approx(ray, si, Tx);
+        if ( sec.mat )
+          realcol = mix(realcol, sec.colour, first.mat->transmittive);
+      }
+      result.colour = realcol;
+    }
+  }
+
+  // glossy approximation [none now]
 
   return result;
 }

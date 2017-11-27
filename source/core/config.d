@@ -5,7 +5,7 @@ static import core.info, core.kernel;
 auto Configure ( ) {
   // initialize variables before configuring
   core.kernel.Initialize_Variables();
-  core.info.Set_Kernel_Type(core.info.KernelType.DTQ);
+  core.info.Set_Kernel_Type(RDefault_Kernel);
   // now config
   core.info.Set_Map_Function(RDefault_Project());
   alias KV = core.info.KernelVar;
@@ -20,6 +20,21 @@ private auto RZipped_KVars(KV...)(KV vars) {
   string[] str;
   foreach ( v; vars ) { kv ~= v; str ~= stl.to!string(v); }
   return zip(kv, str);
+}
+
+core.info.KernelType RDefault_Kernel ( ) {
+  static immutable auto Default_kernel_type = core.info.KernelType.DTQ;
+  if ( !conf.Exists ) return Default_kernel_type;
+  stl.json.JSONValue load = conf.JSON_Value;
+
+  try {
+    import std.string : toLower;
+    switch ( load["default-kernel"].str.toLower ) {
+      default: case "dtq": return core.info.KernelType.DTQ;
+      case "rt": case "raytrace": return core.info.KernelType.Raytrace;
+      case "rc": case "raycast":  return core.info.KernelType.Raycast;
+    }
+  } catch ( Exception e ) { return Default_kernel_type; }
 }
 
 string RDefault_Project ( ) {
