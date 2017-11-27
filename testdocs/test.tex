@@ -6,6 +6,7 @@
 \usepackage{graphicx}
 \graphicspath{ {images/} }
 \usepackage[margin=1.15in]{geometry}
+\author{aodq}
 
 \lstset{frame=tb,
   basicstyle=\footnotesize,
@@ -157,12 +158,29 @@ hand allows a cheap normal computation of primitives such as a spheres.
   	 
   	 And $cos\theta_i$ is the normal attenuation.
   	 
-  Conceptually, this is the behavior of photons bouncing off several surfaces of a scene. While it's a very simple model, it's impossible to solve analytically for anything but the most simple of scenes, mostly due to, for example, the radiance at $P0$ relies on $P1$, and $P1$ relies on $P0$.
+  Conceptually, this is the behavior of photons bouncing off several surfaces of a scene. While it's a very simple model, it's impossible to solve analytically for anything but the most simple of scenes, mostly due to, for example, the radiance at $P0$ relies on $P1$, and $P1$ relies on $P0$. Another thing to remember is that while it is shown to be integrated over a sphere, it is usually shown to be integrated over hemisphere $\Omega$ using either $f_r$ or $f_s$.
   
-  Another thing to remember is that while it is shown to be integrated over a sphere, it is almost always, and will be for the rest of this document, integrated over hemisphere $\Omega$ using either $f_r$ or $f_s$.
+  To compute this unbiasedly, it is required to use PDFs as described before to approximate the integral using Monte Carlo simulation. The technique is to generate $N$ uniformly random samples, weight them by their probability distribution, and then average the results:
   
+  \begin{align}
+   \int{f(x)} \: \approx \frac{1}{N}\Sigma_0^N{\frac{f(x)}{p(x)}}
+  \end{align}
   
-  Unfortunately, this formula does not work very well in regards to bidirectional path tracing. The reason is because BDPT requires to work in terms of surfaces rather than solid angle, ei, $v_0 \rightarrow v_1$. So now the rendering equation must be transformed from solid angle to surfaces:
+  With standard "backward" path tracing, a photon would be emitted from a light source and scatter in the scene until it hit an 'eye' or 'camera'. While this is what happens in reality, in computer graphics, most of the samples never end up hitting the camera/eye, so it is much more efficient to instead start from the eye, and end at an emitter/light source. In this case, since we are integrating over solid angle, the probably distribution function would be related to sampling the BRDF. So for example, on a specular surface, the PDF is $1.0$ where $\omega_o = reflect(\omega_i, N)$ and $0.0$ otherwise. An obvious optimization is to only sample over the valid BSDF angles, which is known as importance sampling. In DTQ, there are three BSDF functions:
+  
+  \begin{list}{}{}
+  \item BSDF Spectrum: The albedo at $(P,\:\omega_i,\:\omega_o)$
+  \item BSDF Sample: Samples a $\omega_o$ for a $(P,\:\omega_i)$
+  \item BSDF PDF: The probability distribution of $(P,\:\omega_i,\:\omega_o)$
+  \end{list}
+  
+  There are many more optimizations to be made as well. For example, at each scattering event, an additional photon can be sent towards each emitter. This is what is known as next-event estimation. While this improves performance drastically, naively averaging each contribution is a problem, because each path has a different probability to their paths/contributions. The technique to sample them properly, multiple importance sampling, is related to BDPT, however it will be detailed later. The important thing to understand is that, in this sampling strategy, there is a new PDF introduced which relates to the probability of a path being generated, and this is critical to understand the concept of BDPT.
+  
+  Now, the optimization that is of focus in DTQ is Bidirectional Path Tracing. Instead of starting from an eye or light, a 'photon' (path) is generated from both, allowed to scatter in the scene for a few paths (the length is determined by Russian Roulette described later), and connected. It's not exactly the end-points of the paths that are being connected, but each vertex generated is connected to each other. [SHOW EXAM{E}
+  
+  ]This actually has an interesting correlation to next-event estimation, as it could be seen as 'extending' the amount of emitters that can be connected to. 
+  
+  Unfortunately, this formula does not work with BDPT, as it is necessary to transform the formula to work in terms of surface areas rather than solid angle, ei, $v_0 \rightarrow v_1$. The transformation looks like so:
   \begin{align}
     f_s(v \rightarrow \dot{v} \rightarrow \ddot{v}) &= f_s(P, \omega_i,
                                                       \omega_o)\\
@@ -172,24 +190,14 @@ hand allows a cheap normal computation of primitives such as a spheres.
     That is, instead of looking at a point $P$ with an incoming and outgoing
     angle $(\omega_i,\:\omega_o)$, look at the path from $P_{-1}$ ($v$) to
     $P_{+1}$ ($\ddot{v}$). More accurately, it's the transport between
-    three different surfaces of the scene. In terms of SDFs, the surface
-    is every point on an SDF map where $|map| \leq \epsilon$. There's no longer
-    any integration over a hemisphere with solid angle $\omega_i$, it's now over
-    every single surface in the scene. This will be explained in detail later.
-\\
-    In the case of $L_e$,
-    DTOADQ [at least, for now], only has support for area-light. Thus consider:
+    three different surfaces of the scene. There's a small change to be made in the case of $L_e$, as DTOADQ [at least, for now], only has support for area-light. Thus consider:
 
   \begin{align}
     L_e(P, \omega_o) &\equiv L_e(P) &\text{[ for area lights ]}\\
     L_e(v \rightarrow \dot{v}) &= L_e^0(v)&
   \end{align}
 
-    The cos term, used for the projected solid angle in irradiance, no longer
-    applies when dealing with area. This and $d\omega_i$ now become a
-    generalized geometry term, G, that converts a PDF with respect to solid area
-    using Jacobian mapping, which involves the inverse squared distance, and the
-    cosine angle between the geometric normals at $v$ and $\dot{v}$:
+    Instead of working with solid angles, we now work with a geometry term, G, that converts a PDF with respect to solid angle to surface area, which involves the inverse squared distance, and the cosine angle between the geometric normals at $v$ and $\dot{v}$:
 
   \begin{align}
     cos\theta_n = v \cdot N(v) \\
@@ -224,8 +232,8 @@ hand allows a cheap normal computation of primitives such as a spheres.
   \end{align}
 
     where $s$ is the light-path length, and $t$ is the eye-path length. In
-    DTOADQ, they are limited to $s+t \leq 8$[TODO]. Finally, to transform
-    $\bar{v}$ into two seperate paths, $\frac{f_j(\bar{v}_{s,
+    DTOADQ, they are limited to $s+t \leq DEPTH$, a kernel-defined macro. Finally, to transform
+    $\bar{v}$ into two seperate paths, so that an eye and light path may be generated, $\frac{f_j(\bar{v}_{s,
         t})}{p(\bar{v}_{s, t})}$ is split into two with a connection edge $c$
   \begin{align}
     \frac{f_j(\bar{v}_{s, t})}{p(\bar{v}_{s, t})} \equiv
