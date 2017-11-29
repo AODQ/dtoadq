@@ -16,6 +16,7 @@ bool Imgui_Render ( ref ocl.Camera camera ) {
       igText(gui.Accum("Camera Angle",
         camera.lookat[0..3].map!(n => cast(int)(n*100.0f)/100.0f)));
       change |= igSliderFloat("FOV", &camera.fov, 50.0f, 140.0f);
+      change |= igSliderFloat("Focal", &camera.focal, 0.1f, 10.0f);
     }
     // -- render options --
     if ( igCollapsingHeader("Render Options") ) {

@@ -43,7 +43,7 @@ bool Is_Debug ( ) {
 typedef struct T_Camera {
   float3 position, lookat, up;
   int2 dim;
-  float fov;
+  float fov, focal;
   int flags;
 } Camera;
 
@@ -865,12 +865,14 @@ Spectrum BDPT_Integrate ( float3 pixel, float3 dir, SCENE_T(si, Tx)) {
 
       Spectrum contribution = E1.irradiance * L1->irradiance;
 
-      if ( light_depth > 0 ) { // s >= 1, t >= 1 strategy
-        contribution *= Subpath_Connection(&E0, &E1, L1);
+      // As there is no T=1 case, L1 -> E1 -> E0 [Le in s=1 case] must happen
+      contribution *= Subpath_Connection(L1, &E1, &E0);
+
+      // For s == 1, L1 = L0, a point on the surface of emitter, there is no
+      // L0 -> L1 -> E1 connection
+      if ( light_depth > 0 ) {
+        // Connect L0 -> L1 -> E1
         contribution *= Subpath_Connection( L0,  L1, &E1);
-      } else { // s == 1 strategy. L1 = L0, a point on the surface of area light
-        // Connect E0 -> E1 -> L1
-        contribution *= Subpath_Connection(&E0, &E1, L1);
       }
 
       // Geometric connection term [includes visibility check]

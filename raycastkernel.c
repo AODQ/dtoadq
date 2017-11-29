@@ -27,7 +27,7 @@ __constant float MARCH_ACC = //%MARCH_ACC.0f/1000.0f;
 typedef struct T_Camera {
   float3 position, lookat, up;
   int2 dim;
-  float fov;
+  float fov, focal;
   int flags;
 } Camera;
 
@@ -76,6 +76,29 @@ typedef struct T_SampledPt {
   float dist;
   int material_index;
 } SampledPt;
+
+// -----------------------------------------------------------------------------
+// --------------- GENERAL FUNCTIONS      --------------------------------------
+float Rand ( SceneInfo* si ) {
+  enum { A=4294883355U };
+  uint2 r = (*si).rng_state;
+  uint res = r.x^r.y;
+  uint hi = mul_hi(r.x, A);
+  r.x = r.x*A + r.y;
+  r.y = hi + (r.x<r.y);
+  (*si).rng_state = r;
+  return res/(float)(UINT_MAX);
+}
+
+float Sample_Uniform ( SceneInfo* si ) {
+  return Rand(si);
+}
+float2 Sample_Uniform2 ( SceneInfo* si ) {
+  return (float2)(Sample_Uniform(si), Sample_Uniform(si));
+}
+float3 Sample_Uniform3 ( SceneInfo* si ) {
+  return (float3)(Sample_Uniform(si), Sample_Uniform2(si));
+}
 // -----------------------------------------------------------------------------
 // --------------- MAP GEOMETRY FUNCTIONS --------------------------------------
 
@@ -149,10 +172,12 @@ float3 RColour ( float3 pt_colour, Material* m ) {
 
 // -----------------------------------------------------------------------------
 // --------------- CAMERA ------------------------------------------------------
-Ray Camera_Ray(Camera* camera) {
+Ray Camera_Ray(Camera* camera, SceneInfo* si) {
   float2 coord = (float2)((float)get_global_id(0), (float)get_global_id(1));
   float2 resolution = (float2)((float)camera->dim.x, (float)camera->dim.y);
   resolution.y *= 16.0f/9.0f;
+
+  float fov_r = (180.0f - camera->fov)*PI/180.0f;
 
   float2 mouse_pos = camera->lookat.xy;
 
@@ -168,9 +193,17 @@ Ray Camera_Ray(Camera* camera) {
 
   float3 cam_up = normalize(cross(cam_right, cam_front));
   float3 ray_dir = normalize(puv.x*cam_right + puv.y*cam_up +
-                             (180.0f - camera->fov)*PI/180.0f*cam_front);
+                             fov_r*cam_front);
 
   Ray ray;
+
+  // ------ DOF & antialiasing -----
+  float3 dof_pos = camera->position + ray_dir*camera->focal;
+  // move new position around
+  dof_pos += (Sample_Uniform2(si)-0.5f)*2.0f;
+
+  ray_dir = normalize(cam_pos - dof_pos);
+
   ray.origin = cam_pos;
   ray.dir = ray_dir;
   return ray;
@@ -199,7 +232,7 @@ __kernel void DTOADQ_Kernel (
 
   SceneInfo scene_info = New_SceneInfo(time, materials, dval, rng);
 
-  Ray ray = Camera_Ray(&camera);
+  Ray ray = Camera_Ray(&camera, &scene_info);
   SampledPt pt = March(-1, ray, &scene_info, textures);
   if ( pt.dist >= 0 ) {
     float3 O = ray.origin + pt.dist*ray.dir;

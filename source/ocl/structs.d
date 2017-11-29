@@ -4,7 +4,7 @@ import ocl.opencl;
 struct Camera {
   cl_float3 position, lookat, up;
   cl_int2 dimensions;
-  cl_float fov;
+  cl_float fov, focal;
   cl_int flags;
 
   this ( float[3] pos, float[3] dir, int[2] dim ) {
