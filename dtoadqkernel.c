@@ -1027,7 +1027,7 @@ __kernel void DTOADQ_Kernel (
     _EvalPreviousOutputHorcrux _hor =
           Eval_Previous_Output(img, output_img, out, sinfo, pix_pt);
     old_colour = _hor.old_colour;
-    if ( old_colour.w >= spp ) return;
+    if ( old_colour.w >= 64 ) return;
     if ( _hor.raycast_nav && DO_NAVIGATION ) {
       // Laughably bad raycast to make it easy to navigate a scene
       SampledPt pt = March(-1, ray, &scene_info, textures);

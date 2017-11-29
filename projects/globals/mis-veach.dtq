@@ -83,13 +83,13 @@ void Room ( int avoid, float3 origin, SampledPt* pt, float time, float3 dval ) {
   MapUnionG(avoid, pt, dist, 0, colour);
   colour = (float3)(sin(origin.z*PI*5.0f)*sin(origin.y*PI*5.0f) >= 0.0f) + 0.5f;
   colour *= (float3)(0.0f, 0.0f, 1.0f);
-  dist = sdPlane(origin, normalize((float3)(-1.0f, 0.0f, 0.0f)), 1.5f);
+  dist = sdPlane(origin, normalize((float3)(-1.0f, 0.0f, 0.0f)), 10.5f);
   MapUnionG(avoid, pt, dist, 0, colour);
   dist = sdPlane(origin, normalize((float3)(1.0f, 0.0f, 0.0f)), 1.5f);
   MapUnionG(avoid, pt, dist, 0, colour);
   colour = (float3)(sin(origin.x*PI*5.0f)*sin(origin.z*PI*5.0f) >= 0.0f) + 0.5f;
   colour *= (float3)(0.0f, 1.0f, 0.0f);
-  dist = sdPlane(origin, normalize((float3)(0.0f, -1.0f, 0.0f)), 10.5f);
+  dist = sdPlane(origin, normalize((float3)(0.0f, -1.0f, 0.0f)), 1.5f);
   MapUnionG(avoid, pt, dist, 0, colour);
   dist = sdPlane(origin, normalize((float3)(0.0f, 1.0f, 0.0f)), 1.5f);
   MapUnionG(avoid, pt, dist, 0, colour);
@@ -113,9 +113,13 @@ void Hider ( int avoid, float3 origin, SampledPt* pt, float3 dval, float time){
   MapUnionG(avoid, pt, dist, 1, (float3)(1.0f));
 }
 void BSDFModel ( int avoid, float3 O, SampledPt* pt, float3 dval, float time){
+  O += (float3)(0.3f);
+  float id;
+  O.x = opMod1(O.x, 0.5f, &id);
   float dist = sdBox(O, (float3)(0.1f))*0.5f;
-  dist += sin(O.x*2.0f)*0.1f + cos(O.z*128.0f)*0.001f;
-  MapUnionG(avoid, pt, dist, 2, (float3)(-1.0f));
+  // dist += sin(O.x*2.0f)*0.1f + cos(O.z*128.0f)*0.001f;
+  id *= 2349234.2349234f;
+  MapUnionG(avoid, pt, dist, 2, noise2to3((float2)(id, noise1D(id))));
 }
 
 void Update_Map ( int avoid, float3 origin, SampledPt* pt, float time,

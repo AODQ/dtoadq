@@ -34,9 +34,10 @@ bool Is_Debug ( ) {
 typedef struct T_Camera {
   float3 position, lookat, up;
   int2 dim;
-  float fov;
+  float fov, focal, radius;
   int flags;
 } Camera;
+
 
 typedef struct T_Material {
   // colour [set to (-1.0, -1.0, -1.0) to have map override it]
@@ -53,18 +54,27 @@ typedef struct T_Emitter {
   float radius;
 } Emitter;
 
+typedef struct T_SharedInfo {
+  unsigned char clear_img;
+  unsigned long finished_samples;
+  unsigned char spp;
+  uint2 rng_state;
+} SharedInfo;
+
 typedef struct T_SceneInfo {
   float time;
   // __read_only image2d_array_t textures; IMAGES CANT BE USED AS FIELD TYPES:-(
   Material* materials;
   float3 debug_values;
+  uint2 rng_state;
 } SceneInfo;
 SceneInfo New_SceneInfo(float time, Material* materials,
-                        float3 debug_values){
+                        float3 debug_values, uint2 rng){
   SceneInfo si;
   si.time         = time;
   si.materials    = materials;
   si.debug_values = debug_values;
+  si.rng_state    = rng;
   return si;
 }
 
@@ -84,6 +94,38 @@ typedef struct T_SampledPt {
   float dist;
   int material_index;
 } SampledPt;
+
+float Rand ( SceneInfo* si ) {
+  enum { A=4294883355U };
+  uint2 r = (*si).rng_state;
+  uint res = r.x^r.y;
+  uint hi = mul_hi(r.x, A);
+  r.x = r.x*A + r.y;
+  r.y = hi + (r.x<r.y);
+  (*si).rng_state = r;
+  return res/(float)(UINT_MAX);
+}
+
+float3 Float3_Max(float3 t, float g) {
+  return (float3)(fmax(t.x, g), fmax(t.y, g), fmax(t.z, g));
+}
+float3 Float3_Min(float3 t, float g) {
+  return (float3)(fmin(t.x, g), fmin(t.y, g), fmin(t.z, g));
+}
+
+float Sample_Uniform ( SceneInfo* si ) {
+  return Rand(si);
+}
+float2 Sample_Uniform2 ( SceneInfo* si ) {
+  return (float2)(Sample_Uniform(si), Sample_Uniform(si));
+}
+// -1 .. 1
+float2 Sample_Uniform2_2 ( SceneInfo* si ) {
+  return ((float2)(Sample_Uniform(si), Sample_Uniform(si))-(float2)(0.5f))*2.0f;
+}
+float3 Sample_Uniform3 ( SceneInfo* si ) {
+  return (float3)(Sample_Uniform(si), Sample_Uniform2(si));
+}
 // -----------------------------------------------------------------------------
 // --------------- GENERAL UTILITIES      --------------------------------------
 float To_IOR ( float ior ) {
@@ -294,7 +336,7 @@ IlluminateHorcrux Illuminate ( float3 O, float3 Wi, float3 col, Material* m,
 
     colour += (brdf);
   }
-  return (IlluminateHorcrux){colour / EMITTER_AMT, N};
+  return (IlluminateHorcrux){Float3_Min(colour / EMITTER_AMT, 1.0f), N};
 }
 
 typedef struct T_SpecularApproxHorcrux {
@@ -352,10 +394,12 @@ SampledPt Colour_Pixel(Ray ray, SCENE_T(si, Tx)) {
 
 // -----------------------------------------------------------------------------
 // --------------- CAMERA ------------------------------------------------------
-Ray Camera_Ray(Camera* camera) {
+Ray Camera_Ray(Camera* camera, SceneInfo* si) {
   float2 coord = (float2)((float)get_global_id(0), (float)get_global_id(1));
   float2 resolution = (float2)((float)camera->dim.x, (float)camera->dim.y);
   resolution.y *= 16.0f/9.0f;
+
+  float fov_r = (180.0f - camera->fov)*PI/180.0f;
 
   float2 mouse_pos = camera->lookat.xy;
 
@@ -370,31 +414,59 @@ Ray Camera_Ray(Camera* camera) {
   float3 cam_right = normalize ( cross(cam_front, (float3)(0.0f, 1.0f, 0.0f)));
 
   float3 cam_up = normalize(cross(cam_right, cam_front));
-  float3 ray_dir = normalize(puv.x*cam_right + puv.y*cam_up +
-                             (180.0f - camera->fov)*PI/180.0f*cam_front);
-
   Ray ray;
+
+  /* // ------ DOF & antialiasing ----- */
+  // Adapted from https://www.shadertoy.com/view/lsX3DH
+  float3 dof_puv = (float3)(puv, fov_r);
+  float3 ray_dir = dof_puv.x*cam_right + dof_puv.y*cam_up + fov_r*cam_front;
+  float3 dof_origin = camera->radius*(float3)(Sample_Uniform2_2(si), 0.0f);
+  float3 dof_dir = normalize(dof_puv * camera->focal - dof_origin);
+  cam_pos += dof_origin.x*cam_right + dof_origin.y*cam_up;
+  ray_dir += dof_dir.x*cam_right + dof_dir.y*cam_up;
+  ray_dir = normalize(ray_dir);
   ray.origin = cam_pos;
   ray.dir = ray_dir;
   return ray;
 }
 
+typedef struct _T_EvalPreviousOutputHorcrux {
+  float4 old_colour;
+  bool raycast_nav;
+} _EvalPreviousOutputHorcrux;
+
+_EvalPreviousOutputHorcrux Eval_Previous_Output(
+    __global unsigned char* img, __write_only image2d_t output, int2 out,
+    __global SharedInfo* shared_info, int pt) {
+  _EvalPreviousOutputHorcrux hor;
+  hor.old_colour = (float4)(0.0f);
+  hor.raycast_nav = (shared_info->clear_img);
+  if ( !hor.raycast_nav) {
+    hor.old_colour = (float4)(img[pt+0]/255.0f, img[pt+1]/255.0f,
+                              img[pt+2]/255.0f, (float)(img[pt+3]));
+  } else {
+    img[pt+0] = 0.0f; img[pt+1] = 0.0f; img[pt+2] = 0.0f; img[pt+3] = 0.0f;
+    shared_info->finished_samples = 0;
+  }
+  return hor;
+}
+
 // -----------------------------------------------------------------------------
 // --------------- RAYTRACE KERNEL ---------------------------------------------
 __kernel void DTOADQ_Kernel (
-    __global unsigned char* img, // R G B ITER
-    __write_only image2d_t output_image,
-    __global unsigned char*     clear_img,
-    __global Camera* camera_ptr,
-    __global float* time_ptr,
+    __global unsigned char*     img, // R G B ITER
+    __write_only image2d_t      output_img,
+    __global SharedInfo*        sinfo,
+    __global Camera*            camera_ptr,
+    __global float*             time_ptr,
     __read_only image2d_array_t textures,
-    __global Material* g_materials,
-    __global float* debug_val,
-    __global int*   rng
+    __global Material*          g_materials,
+    __global float*             debug_val_ptr,
+    __global uint2*             rng_states
   ) {
   int2 out = (int2)(get_global_id(0), get_global_id(1));
   Camera camera = *camera_ptr;
-  float3 dval = (float3)(debug_val[0], debug_val[1], debug_val[2]);
+  float3 dval = (float3)(debug_val_ptr[0], debug_val_ptr[1], debug_val_ptr[2]);
   float time = *time_ptr;
   // -- get old pixel, check if there are samples to be done
   //    (counter is stored in alpha channel)
@@ -405,28 +477,44 @@ __kernel void DTOADQ_Kernel (
     materials[i] = *(g_materials + i);
   }
 
-  SceneInfo scene_info = New_SceneInfo(time, materials, dval);
+  SceneInfo scene_info = New_SceneInfo(time, materials, dval,
+                      rng_states[out.y*camera.dim.x + out.x]);
 
-  Ray ray = Camera_Ray(&camera);
+  Ray ray = Camera_Ray(&camera, &scene_info);
   SampledPt result = Colour_Pixel(ray, &scene_info, textures);
 
-  float3 colour;
+  float3 col;
   if ( result.dist >= 0.0f ) {
-    colour = result.colour;
+    col = result.colour;
   } else {
-    colour = (float3)(0.0f);
+    col = (float3)(-1.0f);
   }
-  // convert to Y CB R, from matlab
-  write_imagef(output_image, out, (float4)(colour, 1.0f));
-  colour = (float3)(
-      16.0f + (  65.481f*colour.x + 128.553f*colour.y + 24.966f*colour.z),
-      128.0f + (- 37.797f*colour.x - 74.2030f*colour.y + 112.00f*colour.z),
-      128.0f + ( 112.000f*colour.x - 93.7860f*colour.y - 18.214f*colour.z)
-  );
-  int irwx = (camera.dim.y - out.y)*camera.dim.x + out.x;
-  int irwy = irwx + camera.dim.x*camera.dim.y;
-  int irwz = irwx + camera.dim.x*camera.dim.y*2;
-  img[irwx] = (unsigned char)(colour.x);
-  img[irwy] = (unsigned char)(colour.y);
-  img[irwz] = (unsigned char)(colour.z);
+
+  float4 old_colour = (float4)(0.0f);
+  int pix_pt = out.y*camera.dim.x*4 + out.x*4;
+  {
+    _EvalPreviousOutputHorcrux _hor =
+      Eval_Previous_Output(img, output_img, out, sinfo, pix_pt);
+    old_colour = _hor.old_colour;
+    if ( old_colour.w >= (float)(64) ) return;
+    if ( _hor.raycast_nav ) {
+      write_imagef(output_img, out, (float4)(col, 1.0f));
+      return;
+    }
+  }
+
+  write_imagef(output_img, out, (float4)(col, 1.0f));
+  if ( col.x >= 0.0f ) {
+    old_colour = (float4)(mix(col, old_colour.xyz,
+                              (old_colour.w/(old_colour.w+1.0f))),
+                          old_colour.w+1.0f);
+    float4 nold_colour;
+    write_imagef(output_img, out, (float4)(old_colour.xyz, 1.0f));
+    //
+    img[pix_pt+0] = (unsigned char)(old_colour.x*255.0f);
+    img[pix_pt+1] = (unsigned char)(old_colour.y*255.0f);
+    img[pix_pt+2] = (unsigned char)(old_colour.z*255.0f);
+    img[pix_pt+3] = (unsigned char)(old_colour.w);
+  }
+  rng_states[out.y*camera.dim.x + out.x] = scene_info.rng_state;
 }

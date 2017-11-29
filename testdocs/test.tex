@@ -74,9 +74,31 @@ gradients not yet currently provided in DTOADQ but are worth mentioning, a
 few are: an additional normal call using an alternative (higher-quality) SDF
 map can be used to compute a 'normal' bumpmap, and analyzing the gradient by
 hand allows a cheap normal computation of primitives such as a spheres.
+
+
+  Overall, it seems that while SDFs are fun to play around with, for the case of
+  writing a generalized light transport algorithm to apply to SDFs causes a lot
+  of problems while being generally limiting. The biggest problem is dealing
+  with transparent materials, and dealing with visibility checks. For
+  transparent materials, it's required that the ray march 'through' the SDF
+  primitive, and find the exit. The solution is to apply a 'shell' to the SDF,
+  or in other words, force the SDF to be unsigned:
+
+\begin{lstlisting}
+float Shell ( float dist, float r ) {
+  return fabs(dist) - r*0.5f;
+}
+\end{lstlisting}
+  
   \section{OpenCL}
 	OpenCL, and GPU programming in general, is where I am least knowledgeable or
-interested. Well, OpenCL is easy to work with, and I wrote my own OpenCL module
+interested. Well, OpenCL is easy enough to work with compared to OGL or CUDA,
+however I'm not good at dealing with the intrinsics of the GPU: optimizing code,
+knowing how memory and thread/workers should be handled, etc. For example,
+probably the biggest problem with the DTQ kernel right now is it is a single
+file megakernel. There just was never any interest to split it into multiple
+files nor multiple kernels. However, working directly with the OpenCL api is
+easy enough, and I did write my own OpenCL module
 to handle OCL in a rather convenient method, for example, the DTOADQ kernel call
 looks as such:
 	\begin{lstlisting}
@@ -547,6 +569,19 @@ corresponding to $E_1$. Thus, the weight on each path looks like:
     \end{cases}
   \end{align}
 
+
+
+  The camera handling function is based off glLookAt. The difference is that it
+  supports field of view, depth of field and antialiasing. The model isn't
+perfect and has a few bugs, mostly because the camera used in DTQ
+is a pinhole camera, or as I call it delta camera. In general, very little time
+was spent on the camera mechanics. In the future, there will be a physical
+camera lens in the SDF, so as to actually simulate depth of field, aperture,
+etc. Shown below is an exaggerated depth-of-field in the raytracer.
+\\
+
+
+  \includegraphics[scale=0.5]{rt_dof}
 
   \section{DTOADQ BRDF}
   DTOADQ supports a "universal" physically-based sampling and spectrum BRDF. The

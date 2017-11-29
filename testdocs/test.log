@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.14159265-2.6-1.40.18 (TeX Live 2017/Arch Linux) (preloaded format=pdflatex 2017.11.27)  29 NOV 2017 11:56
+This is pdfTeX, Version 3.14159265-2.6-1.40.18 (TeX Live 2017/Arch Linux) (preloaded format=pdflatex 2017.11.19)  29 NOV 2017 15:50
 entering extended mode
  restricted \write18 enabled.
  file:line:error style messages enabled.
@@ -315,52 +315,64 @@ e 52.
  [1
 
 {/var/lib/texmf/fonts/map/pdftex/updmap/pdftex.map} <./images/lipschittzbound.p
-ng>] [2]
+ng>]
 LaTeX Font Info:    Font shape `OT1/cmtt/bx/n' in size <9> not available
-(Font)              Font shape `OT1/cmtt/m/n' tried instead on input line 179.
- [3] [4] [5]
+(Font)              Font shape `OT1/cmtt/m/n' tried instead on input line 88.
+ [2] [3] [4] [5]
 [6]
-Underfull \hbox (badness 10000) in paragraph at lines 456--464
+Underfull \hbox (badness 10000) in paragraph at lines 478--486
 
  []
 
 [7] [8]
-<images/fresnel.png, id=46, 1927.2pt x 1084.05pt>
+Underfull \hbox (badness 10000) in paragraph at lines 574--582
+
+ []
+
+<images/rt_dof.png, id=46, 687.56876pt x 395.4775pt>
+File: images/rt_dof.png Graphic file (type png)
+<use images/rt_dof.png>
+Package pdftex.def Info: images/rt_dof.png  used on input line 584. on input li
+ne 584.
+Package pdftex.def Info: Requested size: 343.78354pt x 197.73827pt on input lin
+e 584.
+[9 <./images/rt_dof.png>]
+<images/fresnel.png, id=51, 1927.2pt x 1084.05pt>
 File: images/fresnel.png Graphic file (type png)
 <use images/fresnel.png>
-Package pdftex.def Info: images/fresnel.png  used on input line 582. on input l
-ine 582.
+Package pdftex.def Info: images/fresnel.png  used on input line 617. on input l
+ine 617.
 Package pdftex.def Info: Requested size: 385.43318pt x 216.80615pt on input lin
-e 582.
-<images/geometric.png, id=47, 1927.2pt x 1084.05pt>
+e 617.
+<images/geometric.png, id=52, 1927.2pt x 1084.05pt>
 File: images/geometric.png Graphic file (type png)
 <use images/geometric.png>
-Package pdftex.def Info: images/geometric.png  used on input line 595. on input
- line 595.
+Package pdftex.def Info: images/geometric.png  used on input line 630. on input
+ line 630.
 Package pdftex.def Info: Requested size: 385.43318pt x 216.80615pt on input lin
-e 595.
+e 630.
 
-Overfull \hbox (5.6362pt too wide) in paragraph at lines 595--600
+Overfull \hbox (5.6362pt too wide) in paragraph at lines 630--635
 [] \OT1/cmr/m/n/10 And fi-nally, the
  []
 
-[9 <./images/fresnel.png>]
-<images/distribution.png, id=52, 1927.2pt x 1084.05pt>
+[10 <./images/fresnel.png>]
+<images/distribution.png, id=57, 1927.2pt x 1084.05pt>
 File: images/distribution.png Graphic file (type png)
 <use images/distribution.png>
-Package pdftex.def Info: images/distribution.png  used on input line 605. on in
-put line 605.
+Package pdftex.def Info: images/distribution.png  used on input line 640. on in
+put line 640.
 Package pdftex.def Info: Requested size: 385.43318pt x 216.80615pt on input lin
-e 605.
- [10 <./images/geometric.png> <./images/distribution.png>] [11] (./test.aux) ) 
+e 640.
+ [11 <./images/geometric.png> <./images/distribution.png>] [12] (./test.aux) ) 
 Here is how much of TeX's memory you used:
- 4398 strings out of 492985
- 59871 string characters out of 6138637
- 156808 words of memory out of 5000000
- 7893 multiletter control sequences out of 15000+600000
+ 4409 strings out of 492985
+ 60018 string characters out of 6138637
+ 160808 words of memory out of 5000000
+ 7903 multiletter control sequences out of 15000+600000
  11522 words of font info for 46 fonts, out of 8000000 for 9000
  1141 hyphenation exceptions out of 8191
- 41i,27n,49p,271b,1465s stack positions out of 5000i,500n,10000p,200000b,80000s
+ 41i,27n,49p,271b,1463s stack positions out of 5000i,500n,10000p,200000b,80000s
 <
 /usr/share/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx12.pfb></usr/share/tex
 mf-dist/fonts/type1/public/amsfonts/cm/cmex10.pfb></usr/share/texmf-dist/fonts/
@@ -375,10 +387,10 @@ m/cmr5.pfb></usr/share/texmf-dist/fonts/type1/public/amsfonts/cm/cmr7.pfb></usr
 ist/fonts/type1/public/amsfonts/cm/cmsy5.pfb></usr/share/texmf-dist/fonts/type1
 /public/amsfonts/cm/cmsy7.pfb></usr/share/texmf-dist/fonts/type1/public/amsfont
 s/cm/cmtt9.pfb>
-Output written on test.pdf (11 pages, 11491602 bytes).
+Output written on test.pdf (12 pages, 11717828 bytes).
 PDF statistics:
- 109 PDF objects out of 1000 (max. 8388607)
- 72 compressed objects within 1 object stream
+ 114 PDF objects out of 1000 (max. 8388607)
+ 74 compressed objects within 1 object stream
  0 named destinations out of 1000 (max. 500000)
- 21 words of extra memory for PDF output out of 10000 (max. 10000000)
+ 26 words of extra memory for PDF output out of 10000 (max. 10000000)
 

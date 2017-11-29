@@ -1,5 +1,5 @@
 # Fdb version 3
-["pdflatex"] 1511974616 "test.tex" "test.pdf" "test" 1511974617
+["pdflatex"] 1511988608 "test.tex" "test.pdf" "test" 1511988609
   "/usr/share/texmf-dist/fonts/map/fontname/texfonts.map" 1510784337 3287 e6b82fe08f5336d4d5ebc73fb1152e87 ""
   "/usr/share/texmf-dist/fonts/tfm/public/amsfonts/cmextra/cmex7.tfm" 1510784344 1004 54797486969f23fa377b128694d548df ""
   "/usr/share/texmf-dist/fonts/tfm/public/amsfonts/cmextra/cmex8.tfm" 1510784344 988 bdf658c3bfc2d96d3c8b02cfc1c94c20 ""
@@ -79,15 +79,16 @@
   "/usr/share/texmf-dist/tex/latex/oberdiek/grfext.sty" 1510784350 7075 2fe3d848bba95f139de11ded085e74aa ""
   "/usr/share/texmf-dist/tex/latex/oberdiek/kvoptions.sty" 1510784350 22417 1d9df1eb66848aa31b18a593099cf45c ""
   "/usr/share/texmf-dist/web2c/texmf.cnf" 1510784374 32585 d82bbcf7626b7842c87671687479e852 ""
-  "/var/lib/texmf/fonts/map/pdftex/updmap/pdftex.map" 1511798484 334148 1b9d30ff8c861d6082e3e9bfccd8d7eb ""
-  "/var/lib/texmf/web2c/pdftex/pdflatex.fmt" 1511798476 7736839 dbc25eded5ba662dc7f8febfd6c0943c ""
-  "images/distribution.png" 1511798057 2841907 3020aa4ce13d156efef65efa437bb6f9 ""
-  "images/fresnel.png" 1511798057 2968370 0d93b31a3fe0e8e5911c34d7285ca918 ""
-  "images/geometric.png" 1511798057 2854091 823edc5aea7eac3050e73228ffde15b4 ""
-  "images/lipschittzbound.png" 1511798057 51926 6845925abbfafb175102743114b11b37 ""
-  "test.aux" 1511974617 724 f13f874540bfdf436e2a46f74daa7856 ""
-  "test.tex" 1511974615 31616 70cbf0ad3a233ae1da0ecb35b2b8a1d8 ""
+  "/var/lib/texmf/fonts/map/pdftex/updmap/pdftex.map" 1511707279 334148 1b9d30ff8c861d6082e3e9bfccd8d7eb ""
+  "/var/lib/texmf/web2c/pdftex/pdflatex.fmt" 1511113666 7736839 681b39920a3b2d26f046851116aeab71 ""
+  "images/distribution.png" 1511794054 2841907 3020aa4ce13d156efef65efa437bb6f9 ""
+  "images/fresnel.png" 1511794054 2968370 0d93b31a3fe0e8e5911c34d7285ca918 ""
+  "images/geometric.png" 1511794054 2854091 823edc5aea7eac3050e73228ffde15b4 ""
+  "images/lipschittzbound.png" 1511794054 51926 6845925abbfafb175102743114b11b37 ""
+  "images/rt_dof.png" 1511987418 218040 4bef73387f0c565c338fa251784270f3 ""
+  "test.aux" 1511988609 724 5152c4fc54252864198d0e606784ca34 ""
+  "test.tex" 1511988607 33243 996a49f29651d44ea079f447f0f9ddd6 ""
   (generated)
-  "test.pdf"
   "test.aux"
   "test.log"
+  "test.pdf"

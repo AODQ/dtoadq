@@ -4,11 +4,13 @@ import ocl.opencl;
 struct Camera {
   cl_float3 position, lookat, up;
   cl_int2 dimensions;
-  cl_float fov, focal;
+  cl_float fov, focal, radius;
   cl_int flags;
 
   this ( float[3] pos, float[3] dir, int[2] dim ) {
     static import stl;
+    focal = 1.0f;
+    radius = 0.2f;
     position = To_CLFloat3(pos);
     stl.writeln(position);
     lookat = To_CLFloat3(dir);
