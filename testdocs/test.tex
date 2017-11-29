@@ -32,21 +32,36 @@
   \section{Introduction}
 
   \section{Signed Distance Fields}
-  Signed Distance Fields (SDFs) are a mathematical tool to represent a 3D primitive by describing its surface via a distance field. Given an arbitrary point in space, the SDF of a primitive is the distance to its nearest point/surface. For example, the SDF of a sphere is $\Vert\:O\:\Vert - R$. With SDFs, it's possible to march a ray along the scene until it hits the surface of an SDF within a given bound, using the returned SDF distance as the distance to march. Some example SDFs are shown below:    \begin{align*}
+  Signed Distance Fields (SDFs) are a mathematical tool to represent a 3D
+primitive by describing its surface via a distance field. Given an arbitrary
+point in space, the SDF of a primitive is the distance to its nearest
+point/surface. For example, the SDF of a sphere is $\Vert\:O\:\Vert - R$. With
+SDFs, it's possible to march a ray along the scene until it hits the surface of
+an SDF within a given bound, using the returned SDF distance as the distance to
+march. Some example SDFs are shown below: \begin{align*}
   S(P, R) &= \Vert\:P\:\Vert - R & \text{Sphere with Radius}\\
   S(P, N) &= P \cdot N  & \text{Plane with Normal}\\
   S(P, H, R) &= <\Vert\:P_{x, z}\:\Vert - R, \: P_{y}> - H & \text{Torus with Radius and Hole}\\
   \end{align*}
   
-  The biggest issue with SDFs is Lipschitz continuity. The SDFs themselves have a distance gradient, that is, their bound. The bounds of a SDF is expected to be at most 1 in order to remain Lipschitz continuous, as otherwise the SDF will appear deformed as shown below.
+  The biggest issue with SDFs is Lipschitz continuity. The SDFs themselves have
+a distance gradient, that is, their bound. The bounds of a SDF is expected to be
+at most 1 in order to remain Lipschitz continuous, as otherwise the SDF will
+appear deformed as shown below.
   
   \includegraphics[]{lipschittzbound}
   
-  This is a larger problem in Light Transport than it is in raytracing because small discontinuities can impact the lighting of an entire scene. And to add to that, most interesting operations (such as the meta balls shown in the image above) will violate Lipschitz. The easiest way to fix this is to multiply the distance field by a constant to stay below 1, but this is less of a fix and more of a hack.
+  This is a larger problem in Light Transport than it is in raytracing because
+small discontinuities can impact the lighting of an entire scene. And to add to
+that, most interesting operations (such as the meta balls shown in the image
+above) will violate Lipschitz. The easiest way to fix this is to multiply the
+distance field by a constant to stay below 1, but this is less of a fix and more
+of a hack.
   
   
-  In order to compute a normal of an SDF, you must perform a gradient approximation: the central distance onf the SDF at
-  P. For example, the difference quotient:
+  In order to compute a normal of an SDF, you must perform a gradient
+approximation: the central distance onf the SDF at P. For example, the
+difference quotient:
   \[\frac{(f(x+h) - f(x))}{h}\]
   The most obvious way to calculate this is the six-point gradient; where for
 each axis you compute $f(x+h) - f(x-h)$, and normalize the result. This
@@ -60,7 +75,10 @@ few are: an additional normal call using an alternative (higher-quality) SDF
 map can be used to compute a 'normal' bumpmap, and analyzing the gradient by
 hand allows a cheap normal computation of primitives such as a spheres.
   \section{OpenCL}
-	OpenCL, and GPU programming in general, is where I am least knowledgeable or interested. Well, OpenCL is easy to work with, and I wrote my own OpenCL module to handle OCL in a rather convenient method, for example, the DTOADQ kernel call looks as such:
+	OpenCL, and GPU programming in general, is where I am least knowledgeable or
+interested. Well, OpenCL is easy to work with, and I wrote my own OpenCL module
+to handle OCL in a rather convenient method, for example, the DTOADQ kernel call
+looks as such:
 	\begin{lstlisting}
 	shared_info.image.Lock(); // Acquire OCL Mem from OGL image object
 	ocl.Run(
@@ -80,49 +98,76 @@ hand allows a cheap normal computation of primitives such as a spheres.
 	
 	\end{lstlisting}
 	
-	however the problem comes with dealing with the intrinsics of GPU; optimizing code for the GPU and knowing how memory and threads/workers are handled.
+	however the problem comes with dealing with the intrinsics of GPU; optimizing
+code for the GPU and knowing how memory and threads/workers are handled.
   
-  	One benefit of OpenCL is its ease to debug in comparison to OpenGL. One immediate benefit is printf, which surprisingly even works on the GPU. To make printf easily readable, I only use print on the center pixel of the image. Even so, due to the complexity of light transport, the vast majority of time spent on this project went directly towards debugging the DTOADQ kernel.
+  	One benefit of OpenCL is its ease to debug in comparison to OpenGL. One
+immediate benefit is printf, which surprisingly even works on the GPU. To make
+printf easily readable, I only use print on the center pixel of the image. Even
+so, due to the complexity of light transport, the vast majority of time spent on
+this project went directly towards debugging the DTOADQ kernel.
   	
-  	OpenCL also makes it relatively easy to send and receive data between the host and GPU. In comparison to OpenGL, this is a big win, however, with OpenGL4.3's Shader Storage Buffer Object, this is now no longer a selling point.
+  	OpenCL also makes it relatively easy to send and receive data between the
+host and GPU. In comparison to OpenGL, this is a big win, however, with
+OpenGL4.3's Shader Storage Buffer Object, this is now no longer a selling point.
   	
-  	OpenCL also has huge drawbacks. The biggest problem is getting the results to be rendered in OpenGL. TODO. Also, there are minor annoyances, like the lack of a matrix data type, no function overloads, long compile times, or variadic functions. There are also annoyances with GPU programming in general. No dedicated random function. Though, possibly, long compile times is my fault for using a mega-kernel instead of splitting it into many small kernels.
+  	OpenCL also has huge drawbacks. The biggest problem is getting the results
+to be rendered in OpenGL. TODO. Also, there are minor annoyances, like the lack
+of a matrix data type, no function overloads, long compile times, or variadic
+functions. There are also annoyances with GPU programming in general. No
+dedicated random function. Though, possibly, long compile times is my fault for
+using a mega-kernel instead of splitting it into many small kernels.
   	
-  	It seems that the GPU is not for me or DTOADQ and something I do not enjoy to use nor am good at. However, for this project, I had to deal with it. To overcome the lack of a random function, of which high quality uniform random generation is necessary for Monte Carlo simulations, I used the MWC64X algorithm. While there are better algorithms, they fail on branches which makes it useless for DTOADQ. It seemed to work well enough. The downside is that each worker/pixel needs its own random state, preserved across multiple kernel calls. There are indefinitely better solutions.
+  	It seems that the GPU is not for me or DTOADQ and something I do not enjoy
+to use nor am good at. However, for this project, I had to deal with it. To
+overcome the lack of a random function, of which high quality uniform random
+generation is necessary for Monte Carlo simulations, I used the MWC64X
+algorithm. While there are better algorithms, they fail on branches which makes
+it useless for DTOADQ. It seemed to work well enough. The downside is that each
+worker/pixel needs its own random state, preserved across multiple kernel calls.
+There are indefinitely better solutions.
   \section{Light Transport Introduction}
   \section{Bidirectional Path Tracing}
-    The main foundation of the mathematics and theory have come from many sources, from Veach's PhD thesis to PBR 3rd ed. and various open source path tracing kernels such as NanoRT, Embree, etc. However, the implementation differs from these in that the algorithm is optimized for the GPU. This section is about transforming the algorithms and mathematical models from Veach's thesis into something easily and efficiently implementable the GPU.
+    The main foundation of the mathematics and theory have come from many
+sources, such as Veach's thesis to PBR 3rd ed. and various open source path
+tracing kernels such as NanoRT, Embree, etc. However, the implementation differs
+from these in that the algorithm is optimized for the GPU. This section is about
+transforming the algorithms and mathematical models into something easily and
+efficiently implementable the GPU, however I will work from the ground up in the
+theory and mathematics behind light transport.
 
     Calculating probability distribution functions is a very vital component in
-    Monte Carlo Sampling. The PDF states the probability of a random variable to
-    take the form of a given input. Its usefulness comes when a Monte Carlo sample has a smaller or higher total contribution compared to other samples. That is, one sample may
-    have a higher probability distribution, and thus a higher contribution to
-    the path. That's the strategy behind Monte Carlo;
+Monte Carlo Sampling. The PDF states the probability of a random variable to
+take the form of a given input. Its usefulness comes when a Monte Carlo
+sample has a smaller or higher total contribution compared to other samples.
+That is, one sample may have a higher probability distribution, and thus a
+higher contribution to the path. That's the strategy behind Monte Carlo;
     \begin{align}
       \int f(x) \approx \frac{1}{N}\Sigma_0^N\frac{f(x)}{p(x)}
     \end{align}
     The PDF applies to everything from path contributions, solid angles of a
     BRDF, uniformly sampling a sphere, etc.
     
-    The
-    biggest conceptual barrier is that, for example, given a solid angle in a hemisphere $\Omega$, the probability for a random uniform $X$ to equal $\omega$ is 0. That's not what the PDF calculates, instead, it's the
-    probability that a random uniform $X$ could potentially equal $\omega$ when compared to other $\omega\:$s.
+    The biggest conceptual barrier is that, for example, given a solid angle in
+a hemisphere $\Omega$, the probability for a random uniform $X$ to equal
+$\omega$ is 0. That's not what the PDF calculates, instead, it's the probability
+that a random uniform $X$ could potentially equal $\omega$ when compared to
+other $\omega\:$s.
     
 
-    The good thing is that calculating these are relatively easy. The first step is to
-    find the cumulative distribution function $CDF = Pr(X \leq x)$. Where $Pr$
-    is the probability, $X$ is a uniformly random variable, and $x$ is a known
-    constant. This gives the probability that, for a formula
-    $P$, where $X \in \Omega$, and $\Omega$ is the set of all possible values
-    for $CDF$,
-    that $X \leq x$. Then the PDF $p$ is defined by the derivative of CDF. To verify that the PDF is correct, integrate it
-    over $\Omega$, this final value should equal 1. This makes sense intuitively
-    -- it is a probability after all, so the sum of the probabilities of every
-    possible input must be 1.
-    For an example, how I calculated the PDF of an area light source
+    The good thing is that calculating these are relatively easy. The first step
+is to find the cumulative distribution function $CDF = Pr(X \leq x)$. Where $Pr$
+is the probability, $X$ is a uniformly random variable, and $x$ is a known
+constant. This gives the probability that, for a formula $P$, where $X \in
+\Omega$, and $\Omega$ is the set of all possible values for $CDF$, that $X \leq
+x$. Then the PDF $p$ is defined by the derivative of CDF. To verify that the PDF
+is correct, integrate it over $\Omega$, this final value should equal 1. This
+makes sense intuitively -- it is a probability after all, so the sum of the
+probabilities of every possible input must be 1. For an example, how I
+calculated the PDF of an area light source
       $L^0_e(v) = L_o(P,\:\omega_o)$ 
     is quite simple. Firstly,the area light is defined as a sphere, and thus our
-    set of all possible values is correlated to surface area:
+set of all possible values is correlated to surface area:
     $\Omega = [0,\:2.0f*\tau*R^2]$. Thus,
     \begin{align}
       CDF(x) = Pr(X \leq x) = \frac{x}{2.0*\tau*R^2}\\
@@ -138,49 +183,96 @@ hand allows a cheap normal computation of primitives such as a spheres.
     
     
   
-  The rendering equation is:
+  Now, the importance of probability distribution functions comes when
+performing Monte Carlo approximation on an integral. Take, for instance, the
+most well-known form of the rendering equation:
   \begin{align}
     L_o(P, \omega_o) = L_e(P, \omega_o) + \int_{S}f_s(P, \omega_i,
     \omega_o) L_i(P, \omega_i) \vert cos\theta_i\vert d\omega_i
   \end{align}
   
   Where:
-  	 $Lo(P,\:\omega_o)$ is the radiance at point $P$ in space towards direction $\omega_o$. 
+  \begin{list}{}{}
+  	 \item $Lo(P,\:\omega_o)$ is the radiance at point $P$ in space towards direction $\omega_o$. 
   	 
-  	 $L_e(P,\:\omega_o)$ is the emittance at point $P$ towards $\omega_o$ (such as a lamp).
+  	 \item $L_e(P,\:\omega_o)$ is the emittance at point $P$ towards $\omega_o$
+      (such as a lamp).
   	 
   	 
-  	 $S$ is the unit sphere in which the angle $\omega_i$ is integrated over in respects to the normal at $P$. Also, this means, implicitly, that the equation is in respects to solid angle; the angle at which a primitive $A$ subtends $B$.
+  	 \item $S$ is the unit sphere in which the angle $\omega_i$ is integrated
+        over in respects to the normal at $P$. Also, this means, implicitly,
+        that the equation is in respects to solid angle; the angle at which a
+        primitive $A$ subtends $B$.
   	 
-  	 $f_s$ is the Bidirectional Scattering Distribution Function. This will be detailed in the BSDF chapter, suffice it to say, it describes how photons are scattered (or absorbed) from point P in space from direction $\omega_i$ towards $\omega_o$ -- either through reflection (BRDF), or transmittance (BTDF). In volumetric path tracing, there is also subsurface scattering.
+  	 \item $f_s$ is the Bidirectional Scattering Distribution Function. This
+        will be detailed in the BSDF chapter, suffice it to say, it describes
+        how photons are scattered (or absorbed) from point P in space from
+        direction $\omega_i$ towards $\omega_o$ -- either through reflection
+        (BRDF), or transmittance (BTDF). In volumetric path tracing, there is
+        also subsurface scattering, but this phenomena is only approximated in
+        DTQ.
   	 
-  	 $L_i(P, \omega_i)$ is the rendering equation at P from $\omega_i$
+  	 \item $L_i(P, \omega_i)$ is the rendering equation at P from $\omega_i$
   	 
-  	 And $cos\theta_i$ is the normal attenuation.
-  	 
-  Conceptually, this is the behavior of photons bouncing off several surfaces of a scene. While it's a very simple model, it's impossible to solve analytically for anything but the most simple of scenes, mostly due to, for example, the radiance at $P0$ relies on $P1$, and $P1$ relies on $P0$. Another thing to remember is that while it is shown to be integrated over a sphere, it is usually shown to be integrated over hemisphere $\Omega$ using either $f_r$ or $f_s$.
+  	 \item And $cos\theta_i$ is the normal attenuation.
+  \end{list}
+  Conceptually, this is the behavior of photons bouncing off several surfaces of
+a scene. While it's a very simple model, it's impossible to solve analytically
+for anything but the most simple of scenes, mostly due to, for example, the
+radiance at $P0$ relies on $P1$, and $P1$ relies on $P0$. Another thing to
+remember is that while it is shown to be integrated over a sphere, it is usually
+shown to be integrated over hemisphere $\Omega$ using either $f_r$ or $f_s$.
   
-  To compute this unbiasedly, it is required to use PDFs as described before to approximate the integral using Monte Carlo simulation. The technique is to generate $N$ uniformly random samples, weight them by their probability distribution, and then average the results:
+  To compute this unbiasedly, it is required to use PDFs as described before to
+approximate the integral using Monte Carlo simulation. The technique is to
+generate $N$ uniformly random samples, weight them by their probability
+distribution, and then average the results:
   
   \begin{align}
    \int{f(x)} \: \approx \frac{1}{N}\Sigma_0^N{\frac{f(x)}{p(x)}}
   \end{align}
   
-  With standard "backward" path tracing, a photon would be emitted from a light source and scatter in the scene until it hit an 'eye' or 'camera'. While this is what happens in reality, in computer graphics, most of the samples never end up hitting the camera/eye, so it is much more efficient to instead start from the eye, and end at an emitter/light source. In this case, since we are integrating over solid angle, the probably distribution function would be related to sampling the BRDF. So for example, on a specular surface, the PDF is $1.0$ where $\omega_o = reflect(\omega_i, N)$ and $0.0$ otherwise. An obvious optimization is to only sample over the valid BSDF angles, which is known as importance sampling. In DTQ, there are three BSDF functions:
+  With standard "backward" path tracing, a photon would be emitted from a light
+source and scatter in the scene until it hit an 'eye' or 'camera'. While this is
+what happens in reality, in computer graphics, most of the samples never end up
+hitting the camera/eye, so it is much more efficient to instead start from the
+eye, and end at an emitter/light source. In this case, since we are integrating
+over solid angle, the probably distribution function would be related to
+sampling the BRDF. So for example, on a specular surface, the PDF is $1.0$ where
+$\omega_o = reflect(\omega_i, N)$ and $0.0$ otherwise. An obvious optimization
+is to only sample over the valid BSDF angles, which is known as importance
+sampling. In DTQ, there are three BSDF functions:
   
   \begin{list}{}{}
   \item BSDF Spectrum: The albedo at $(P,\:\omega_i,\:\omega_o)$
-  \item BSDF Sample: Samples a $\omega_o$ for a $(P,\:\omega_i)$
+  \item BSDF Sample: Samples a $\omega_o$ given $(P,\:\omega_i)$
   \item BSDF PDF: The probability distribution of $(P,\:\omega_i,\:\omega_o)$
   \end{list}
   
-  There are many more optimizations to be made as well. For example, at each scattering event, an additional photon can be sent towards each emitter. This is what is known as next-event estimation. While this improves performance drastically, naively averaging each contribution is a problem, because each path has a different probability to their paths/contributions. The technique to sample them properly, multiple importance sampling, is related to BDPT, however it will be detailed later. The important thing to understand is that, in this sampling strategy, there is a new PDF introduced which relates to the probability of a path being generated, and this is critical to understand the concept of BDPT.
+  There are many more optimizations to be made as well. For example, at each
+scattering event, an additional photon can be sent towards each emitter. This is
+what is known as next-event estimation. While this improves performance
+drastically, naively averaging each contribution is incorrect, because each path
+has a different probability to their paths/contributions. The technique to
+sample them properly, multiple importance sampling, is related to BDPT, however
+it will be detailed . The important thing to understand is that, in this
+sampling strategy, there is a new PDF introduced which relates to the
+probability of a path being generated, and this is critical to understand the
+concept of BDPT.
   
-  Now, the optimization that is of focus in DTQ is Bidirectional Path Tracing. Instead of starting from an eye or light, a 'photon' (path) is generated from both, allowed to scatter in the scene for a few paths (the length is determined by Russian Roulette described later), and connected. It's not exactly the end-points of the paths that are being connected, but each vertex generated is connected to each other. [SHOW EXAM{E}
+  Now, the optimization that is of focus in DTQ is Bidirectional Path Tracing.
+Instead of starting from an eye or light, a 'photon' (path) is generated from
+both, allowed to scatter in the scene for a few paths (the length is determined
+by Russian Roulette), and connected. It's not exactly the end-points of the
+paths that are being connected, but each vertex generated is connected to each
+other. [SHOW EXAMPLE]. This actually has an interesting correlation to
+next-event estimation, as it could be seen as 'extending' the amount of emitters
+that can be connected to.
   
-  ]This actually has an interesting correlation to next-event estimation, as it could be seen as 'extending' the amount of emitters that can be connected to. 
-  
-  Unfortunately, this formula does not work with BDPT, as it is necessary to transform the formula to work in terms of surface areas rather than solid angle, ei, $v_0 \rightarrow v_1$. The transformation looks like so:
+  For BDPT, like a lot of different light transport equations, things go much
+more smoothly when the equation uses a different measure. In this case, the
+measure is over surface area rather than solid angles. This looks like $v_0
+\rightarrow v_1$. The transformation looks like so:
   \begin{align}
     f_s(v \rightarrow \dot{v} \rightarrow \ddot{v}) &= f_s(P, \omega_i,
                                                       \omega_o)\\
@@ -190,14 +282,19 @@ hand allows a cheap normal computation of primitives such as a spheres.
     That is, instead of looking at a point $P$ with an incoming and outgoing
     angle $(\omega_i,\:\omega_o)$, look at the path from $P_{-1}$ ($v$) to
     $P_{+1}$ ($\ddot{v}$). More accurately, it's the transport between
-    three different surfaces of the scene. There's a small change to be made in the case of $L_e$, as DTOADQ [at least, for now], only has support for area-light. Thus consider:
+    three different surfaces of the scene. There's a small change to be made in
+the case of $L_e$, as DTOADQ [at least, for now], only has support for
+area-light. Thus consider:
 
   \begin{align}
     L_e(P, \omega_o) &\equiv L_e(P) &\text{[ for area lights ]}\\
     L_e(v \rightarrow \dot{v}) &= L_e^0(v)&
   \end{align}
 
-    Instead of working with solid angles, we now work with a geometry term, G, that converts a PDF with respect to solid angle to surface area, which involves the inverse squared distance, and the cosine angle between the geometric normals at $v$ and $\dot{v}$:
+    The $cos\theta_i$ is no longer applicable, instead there is now a geometry
+term, G, that converts a PDF with respect to solid angle to surface area, which
+involves the inverse squared distance, and the cosine angle between the
+geometric normals at $v$ and $\dot{v}$:
 
   \begin{align}
     cos\theta_n = v \cdot N(v) \\
@@ -212,29 +309,43 @@ hand allows a cheap normal computation of primitives such as a spheres.
     \dot{v}) G(v\leftrightarrow \dot{v}) f_s(v\rightarrow \dot{v} \rightarrow
     \ddot{v}) d_A
   \end{align}
-    where $A$ is the area on $M$, and $M$ is the union of all scene surfaces.
-    This is known as the three-point form or the light transport equation. By
-    recursively expanding$^{[1]}$, so that the three point form is integrated
-    over every possible set of possible paths, this can be rewritten as the more
-    usable format:
+    where $A$ is the area-measurement function on $M$, and $M$ is the set of all
+points on the surface of a scene. That is, to say in regards to SDFs, $M$ is the
+set of all points $P$ where $|map(P)| < \epsilon$. The area-measurement function
+goes into measure theory, which while it is beyond my grasp currently to
+compute, conceptually I understand a bit of it. The important thing is that $A$
+is a function on the set of all subsets of $M$ that returns the measurement of
+each set, and as long as the surfaces of the scene are sampled uniformly, this
+never actually has to be computed. To back it up a little further, Veach
+presented this as a means to integrate over a measure rather than using solid
+angles. This proves that you can transform the rendering equation to different
+measurements. For example, instead of integrating over points on surfaces, one
+could integrate over an entire 3D space in order to perform volumetric path
+tracing. Transforming the rendering equation using measurements would be
+interesting in the future to look into.
+    
+    
+    Anyways, with the three-point form now described, by recursively expanding,
+so that the three point form is integrated over every possible set of possible
+paths, this can be rewritten as the more usable format:
   \begin{align} I_j = \int_\Omega f_j(\bar{v}) d\mu(\bar{v}) \end{align}
     Where $\bar{v}$ is a path $z_0\rightarrow z_s \rightarrow y_t \rightarrow
     y_0 (eye \rightarrow light)$, $\Omega$ is the combination of all possible
     paths of any length, and $\mu$ is the area-product measure [the product of
-    all the expanded $d_A$]. Special care has to be taken with the definition of
+all the expanded $A$]. Special care has to be taken with the definition of
     path itself, as in the source code, there never exists a path $\bar{v}$,
-    only eye-path $\bar{z}$ and light-path . Right now, this is analytically
-    unsolvable. To compute this, we need to apply monte carlo sampling and limit
-    the maximum path length:
+    only eye-path $\bar{z}$ and light-path . Monte Carlo approximation, as shown
+above, is applied to the formula:
   \begin{align}
     I_j \approx \frac{1.0f}{N}\Sigma_0^NF\\
     F = \Sigma_s\Sigma_t\frac{f_j(\bar{v}_{s, t})}{p(\bar{v}_{s, t})}
   \end{align}
 
     where $s$ is the light-path length, and $t$ is the eye-path length. In
-    DTOADQ, they are limited to $s+t \leq DEPTH$, a kernel-defined macro. Finally, to transform
-    $\bar{v}$ into two seperate paths, so that an eye and light path may be generated, $\frac{f_j(\bar{v}_{s,
-        t})}{p(\bar{v}_{s, t})}$ is split into two with a connection edge $c$
+    DTOADQ, they are limited to $s+t \leq DEPTH$, a kernel-defined macro.
+Finally, to transform $\bar{v}$ into two seperate paths, so that an eye and
+light path may be generated, $\frac{f_j(\bar{v}_{s, t})}{p(\bar{v}_{s, t})}$ is
+split into two with a connection edge $c$
   \begin{align}
     \frac{f_j(\bar{v}_{s, t})}{p(\bar{v}_{s, t})} \equiv
     \frac{f^L(\bar{y})}{p(\bar{y})} c(\bar{y}_s \leftrightarrow \bar{z}_t)
@@ -245,32 +356,57 @@ hand allows a cheap normal computation of primitives such as a spheres.
   \begin{align}
     F = \Sigma_s\Sigma_t \alpha^L_s c_{s, t} \alpha^E_t
   \end{align}
+
+  $\alpha_{s|t}^{L|E}$ is the final radiance of either the emitter or eye path,
+  and thus it is recursive in nature. That is, the value of $\alpha_i$ is
+  dependent on $\alpha_{i-1}$, unless $i = 0$ in which case is the radiance of
+  either the emitter or the eye path. However, this can be simplified further,
+because of Helmhotz reciprocity, BRDFs return the same value if $wo$ and $wi$
+are switched. This is also the reason why forward and backward path tracing
+work.
   \begin{align}
     \alpha^{L|E}_i =
     \begin{cases}
-      \frac{L_e^0(y_0 \rightarrow y_1)}{p_A(y_1)} | \frac{W^0_e(z_0)}{p_A(z_0)},
-      &i = 1,\\
-      (\frac{f_s(y_{i+1} \rightarrow y_i \rightarrow y_{i-1})}{p_{\sigma}(y_i
-      \rightarrow y_{i-1})} | \frac{f_s(z_{i-1} \rightarrow z_{i-2} \rightarrow
-      z_{i-3}}{p_\sigma(z_{i-2} \rightarrow z_{i-1})}) \alpha^{L|E}_{i-1},
-      &i > 1
+      1.0 &i = 0,\\
+      \frac{
+      L_e^0(y_0 \rightarrow y_1)}{p_A(y_1)} | 1.0 &i = 1,\\
+      \frac{f_s(v_{i-1} \rightarrow v_i \rightarrow v_{i+1})}{p_{\sigma}(v_i
+      \rightarrow v_{i-1})} &i > 1
     \end{cases}
   \end{align}
-    There is no case for $i = 0$ as either, the path doesn't exist, or if one
-    does exist, $y_0$ and $z_0$ do not contribute to the image. Veach (and many other
-    sources), leave this in, but it's unnecessarily confusing. A special case
-    needs to be handled, unfortunately, for $\alpha^E_0$ as it is being
-    generated on the fly while $\bar{z}$ is being constructed. The two options
-    is to unroll the first iteration of the construction loop, or just allow the
-    special case to exist. The latter is the better choice, as all kernels will
-    enter and exit the special case at the same time, and the GPU might just
-    unroll the loop anyways.
-    There may be cases where $s = 0$ ($t = 0$ is not possible without a
-    physical camera lens), which is equivalent to just forward path tracing.
-    There is also to consider, what happens on $s = 1$ and $t = 1$, %TODO
-    Well, in either case where both paths exist or only the camera path exists,
-    the connection strategy below describes how to connect the edges of the two
-    paths
+    For the case of $i = 0$, this would mean that the path does not exist. In
+other words, forward or backward path tracing, the latter of which isn't
+supported as camera lens are not defined in DTQ. For $i = 1$, it is either a
+point on the surface of a light, or the origin point on the 'delta eye'. Lastly,
+the BRDF is used to calculate the albedo of each primitive in the scene, and is
+then divided by the PDF sigma, which is the probability density of $v_i
+\rightarrow v_{i-1}$. $\alpha_1^L$ is shown below:
+
+\begin{lstlisting}
+  float3 N      = Sample_Cosine_Sphere(si, &pdf_pos),
+         origin = light.origin + light.radius*N,
+         dir    = Reorient_Angle(Sample_Cosine_Hemisphere(si, &pdf_dir), N);
+  float pdf_pos = 1.0f/(2.0f*TAU*SQR(light.radius)),
+        pdf_amt = 1.0f/EMITTER_AMT;
+  pv->irradiance = light.emission/(pdf_pos*pdf_amt*pdf_fwd);
+\end{lstlisting}
+
+  Note that the irradiance is being calculated in this case, that is, the amount
+  of flux arriving at point $pv$. Though in the case of $s=1$, this is more like
+  the radiance. The irradiance at $t > 1$ and $s > 1$ is shown:
+
+\begin{lstlisting}
+  float3 sample_dir, sample_f;
+  float sample_pdf;
+  _BSDF_Sample(wi, N, vtx, &sample_dir, &sample_pdf, &sample_f, si);
+  *irradiance = sample_f * (*irradiance) * fabs(dot(N, sample_dir))/sample_pdf;
+\end{lstlisting}
+  
+
+
+
+  The connection strategy below describes how to connect the edges of the two
+paths
   \begin{align}
     c_{s, t} =
     \begin{cases}
@@ -279,14 +415,13 @@ hand allows a cheap normal computation of primitives such as a spheres.
       z_{-1}) f_s(y_{-1} \rightarrow z_{-1} \rightarrow z_{-2}), &s > 0, t > 1
     \end{cases}
   \end{align}
-    Is the $s = 0, t > 1$
-    strategy worthwhile to compute? Those familiar with next event
-    estimation would know that there are situations in which this is beneficial.
-    Take, for example, a glossy surface with a small solid angle subtending to
-    the surface of a large light source. The $s=1$ sample strategy in this case
-    would only contribute when the $L0$ vertex is within that solid angle.
-    The effective strategy to sample in this case is $s = 0$.
-    In code, $\alpha_i^E\:c_{s,t}\:\alpha_0^L$ looks like (MIS not shown):
+    Is the $s = 0, t > 1$ strategy worthwhile to compute? Those familiar with
+next event estimation would know that there are situations in which this is
+beneficial. Take, for example, a glossy surface with a small solid angle
+subtending to the surface of a large light source. The $s=1$ sample strategy in
+this case would only contribute when the $L0$ vertex is within that solid angle.
+The effective strategy to sample in this case is $s = 0$. In code,
+$\alpha_i^E\:c_{s,t}\:\alpha_0^L$ looks like (MIS not shown):
     \begin{lstlisting}
      float3 wi = normalize(E1.origin - E0.origin),
             wo = normalize(L1.origin - E1.origin);
@@ -298,38 +433,41 @@ hand allows a cheap normal computation of primitives such as a spheres.
     \end{lstlisting}
     
     Another question to consider is if the path should be able to reflect on the
-    light source. While under real circumstances, this is allowed, the
-    contribution is negligible and dismissed in DTOADQ. Also, there are no cases for $s = s, t = 0|1$ as
-    the lens does not have a physical existence in the SDF map. The $t = 0$ case, where a photon from the light source hits the lens directly, is rather pointless anyways, as a path generated by light-tracing would have to be able to contribute to any pixel, which is not feasible on a GPU. The case of $t = 1$, where the light path is connected to a position on the lens, is important for effects such as depth of field and aperture. The only problem is due to time constraints, this has not been implemented yet.
+light source. While under real circumstances, this is allowed, the contribution
+is negligible and dismissed in DTOADQ. Also, there are no cases for $s = s, t =
+0|1$ as the lens does not have a physical existence in the SDF map. The $t = 0$
+case, where a photon from the light source hits the lens directly, is rather
+pointless anyways, as a path generated by light-tracing would have to be able to
+contribute to any pixel, which is not feasible on a GPU. The case of $t = 1$,
+where the light path is connected to a position on the lens, is important for
+effects such as depth of field and aperture. The only problem is due to time
+constraints, this has not been implemented yet.
 
     One immediately obvious optimization that could be made with this model is
-    in regards to the visibility check in the geometric term, if you were to
-    expand $I_j$, and take the V term from outside the G function
+in regards to the visibility check in the geometric term, if you were to expand
+$I_j$, and take the V term from outside the G function
     [$G(v \rightarrow
     \dot{v}) V(v \rightarrow \dot{v})$],
-    it would be made obvious that all the visibility checks can be
-    cancelled out for the entire equation, except for the connection term $c$.
-    This is intuitive as the paths
-    $\bar{y}_{0} \ldots \bar{y}_s$ and $\bar{z}_0 \ldots \bar{z}_t$ had just been generated via raymarching.
-    Specifically, the definition of $V$ is
+    it would be made obvious that all the visibility checks can be cancelled out
+for the entire equation, except for the connection term $c$. This is intuitive
+as the paths $\bar{y}_{0} \ldots \bar{y}_s$ and $\bar{z}_0 \ldots \bar{z}_t$ had
+just been generated via raymarching. Specifically, the definition of $V$ is
   \begin{align}
     V(v \rightarrow \dot{v}) = ||v - \dot{v}|| \leq
     m(v,\:\overrightarrow{v\:\dot{v}})
   \end{align}
     where $m$ is a march through the SDF map. A visibility check is only
-    necessary for the connection edge
+necessary for the connection edge
     \begin{align*}
       ||v - \dot{v}|| = m(v, \overrightarrow{v, \dot{v}})\\
       \:\:\:\text{for all paths but } y_{-1} \rightarrow z_{-1} 
     \end{align*}
 \\
     Moving on, for $\alpha^{L|E}_i$, these are equivalent for both $L$ and $E$,
-    the problem is that the $\bar{y}$ path is generated in perspective of the
-    light source, so there has to be a bit of caution in terms of perspective in when generating the PDFs.
-    
-     $p_A$ is
-    the PDF w.r.t. area, for the light path; we only need to take the PDF of the
-    solid angle of a sphere
+the problem is that the $\bar{y}$ path is generated in perspective of the light
+source, so there has to be a bit of caution in terms of perspective in when
+generating the PDFs. $p_A$ is the PDF w.r.t. area, for the light path; we only
+need to take the PDF of the solid angle of a sphere
   \begin{align}
     p_A^L(y_0 \rightarrow y_1) = p_{\sigma}^L(y_0 \rightarrow y_1) G(v
     \leftrightarrow \dot{v})\\
@@ -337,44 +475,40 @@ hand allows a cheap normal computation of primitives such as a spheres.
     \sqrt{\frac{R^2}{|y_0 - y_1|^2}})}
   \end{align}
     where $R$ is the radius of the sphere, note $y_0$ is a point on the surface
-    of the sphere, and not its origin.
-    \\$p_A^E(x_0 \rightarrow x_1)$ doesn't exist, as there is no physical lens
-    on the scene. [TODO - this might cahnge later]. One of the benefits of this,
-    is that there are no special cases for pathes where $t = 0$, which is
-    impossible to handle on the GPU as the path could contribute to any
-    arbitrary pixel [directly hitting the lens].
+of the sphere, and not its origin. \\$p_A^E(x_0 \rightarrow x_1)$ doesn't exist,
+as there is no physical lens on the scene. [TODO - this might cahnge later]. One
+of the benefits of this, is that there are no special cases for pathes where $t
+= 0$, which is impossible to handle on the GPU as the path could contribute to
+any arbitrary pixel [directly hitting the lens].
   \begin{align}
     P_A^E = 1.0f
   \end{align}
     The $L^0_e$ is contribution from the light source. As of right now, DTOADQ
-    only supports area lights, so $L^0_e$ is set a constant for the emitter's
-    spectrum value.
-    The $W_e^0$ is contribution from the eye source, that is, the lens. Since
-    the lens does not exist in the scene, as of now [TODO - this might change
-    later], there is no $W_e^0$. While this should be implemented in the future,
-    a hidden benefit of the current model is that there are no special cases for
-    paths where $t = 0$, which is impossible to handle on the GPU as any such
-    path could contribute to any arbitrary pixel [the light path is, after all,
-    directly hitting the lens]. So this has now become:
+only supports area lights, so $L^0_e$ is set a constant for the emitter's
+spectrum value. The $W_e^0$ is contribution from the eye source, that is, the
+lens. Since the lens does not exist in the scene, as of now [TODO - this might
+change later], there is no $W_e^0$. While this should be implemented in the
+future, a hidden benefit of the current model is that there are no special cases
+for paths where $t = 0$, which is impossible to handle on the GPU as any such
+path could contribute to any arbitrary pixel [the light path is, after all,
+directly hitting the lens]. So this has now become:
   \begin{align}
     \alpha_i^E = \Sigma_{i\leq 0} 
   \end{align}
-  The amount that each path contributes to F differ greatly, so naively
-  weighing each contribution uniformly by something like 1.0f, or even, by
-  inverse path length, will producy very noisy images, and would not be
-  worth the additional computation time that BDPT requires, as shown below.
-  	 To calculate the PDF of 
-  In order to get good
-  samples from the contributions, they must be combined in an optimal manner
-  using Multiple Importance Sampling: each contribution is weighted by the PDF
-  of the entire path itself:
+  The amount that each path contributes to F differ greatly, so naively weighing
+each contribution uniformly by something like 1.0f, or even, by inverse path
+length, will producy very noisy images, and would not be worth the additional
+computation time that BDPT requires, as shown below. To calculate the PDF of In
+order to get good samples from the contributions, they must be combined in an
+optimal manner using Multiple Importance Sampling: each contribution is weighted
+by the PDF of the entire path itself:
   \begin{align*}
     F &\equiv \Sigma_s\Sigma_tW_{s, t}C_{s, t}\\
     C_{s, t} &= \alpha^L_s c_{s, t} \alpha^E_t
   \end{align*}
     where $W_{s, t}$ is the MIS weight of path $\bar{y} \leftarrow \bar{z}$, and
-    $C_{s, t}$ is the unweighted contribution of the same path. For clarity,
-    $C^U_{s, t}$ as described below is the unweighted contribution of the
+$C_{s, t}$ is the unweighted contribution of the same path. For clarity,
+$C^U_{s, t}$ as described below is the unweighted contribution of the
     algorithm:
   \begin{align}
     C^u_{s, t} = (\alpha^L_s c_{s, t} \alpha^E_t) \equiv
@@ -389,15 +523,14 @@ hand allows a cheap normal computation of primitives such as a spheres.
     MIS_{st}(\bar{x}) = \frac{P_s(\bar{x})}{\Sigma_i{P_i(\bar{x})}} 
   \end{align}
     Conceptually, the numerator $P_s(\bar{x})$ is the path density that was
-    generated, while the denominator is the path density of other connection
-    strategies that could could have, in theory,$^{[1]}$ created the path. The
-    straight forward implementation of this has a lot of problems gone
-    unresolved in Veach's thesis; PBR 3rd Ed, chapter 16 pg 1014-1016 addresses
-    and describe these problems. Primarily, $P_i(\bar{x})$ will overflow
-    CLFloat (due to the distance in the Geometric term), and the straight
-    forward implementation is very long, hard to debug, and has a poor time
-    complexity. But the important part is the end result of their solution:
-
+generated, while the denominator is the path density of other connection
+strategies that could could have, in theory,$^{[1]}$ created the path. The
+straight forward implementation of this has a lot of problems gone unresolved in
+Veach's thesis; PBR 3rd Ed, chapter 16 pg 1014-1016 addresses and describe these
+problems. Primarily, $P_i(\bar{x})$ will overflow CLFloat (due to the distance
+in the Geometric term), and the straight forward implementation is very long,
+hard to debug, and has a poor time complexity. But the important part is the end
+result of their solution:
   \begin{align}
     r_i (\bar{x}) = 
     \begin{cases}
@@ -408,18 +541,15 @@ hand allows a cheap normal computation of primitives such as a spheres.
       * r_{i-1}(\bar{x}), & i > s
     \end{cases}
   \end{align}
-
     However, DTOADQ can simplify a bit further; unlike above, there are two
-    paths for which to evaluate. Specifically, in the above term, for where
-    $i < s$, we have
-    $\frac{\overleftarrow{p}(\bar{x}_i)}{\overrightarrow{p}(\bar{x}_i)}$, 
-    which is the light path (i is iterating towards light-length s). The eye
-    contribution is inversed from this, (also iterating towards s, hence why
-    $\bar{x}_{i-1}$ is used). Another way of saying it, is $\bar{x} = \bar{y} ||
-    \bar{z}_{rev}$.
-    In DTOADQ's case, the weights are calculated in
-    the same direction relative to its originator; in this case the perspective
-    of the eye path.
+paths for which to evaluate. Specifically, in the above term, for where $i < s$,
+we have $\frac{\overleftarrow{p}(\bar{x}_i)}{\overrightarrow{p}(\bar{x}_i)}$,
+which is the light path (i is iterating towards light-length s). The eye
+contribution is inversed from this, (also iterating towards s, hence why
+$\bar{x}_{i-1}$ is used). Another way of saying it, is $\bar{x} = \bar{y} ||
+\bar{z}_{rev}$. In DTOADQ's case, the weights are calculated in the same
+direction relative to its originator; in this case the perspective of the eye
+path.
   \begin{align}
     \mathcal{W}_i(\bar{x}) \equiv r_i(\bar{x})\\
     \mathcal{W}_i (\bar{x}) = 
@@ -430,21 +560,18 @@ hand allows a cheap normal computation of primitives such as a spheres.
     \end{cases}
   \end{align}
     And then the expanded form of $\mathcal{W}_i(\bar{x})$ looks like
-
   \begin{align}
     \mathcal{W}_i(\bar{x}) = \Pi_{n=2}^i(\frac{\overleftarrow
     {p_{\sigma}}(x_n)\overleftarrow {G}(x_n)}
     {\overrightarrow{p_{\sigma}}(x_n)\overrightarrow{G}(x_n)})
     * \frac{\overleftarrow{p_A}(x_1)}{\overrightarrow{p_A}(x_1)}
   \end{align}
- 
     And now the MIS looks like:
   \begin{align}
     MIS_{s, t}(\bar{y}, \bar{z}) =
     \frac{1.0f}{\mathcal{W}_s(\bar{y}) + \mathcal{W}_t(\bar{z}) + 1.0f}
   \end{align}
     Thus, the final rendering equation for DTOADQ looks like such:
-
   \begin{align}
     P = \frac{1.0f}{N} \Sigma_{0}^{N} \Sigma_{s \le 0} \Sigma_{t \le 0}
     \alpha^L_s c_{s,t} \alpha^E_t MIS_{s, t}(\bar{y}, \bar{z})
@@ -467,23 +594,41 @@ hand allows a cheap normal computation of primitives such as a spheres.
 
 
   \section{DTOADQ BRDF}
-  DTOADQ supports a "universal" physically-based sampling and spectrum BRDF. The spectrum BRDF is a combination of many different modified BRDF functions into one. There is a microfacet, subsurface and diffusive component in the DTOADQ spectrum BRDF, which are all combined together, with many variables to tune these components. There is diffusive, glossy, specular and transmittive sampling in the BRDF importance sample, with variables to allow specific control over which strategies to choose and how they are combined together. Regardless of how the BRDF is sampled, they use the same spectrum BRDF.
+  DTOADQ supports a "universal" physically-based sampling and spectrum BRDF. The
+spectrum BRDF is a combination of many different modified BRDF functions into
+one. There is a microfacet, subsurface and diffusive component in the DTOADQ
+spectrum BRDF, which are all combined together, with many variables to tune
+these components. There is diffusive, glossy, specular and transmittive sampling
+in the BRDF importance sample, with variables to allow specific control over
+which strategies to choose and how they are combined together. Regardless of how
+the BRDF is sampled, they use the same spectrum BRDF.
   
-  In order to develop these BRDFs, I wrote an SDF model based off the mitsuba model and wrote an IBL path-traced shader for quick prototyping; shadertoy.com/view/XtSyDm . The main reason to not use DTOADQ was the lack of cubemap support, which would have taken too long to implement.
+  In order to develop these BRDFs, I wrote an SDF model based off the mitsuba
+model and wrote an IBL path-traced shader for quick prototyping;
+shadertoy.com/view/XtSyDm . The main reason to not use DTOADQ was the lack of
+cubemap support, which would have taken too long to implement.
   
-  The Microfacet model consists of a fresnel, distribution and geometric term. It's important to note that these have all been modified to use the half-vector $H = \Vert\:L+V\:\Vert$. This gives better visuals and allows for a specific energy conservation model. Anyways, the fresnel term approximates the fresnel factor, it's based off both Schlick's approximation and Disney's diffusive schlick fresnel, with modifications to use a $metallic$ term as well as an albedo;
+  The Microfacet model consists of a fresnel, distribution and geometric term.
+It's important to note that these have all been modified to use the half-vector
+$H = \Vert\:L+V\:\Vert$. This gives better visuals and allows for a specific
+energy conservation model. Anyways, the fresnel term approximates the fresnel
+factor, it's based off both Schlick's approximation and Disney's diffusive
+schlick fresnel, with modifications to use a $metallic$ term as well as an
+albedo;
   \begin{lstlisting}
-const float3 Fresnel_L = Schlick_Fresnel(cos_NL),
-             Fresnel_V = Schlick_Fresnel(cos_NV);
-const float F0 = m->fresnel * m->metallic,
-Fresnel_diffuse_90 = F0 * SQR(cos_HL);
-microfacet *= (1.0f - F0) * diffusive_albedo +
-    mix(1.0f, Fresnel_diffuse_90, Fresnel_L) *
-    mix(1.0f, Fresnel_diffuse_90, Fresnel_V);
+  const float3 Fresnel_L = Schlick_Fresnel(cos_NL),
+               Fresnel_V = Schlick_Fresnel(cos_NV);
+  const float F0 = m->fresnel * m->metallic,
+  Fresnel_diffuse_90 = F0 * SQR(cos_HL);
+  microfacet *= (1.0f - F0) * diffusive_albedo +
+      mix(1.0f, Fresnel_diffuse_90, Fresnel_L) *
+      mix(1.0f, Fresnel_diffuse_90, Fresnel_V);
   \end{lstlisting}
   \includegraphics[scale=0.20]{fresnel}
   
-  The Geometric term is used to control how microfacets 'shadow' each other. The DTQ BRDF uses Heits' [2014] SmithGGXCorrelated modified to use a half vector, combined with an anisotropic term based off the GGX Anisotropic model:
+  The Geometric term is used to control how microfacets 'shadow' each other. The
+DTQ BRDF uses Heits' [2014] SmithGGXCorrelated modified to use a half vector,
+combined with an anisotropic term based off the GGX Anisotropic model:
   \begin{lstlisting}
   const float Param  = sqr(0.5f + sqr(m->roughness)),
   Aspect = sqrt(1.0f - m->anisotropic*0.9f),
@@ -493,9 +638,10 @@ microfacet *= (1.0f - F0) * diffusive_albedo +
   microfacet *= 0.5f / (GGX_NV*Ax + GGX_HL*Ay);
   \end{lstlisting}
   \includegraphics[scale=0.20]{geometric}
-  
-  And finally, the Distribution term controls how microfacets are spread around the normal. It's based off the Hyper Cauchy with a roughness and metallic (shape) parameters [9]. The latter of which should most likely be its own parameter in the future. The more readable mathematical model is shown:
-  
+  And finally, the Distribution term controls how microfacets are spread around
+the normal. It's based off the Hyper Cauchy with a roughness and metallic
+(shape) parameters [9]. The latter of which should most likely be its own
+parameter in the future. The more readable mathematical model is shown:
   \begin{align}
   \frac{(M - 1)\:(\sqrt{2})^{2\:S\:-\:2}}
   	    {\pi\:R^{2}\:cos^{4}\theta\:(2 +
@@ -503,17 +649,22 @@ microfacet *= (1.0f - F0) * diffusive_albedo +
   \end{align}
   \includegraphics[scale=0.20]{distribution}
   
-  These combine to form the microfacet under the half vector microfacet energy conservation model [Edwards et al. 2006].
+  These combine to form the microfacet under the half vector microfacet energy
+conservation model [Edwards et al. 2006].
   \[
   	\frac{F*G*D}{4 \: (H \cdot V) \: ( (N \cdot L) \vee (N \cdot V) )}
   \]
   
-  The diffusive component is a combination of both the subsurface and lambertian component. The lambertian is simply $\alpha^{0.5} * \frac{1}{\pi}$, and the subsurface component is based off the Henyey-Greenstein formula [Henyey], modified for half-vec:
+  The diffusive component is a combination of both the subsurface and lambertian
+component. The lambertian is simply $\alpha^{0.5} * \frac{1}{\pi}$, and the
+subsurface component is based off the Henyey-Greenstein formula [Henyey],
+modified for half-vec:
   \begin{align}
   	\frac{m(1 - r^2)}{4\pi}\:\frac{1}{(1 + r^2 - 2\:r\:
   		(H \cdot V))^{3/2}}
   \end{align}
-  where m is metallic and r is roughness. This is then combined to the diffusive component of the BRDF using Fresnel factor like so:
+  where m is metallic and r is roughness. This is then combined to the diffusive
+component of the BRDF using Fresnel factor like so:
   \begin{lstlisting}
 const float R = (-0.3f + 1.3f*m->roughness)*cos_HV,
             M = (1.0f - m->metallic)*5.0f;
@@ -550,14 +701,6 @@ diffusive_albedo = mix(diffusive_albedo, Retro_reflection, m->subsurface);
         // scene, the evaluation is on a "delta camera"
   
   \section{Bibliography}
-  [1]
-  \begin{align*}
-    \Sigma_{k=1}^{\infty} \int_{M^{k+1}} L_e(v_0 \rightarrow v_1) G(v_0
-    \leftrightarrow v_1)
-    \Pi_{i=1}^{k-1} F_s(v_{i-1} \rightarrow v_i \rightarrow v_{i+1}) G(v_i
-    \leftrightarrow v_{i+1})\\
-    W_e^j(v_{k-1} \rightarrow v_k) dA(v_0) \ldots dA(v_k)
-  \end{align*}
   [9]
   Samuel D. Butler, Experimental and Theoretical Basis for a closed-Form Spectral BRDF model
   

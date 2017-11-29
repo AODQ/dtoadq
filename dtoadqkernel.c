@@ -93,7 +93,7 @@ SampledPt SampledPt_From_Origin(float3 origin) {
 }
 
 typedef struct T_Vertex {
-  float3 origin, radiance, normal, mat_col;
+  float3 origin, irradiance, normal, mat_col;
   float pdf_fwd, pdf_bwd;
   Material* material;
   int M_ID;
@@ -257,6 +257,18 @@ float3 RColour ( float3 pt_colour, Material* m ) {
   return (pt_colour.x >= 0.0f) ? pt_colour : m->albedo;
 }
 
+bool Is_Delta ( Vertex* vtx ) {
+  return vtx->material == NULL ? 0 : ( vtx->material->specular     != 0.0f ||
+                                       vtx->material->transmittive != 0.0f);
+}
+
+bool Is_Black ( Vertex* vtx ) {
+  return vtx->irradiance.x == 0.0f &&
+         vtx->irradiance.y == 0.0f &&
+         vtx->irradiance.z == 0.0f;
+}
+
+
 float3 reflect ( float3 V, float3 N ) {
   return V - 2.0f*dot(V, N)*N;
 }
@@ -344,31 +356,33 @@ float Smith_G_GGX_Correlated ( float L, float R, float a ) {
 float3 BRDF_Diffuse_Sample ( float3 wi, float3 N, float* pdf, SceneInfo* si ) {
   return Reorient_Angle(Sample_Cosine_Hemisphere(si, pdf), N);
 }
-float BRDF_Diffuse_PDF  ( float3 wi, float3 N ) {
-  return PDF_Cosine_Hemisphere(wi, N);
+float BRDF_Diffuse_PDF  ( float3 wi, float3 wo, float3 N ) {
+  return PDF_Cosine_Hemisphere(wo, N);
 }
 float3 BRDF_Glossy_Sample ( float3 wi, float3 N, float* pdf, float glossy_lobe,
                             SceneInfo* si) {
   return Reorient_Angle(Sample_Uniform_Cone(glossy_lobe, pdf, si), N);
 }
-float BRDF_Glossy_PDF   ( float3 wi, float3 N, float cos_theta_max ) {
+float BRDF_Glossy_PDF   ( float3 wi, float3 wo, float3 N, float cos_theta_max ) {
   if ( cos_theta_max < 0.001f ) return 1.0f;
-  return PDF_Uniform_Cone(wi, N, cos_theta_max);
+  return PDF_Uniform_Cone(wo, N, cos_theta_max);
 }
 float3 BRDF_Specular_Sample ( float3 wi, float3 N, float* pdf ) {
   *pdf = 1.0f;
   return reflect(wi, N);
+}
+float BRDF_Specular_PDF ( float3 wi, float3 wo, float3 N ) {
+  float3 ref = reflect(wi, N);
+  return fabs(length(ref - wo)) < 0.001f ? 1.0f : 0.0f;
 }
 // Misnomer, it should be either BSDF or BTDF ; TODO make all pdf/sample/etc bsdf
 float3 BRDF_Transmittive_Sample ( float3 wi, float3 N, float* pdf, float ior ) {
   *pdf = 1.0f;
   return refract(wi, N, ior*5.0f);
 }
-float BRDF_Specular_PDF ( float3 wi, float3 N ) {
-  return 1.0f;
-}
-float BRDF_Transmittive_PDF ( float3 wi, float3 N, float ior ) {
-  return 1.0f;
+float BRDF_Transmittive_PDF ( float3 wi, float3 wo, float3 N, float ior ) {
+  float3 ref = refract(wi, N, ior*5.0f);
+  return fabs(length(ref - wo)) < 0.001f ? 1.0f : 0.0f;
 }
 
 
@@ -483,31 +497,35 @@ void _BSDF_Sample ( float3 wi, float3 N, Vertex* vtx,
 }
 
 // generates PDF, wo doesn't really do anything
-float BSDF_PDF ( float3 sample_dir, float3 wo, Vertex* vtx ) {
+float BSDF_PDF ( Vertex* vtx, float3 wi, float3 wo) {
   float pdf = 0.0f;
   Material* m = vtx->material;
   float3 N = vtx->normal;
 
-  pdf += m->diffuse      * BRDF_Diffuse_PDF     (sample_dir, N);
-  pdf += m->glossy       * BRDF_Glossy_PDF      (sample_dir, N, m->glossy_lobe);
-  pdf += m->specular     * BRDF_Specular_PDF    (sample_dir, N);
-  pdf += m->transmittive * BRDF_Transmittive_PDF(sample_dir, N, m->ior);
+  pdf += m->diffuse      * BRDF_Diffuse_PDF     (wi, wo, N);
+  pdf += m->glossy       * BRDF_Glossy_PDF      (wi, wo, N, m->glossy_lobe);
+  pdf += m->specular     * BRDF_Specular_PDF    (wi, wo, N);
+  pdf += m->transmittive * BRDF_Transmittive_PDF(wi, wo, N, m->ior);
 
   return pdf;
 }
 
-float3 BSDF_Spectrum ( Vertex* V0, Vertex* V1, Vertex* V2 ) {
+// Connect subpaths together
+Spectrum Subpath_Connection ( Vertex* V0, Vertex* V1, Vertex* V2, int s, int t ) {
   float gterm = fabs(dot(V1->normal, normalize(V2->origin - V1->origin)));
   float3 wi = normalize(V1->origin - V0->origin),
          wo = normalize(V2->origin - V1->origin);
+  float pdf = BSDF_PDF(V1, wi, wo);
+  if ( pdf == 0.0f )
+    return (float3)(0.0f);
   return _BRDF_F(wi, V1->normal, wo, V1->material, V1->mat_col) *
-            gterm / BSDF_PDF(wi, wo, V1);
+            gterm / pdf;
 }
 
 /* sets vtx with random sample from material
 */
 void BSDF_Sample ( float3 O, float3 wi, float3 N, Material* m,
-                   Ray* ray, float3* radiance, float* pdf,
+                   Ray* ray, float3* irradiance, float* pdf,
                    Vertex* prev_vtx, Vertex* vtx, SceneInfo* si){
   // vertex info
   vtx->origin   = O;
@@ -523,12 +541,16 @@ void BSDF_Sample ( float3 O, float3 wi, float3 N, Material* m,
   edge /= edge_dist; // normalize
   // vertex info
   vtx->pdf_fwd  = (*pdf) * dot(edge, prev_vtx->normal)/(SQR(edge_dist));
-  *radiance = sample_f * (*radiance) * fabs(dot(N, sample_dir))/sample_pdf;
-  vtx->radiance = *radiance;
+  vtx->irradiance = *irradiance;
   // prev vertex pdf bwd
-  prev_vtx->pdf_bwd = BSDF_PDF(sample_dir, wi, vtx) *
+  prev_vtx->pdf_bwd = BSDF_PDF(vtx, sample_dir, wi) *
                        fabs(dot(-edge, N))/SQR(edge_dist);
+  // delta check [specular/transmittive]
+  if ( Is_Delta(vtx) ) {
+    vtx->pdf_rev = vtx->pdf_fwd = 0.0f;
+  }
   // misc scope info
+  *irradiance = sample_f * (*irradiance) * fabs(dot(N, sample_dir))/sample_pdf;
   *pdf    = sample_pdf;
   *ray    = (Ray){O, sample_dir};
 }
@@ -571,13 +593,11 @@ float Visibility_Ray(float3 orig, float3 other, SCENE_T(si, Tx)) {
 // ω -> A = PDF * |cosθ|/d²
 // Adapted from PBRT 3d edition pg 1011
 float Geometric_Term_Novis(Vertex* V0, Vertex* V1, SCENE_T(si, Tx)) {
-  float3 edge = V1->origin - V0->origin;
-  float dist = length(edge);
-  edge = normalize(edge);
+  float3 d = V0->origin - V1->origin;
+  float g = 1.0f/(SQR(length(d)));
+  d *= sqrt(g);
 
-  float cos_wi = fmax(0.0f, dot( edge, V0->normal)),
-        cos_wo = fmax(0.0f, dot(-edge, V1->normal));
-  return cos_wi * cos_wo / (SQR(dist));
+  return g * fabs(dot(V0->normal, d)) * fabs(dot(V1->normal, d));
 }
 float Geometric_Term(Vertex* V0, Vertex* V1, SCENE_T(si, Tx)) {
   float visible = Visibility_Ray(V0->origin, V1->origin, si, Tx);
@@ -591,15 +611,10 @@ float PDF_Combine ( float pdf_bwd, float pdf_fwd ) {
   return pdf_bwd/pdf_fwd;
 }
 
-bool Is_Delta ( Vertex* vtx ) {
-  return vtx->material == NULL ? 0 : ( vtx->material->specular     != 0.0f ||
-                                       vtx->material->transmittive != 0.0f);
-}
-
 __constant int Eval_Vertex_Enum_Hit   = 0,
                Eval_Vertex_Enum_Miss  = 1,
                Eval_Vertex_Enum_Light = 2;
-int Eval_Vertex ( Ray* ray, float3* radiance, float* pdf,
+int Eval_Vertex ( Ray* ray, float3* irradiance, float* pdf,
                   Vertex* V0, Vertex* V1, SCENE_T(si, Tx) ) {
   // russian roulette
   if ( Sample_Uniform(si) < 0.05f ) return Eval_Vertex_Enum_Miss;
@@ -621,7 +636,7 @@ int Eval_Vertex ( Ray* ray, float3* radiance, float* pdf,
   float3 tcol = ptinfo.colour;
   V1->mat_col = RColour(tcol, mat);
   // sample
-  BSDF_Sample(O, ray->dir, N, mat, ray, radiance, pdf, V0, V1, si);
+  BSDF_Sample(O, ray->dir, N, mat, ray, irradiance, pdf, V0, V1, si);
   // no point in continuing anymore if energy lost
   // though it might be wise to continue anyway to avoid branching
   /* if ( radiance->x == 0.0f && radiance->y == 0.0f && radiance->z == 0.0f ) */
@@ -646,7 +661,7 @@ float Calculate_MIS ( Vertex* L0, Vertex* L1, Vertex* E0, Vertex* E1,
     float edge_dist = length(wo);
     wo = normalize(wo);
 
-    float pdf_w = BSDF_PDF(wi, wo, L1);
+    float pdf_w = BSDF_PDF(L1, wi, wo);
     E1->pdf_bwd = pdf_w * fabs(dot(L1->normal, wo))/(SQR(edge_dist));
   }
 
@@ -657,7 +672,7 @@ float Calculate_MIS ( Vertex* L0, Vertex* L1, Vertex* E0, Vertex* E1,
     float edge_dist = length(wo);
     wo = normalize(wo);
 
-    float pdf_w = BSDF_PDF(wi, wo, E1);
+    float pdf_w = BSDF_PDF(E1, wi, wo);
     E0->pdf_bwd = pdf_w * fabs(dot(E1->normal, wo))/(SQR(edge_dist));
   }
 
@@ -675,7 +690,7 @@ float Calculate_MIS ( Vertex* L0, Vertex* L1, Vertex* E0, Vertex* E1,
     float edge_dist = length(wo);
     wo = normalize(wo);
 
-    float pdf_w = BSDF_PDF(wi, wo, E1);
+    float pdf_w = BSDF_PDF(E1, wi, wo);
     L1->pdf_bwd = pdf_w * fabs(dot(E1->normal, wo))/(SQR(edge_dist));
   }
 
@@ -686,7 +701,7 @@ float Calculate_MIS ( Vertex* L0, Vertex* L1, Vertex* E0, Vertex* E1,
     float edge_dist = length(wo);
     wo = normalize(wo);
 
-    float pdf_w = BSDF_PDF(wi, wo, L1);
+    float pdf_w = BSDF_PDF(L1, wi, wo);
     L0->pdf_bwd = pdf_w * fabs(dot(L1->normal, wo))/SQR(edge_dist);
   }
 
@@ -711,21 +726,23 @@ Emitter Generate_Light_Subpath ( Subpath* path, float* light_mis,
   Emitter light = REmission(light_index, si->debug_values, si->time);
   int mindex = EMIT_MAT - light_index;
   Ray ray;
-  float3 radiance;
+  float3 irradiance;
   float pdf_fwd;
   {// Generate ray position/angle, set initial vertex and set pdf_fwd
     float pdf_pos, pdf_dir;
-    float3 N = Sample_Cosine_Sphere(si, &pdf_pos);
-    float3 origin = light.origin + light.radius*N;
-    float3 dir = Reorient_Angle(Sample_Cosine_Hemisphere(si, &pdf_dir), N);
+    float3 N      = Sample_Cosine_Sphere(si, &pdf_pos),
+           origin = light.origin + light.radius*N,
+           dir    = Reorient_Angle(Sample_Cosine_Hemisphere(si, &pdf_dir), N);
 
     ray = (Ray){origin, dir};
     pdf_fwd = pdf_dir;
     pdf_pos = 1.0f/(2.0f*TAU*SQR(light.radius));
 
+    float pdf_amt = 1.0f/EMITTER_AMT;
+
     Vertex* pv = path->vertices;
     pv->origin = origin;
-    radiance = pv->radiance = light.emission/pdf_pos;
+    irradiance = pv->irradiance = light.emission/(pdf_pos*pdf_amt*pdf_fwd);
     pv->normal = N;
     pv->pdf_fwd = pdf_pos;
     pv->material = NULL;
@@ -738,7 +755,7 @@ Emitter Generate_Light_Subpath ( Subpath* path, float* light_mis,
   for ( int depth = 1; depth != 5; ++ depth ) {
     Vertex* L0 = path->vertices+depth-1,
           * L1 = path->vertices+depth;
-    int res = Eval_Vertex(&ray, &radiance, &pdf_fwd, L0, L1, si, Tx);
+    int res = Eval_Vertex(&ray, &irradiance, &pdf_fwd, L0, L1, si, Tx);
     if ( res != Eval_Vertex_Enum_Hit )
       break;
     /* if ( pdf_fwd == 0.0f ) break; */
@@ -766,11 +783,11 @@ Spectrum BDPT_Integrate ( float3 pixel, float3 dir, SCENE_T(si, Tx)) {
   // --- generate eye path ---
   Ray ray = (Ray){pixel, dir};
   Vertex E0, E1, E2;
-  float3 radiance = (float3)(1.0f);
+  float3 irradiance = (float3)(1.0f);
   float pdf_fwd = 1.0f;
   { // Generate initial vertex and pdf_fwd
     E2.origin = ray.origin;
-    E2.radiance = (float3)(1.0f);
+    E2.irradiance = (float3)(1.0f);
     E2.normal = ray.dir;
     E2.pdf_fwd = 1.0f;
     E2.material = NULL;
@@ -797,7 +814,7 @@ Spectrum BDPT_Integrate ( float3 pixel, float3 dir, SCENE_T(si, Tx)) {
     E0 = E1;
     E1 = E2;
     {// eval path
-      int result = Eval_Vertex(&ray, &radiance, &pdf_fwd,
+      int result = Eval_Vertex(&ray, &irradiance, &pdf_fwd,
                                &E1, &E2, si, Tx);
       /* if ( pdf_fwd == 0.0f ) break; */
       if ( result == Eval_Vertex_Enum_Miss )
@@ -813,10 +830,10 @@ Spectrum BDPT_Integrate ( float3 pixel, float3 dir, SCENE_T(si, Tx)) {
         }
         Vertex L1;
         L1.origin = E2.origin;
-        L1.radiance = (float3)(1.0f);
+        L1.irradiance = (float3)(1.0f);
         L1.normal = Normal(L1.origin, si, Tx);
 
-        Spectrum contribution = BSDF_Spectrum(&E0, &E1, &L1);
+        Spectrum contribution = Subpath_Connection(&E0, &E1, &L1);
         contribution *= Geometric_Term(&E1, &L1, si, Tx);
         contribution *= tlight.emission/Light_PDF(&tlight);
         // calculate MIS
@@ -846,14 +863,14 @@ Spectrum BDPT_Integrate ( float3 pixel, float3 dir, SCENE_T(si, Tx)) {
             * L0 = light_depth == 0 ? NULL : (path.vertices + light_depth-1);
       // if delta continue
 
-      Spectrum contribution = E1.radiance * L1->radiance;
+      Spectrum contribution = E1.irradiance * L1->irradiance;
 
       if ( light_depth > 0 ) { // s >= 1, t >= 1 strategy
-        contribution *= BSDF_Spectrum(&E0, &E1, L1);
-        contribution *= BSDF_Spectrum( L0,  L1, &E1);
+        contribution *= Subpath_Connection(&E0, &E1, L1);
+        contribution *= Subpath_Connection( L0,  L1, &E1);
       } else { // s == 1 strategy. L1 = L0, a point on the surface of area light
         // Connect E0 -> E1 -> L1
-        contribution *= BSDF_Spectrum(&E0, &E1, L1);
+        contribution *= Subpath_Connection(&E0, &E1, L1);
       }
 
       // Geometric connection term [includes visibility check]
@@ -878,6 +895,9 @@ Spectrum BDPT_Integrate ( float3 pixel, float3 dir, SCENE_T(si, Tx)) {
       TL1 = *L1;
       if ( L0 ) TL0 = *L0;
 
+      float real_mis = 0.0f;
+
+      if ( 
       float real_mis =
         Calculate_MIS(L0?&TL0:NULL, &TL1, &TE0, &TE1,
                       light_mis_arr[light_depth], light_prob_arr[light_depth],
