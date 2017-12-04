@@ -414,8 +414,6 @@ Ray Camera_Ray(Camera* camera, SceneInfo* si) {
   float3 cam_right = normalize ( cross(cam_front, (float3)(0.0f, 1.0f, 0.0f)));
 
   float3 cam_up = normalize(cross(cam_right, cam_front));
-  Ray ray;
-
   /* // ------ DOF & antialiasing ----- */
   // Adapted from https://www.shadertoy.com/view/lsX3DH
   float3 dof_puv = (float3)(puv, fov_r);
@@ -425,9 +423,7 @@ Ray Camera_Ray(Camera* camera, SceneInfo* si) {
   cam_pos += dof_origin.x*cam_right + dof_origin.y*cam_up;
   ray_dir += dof_dir.x*cam_right + dof_dir.y*cam_up;
   ray_dir = normalize(ray_dir);
-  ray.origin = cam_pos;
-  ray.dir = ray_dir;
-  return ray;
+  return (Ray){cam_pos, ray_dir};
 }
 
 typedef struct _T_EvalPreviousOutputHorcrux {

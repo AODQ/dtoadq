@@ -29,8 +29,6 @@
 
 \begin{document}
   \maketitle
-  \section{Introduction}
-
   \section{Signed Distance Fields}
   Signed Distance Fields (SDFs) are a mathematical tool to represent a 3D
 primitive by describing its surface via a distance field. Given an arbitrary
@@ -51,7 +49,7 @@ appear deformed as shown below.
   
   \includegraphics[]{lipschittzbound}
   
-  This is a larger problem in Light Transport than it is in raytracing because
+  This is a larger problem in light transport than it is in raytracing because
 small discontinuities can impact the lighting of an entire scene. And to add to
 that, most interesting operations (such as the meta balls shown in the image
 above) will violate Lipschitz. The easiest way to fix this is to multiply the
@@ -524,8 +522,8 @@ eye path. Not only this, but unlike any implementation I've found of BDPT, I
 don't recalculate each path's probability and MIS every vertex. That is, usually
 on calculating MIS for each connection, the MIS and probability values are
 recalculated for each vertex in the path. As this is not possible given that
-only the light-path exists in memory, an array for MIS/probability is stored
-corresponding to each light vertex, and a single MIS/probability is stored
+only the light-path exists in memory, an array for sum/probability is stored
+corresponding to each light vertex, and a single sum/probability is stored
 corresponding to $E_1$. Thus, the weight on each path looks like:
   \begin{align}
     \mathcal{W}_i(\bar{x}) \equiv r_i(\bar{x})\\
@@ -536,39 +534,11 @@ corresponding to $E_1$. Thus, the weight on each path looks like:
       \mathcal{W}_{i-1}(\bar{x}), & i > 0
     \end{cases}
   \end{align}
-    And then the expanded form of $\mathcal{W}_i(\bar{x})$ looks like
-  \begin{align}
-    \mathcal{W}_i(\bar{x}) = \Pi_{n=2}^i(\frac{\overleftarrow
-    {p_{\sigma}}(x_n)\overleftarrow {G}(x_n)}
-    {\overrightarrow{p_{\sigma}}(x_n)\overrightarrow{G}(x_n)})
-    * \frac{\overleftarrow{p_A}(x_1)}{\overrightarrow{p_A}(x_1)}
-  \end{align}
     And now the MIS looks like:
   \begin{align}
     MIS_{s, t}(\bar{y}, \bar{z}) =
     \frac{1.0f}{\mathcal{W}_s(\bar{y}) + \mathcal{W}_t(\bar{z}) + 1.0f}
   \end{align}
-    Thus, the final rendering equation for DTOADQ looks like such:
-  \begin{align}
-    P = \frac{1.0f}{N} \Sigma_{0}^{N} \Sigma_{s \le 0} \Sigma_{t \le 0}
-    \alpha^L_s c_{s,t} \alpha^E_t MIS_{s, t}(\bar{y}, \bar{z})
-  \end{align}
-
-
-  \begin{align}
-    P_i(\bar{x}_{s, t}) = P^L_s p^E_t
-  \end{align}
-
-  \begin{align}
-    p^{L|E}_i(\bar{x}) =
-    \begin{cases}
-      1.0f, & i = 0,\\
-      P_A(x_i), & i = 1,\\
-      P_{\sigma}(x_{i-1} \rightarrow x_i) G(x_{i-1} \leftrightarrow x_i)
-      P^{L|E}_{i-1}, & i > 1
-    \end{cases}
-  \end{align}
-
 
 
   The camera handling function is based off glLookAt. The difference is that it

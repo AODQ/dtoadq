@@ -10,7 +10,7 @@ struct Camera {
   this ( float[3] pos, float[3] dir, int[2] dim ) {
     static import stl;
     focal = 1.0f;
-    radius = 0.2f;
+    radius = 0.01f;
     position = To_CLFloat3(pos);
     stl.writeln(position);
     lookat = To_CLFloat3(dir);

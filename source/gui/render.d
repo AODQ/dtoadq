@@ -17,7 +17,7 @@ bool Imgui_Render ( ref ocl.Camera camera ) {
         camera.lookat[0..3].map!(n => cast(int)(n*100.0f)/100.0f)));
       change |= igSliderFloat("FOV", &camera.fov, 50.0f, 140.0f);
       change |= igSliderFloat("Focal", &camera.focal, 0.01f, 10.0f);
-      change |= igSliderFloat("Radius", &camera.radius, 0.00f, 2.0f);
+      change |= igSliderFloat("Radius", &camera.radius, 0.00f, 0.5f);
     }
     // -- render options --
     if ( igCollapsingHeader("Render Options") ) {

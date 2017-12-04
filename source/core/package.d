@@ -90,7 +90,8 @@ void Set_Material(stl.json.JSONValue json_value) {
       [
       RJS(json, "diffuse"),      RJS(json, "specular"),
       RJS(json, "glossy"),       RJS(json, "glossy_lobe"),
-      RJS(json, "transmittive"), RJS(json, "roughness"),
+      RJS(json, "transmittive"), RJS(json, "ior"),
+      RJS(json, "roughness"),
       RJS(json, "metallic"),     RJS(json, "fresnel"),
       RJS(json, "subsurface"),   RJS(json, "anisotropic")
       ]
