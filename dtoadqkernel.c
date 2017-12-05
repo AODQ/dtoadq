@@ -332,7 +332,7 @@ float PDF_Cosine_Sphere ( float3 wi ) {
 }
 
 float _PDF_Uniform_Cone ( float cos_theta_max ) {
-  return 4.0f*PI*sqr(sin(0.5f*cos_theta_max));
+  return 1.0f/(4.0f*PI*sqr(sin(0.5f*cos_theta_max)));
 }
 float3 Sample_Uniform_Cone ( float cos_theta_max, float* pdf, SceneInfo* si ) {
   float2 u = Sample_Uniform2(si);
@@ -379,7 +379,8 @@ float BRDF_Diffuse_PDF  ( float3 wi, float3 wo, float3 N ) {
 }
 float3 BRDF_Glossy_Sample ( float3 wi, float3 N, float* pdf, float glossy_lobe,
                             SceneInfo* si) {
-  return Reorient_Angle(Sample_Uniform_Cone(glossy_lobe, pdf, si), N);
+  float3 NN = reflect(wi, N);
+  return Reorient_Angle(Sample_Uniform_Cone(glossy_lobe, pdf, si), NN);
 }
 float BRDF_Glossy_PDF   ( float3 wi, float3 wo, float3 N, float cos_theta_max ) {
   if ( cos_theta_max < 0.001f ) return 1.0f;
@@ -415,14 +416,14 @@ Spectrum _BRDF_F ( float3 wi, float3 N, float3 wo, Material* m, float3 col ) {
                Fresnel_L = Schlick_Fresnel(cos_NL),
                Fresnel_V = Schlick_Fresnel(cos_NV);
   // Diffusive component
-  float3 diffusive_albedo = col * IPI;
+  float3 diffusive_albedo = col*IPI;
 
   float3 microfacet = (float3)(1.0f);
 
 
   // probably transmittive
   if ( cos_NL <= 0.0f || cos_NV <= 0.0f ) {
-    diffusive_albedo *= PI*1.0f*m->transmittive;
+    diffusive_albedo *= PI*m->transmittive;
     return diffusive_albedo;
   }
 
@@ -610,7 +611,7 @@ SampledPt March_Visibility ( int avoid, Ray ray, SCENE_T(si, Tx)) {
 float Visibility_Ray(float3 orig, float3 other, SCENE_T(si, Tx)) {
   float theoretical = Distance(orig, other);
   float3 dir = normalize(other - orig);
-  orig += dir*(0.001f);
+  orig += dir*(0.005f);
   SampledPt ptinfo = March_Visibility(-1, (Ray){orig, dir}, si, Tx);
   float actual = ptinfo.dist + MARCH_ACC + 0.01f;
   return 1.0f*(actual >= theoretical*0.9f);
@@ -618,28 +619,24 @@ float Visibility_Ray(float3 orig, float3 other, SCENE_T(si, Tx)) {
 
 // -----------------------------------------------------------------------------
 // --------------- LIGHT TRANSPORT ---------------------------------------------
+float _Geometric_Term_PDF_Glossy ( Vertex* V0, Vertex* V1, Vertex* V2 ) {
+  if ( !V0 || !V2 ) return 0.0f;
+  float3 wi = normalize(V1->origin - V0->origin),
+         wo = normalize(V2->origin - V1->origin);
+  float3 NN = reflect(wi, V1->normal);
+  return (dot(wo, NN) > cos(V1->material->glossy_lobe))*1.0f;
+}
 float Geometric_Term_PDF ( Vertex* E0, Vertex* E1, Vertex* L1, Vertex* L0 ) {
+  if ( E1->material != NULL && E1->material->glossy > 0.0f ) {
+    return _Geometric_Term_PDF_Glossy(E0, E1, L1);
+  }
+  /* if ( L1->material != NULL && L1->material->glossy > 0.0f ) { */
+  /*   return _Geometric_Term_PDF_Glossy(E1, L1, L0); */
+  /* } */
   if ( Is_Delta(E1) || Is_Delta(L1) ) {
     return 0.0f;
   }
-  // check glossy
   return 1.0f;
-  /* float lpdf, epdf; */
-  /* if ( L0 != NULL ) { */
-  /*   float3 wi = normalize(L1->origin - L0->origin), */
-  /*          wo = normalize(E1->origin - L1->origin); */
-  /*   Material* m = L1->material; */
-  /*   lpdf = (m->specular>0.0f? */
-  /*          BRDF_Transmittive_PDF(wi, wo, L1->normal, m->ior)*m->transmittive; */
-  /* } */
-  /* if ( E0 != NULL ) { */
-  /*   float3 wi = normalize(E1->origin - E0->origin), */
-  /*          wo = normalize(L1->origin - E1->origin); */
-  /*   Material* m = E1->material; */
-  /*   epdf = BRDF_Specular_PDF(wi, wo, E1->normal)*m->specular + */
-  /*          BRDF_Transmittive_PDF(wi, wo, E1->normal, m->ior)*m->transmittive; */
-  /* } */
-  /* return (lpdf==0.0f?1.0f:0.0f)*(epdf==0.0f?1.0f:0.0f); */
 }
 /// Geometric term of e0 -> e1 w/ visibilty check, can be used to convert
 ///   a PDF w.r.t. SA to area by multiplying it by this factor
@@ -883,7 +880,7 @@ Spectrum BDPT_Integrate ( float3 pixel, float3 dir, SCENE_T(si, Tx)) {
         float3 lorig = normalize((Sample_Uniform3(si)-0.5f)*2.0f);
         lorig = (lorig*light.radius*1.00f) + light.origin;
         float3 ldir = normalize(light.origin-E1.origin);
-        SampledPt lres = March(-1, (Ray){E1.origin+ldir*0.001f, ldir},
+        SampledPt lres = March(-1, (Ray){E1.origin+ldir*0.005f, ldir},
                               si, Tx);
         CL1.origin = E1.origin + ldir*lres.dist;
         CL1.irradiance = light.emission/Light_PDF(&light);

@@ -209,38 +209,8 @@ Ray Camera_Ray(Camera* camera, SceneInfo* si) {
   Ray ray;
 
   /* // ------ DOF & antialiasing ----- */
-  float3 dof_puv = (float3)(puv, fov_r);
-  float3 ray_dir = dof_puv.x*cam_right + dof_puv.y*cam_up + fov_r*cam_front;
-  float3 dof_origin = camera->radius*(float3)(Sample_Uniform(si), 0.0f, 0.0f);
-  float3 dof_dir = normalize(dof_puv * camera->focal - dof_origin);
-  cam_pos += dof_origin.x*cam_right + dof_origin.y*cam_up;
-  ray_dir += dof_dir.x*cam_right + dof_dir.y*cam_up;
-  ray_dir = normalize(ray_dir);
-  ray.origin = cam_pos;
-  ray.dir = ray_dir;
-  return ray;
-}
-
-
-typedef struct _T_EvalPreviousOutputHorcrux {
-  float4 old_colour;
-  bool raycast_nav;
-} _EvalPreviousOutputHorcrux;
-
-_EvalPreviousOutputHorcrux Eval_Previous_Output(
-                                                __global unsigned char* img, __write_only image2d_t output, int2 out,
-                                                __global SharedInfo* shared_info, int pt) {
-  _EvalPreviousOutputHorcrux hor;
-  hor.old_colour = (float4)(0.0f);
-  hor.raycast_nav = (shared_info->clear_img);
-  if ( !hor.raycast_nav) {
-    hor.old_colour = (float4)(img[pt+0]/255.0f, img[pt+1]/255.0f,
-                              img[pt+2]/255.0f, (float)(img[pt+3]));
-  } else {
-    img[pt+0] = 0.0f; img[pt+1] = 0.0f; img[pt+2] = 0.0f; img[pt+3] = 0.0f;
-    shared_info->finished_samples = 0;
-  }
-  return hor;
+  float3 ray_dir = puv.x*cam_right + puv.y*cam_up + fov_r*cam_front;
+  return (Ray){cam_pos, normalize(ray_dir)};
 }
 
 // -----------------------------------------------------------------------------
@@ -284,38 +254,14 @@ __kernel void DTOADQ_Kernel (
         float3 albedo = RColour(pt.colour, &m);
         // diffusive component i made up, no normal needed
         float3 V = -ray.dir, L = normalize(emit.origin-O);
-        col = albedo*0.5f + dot(V, L)*0.1f;
+        col = albedo*0.6f + dot(V, L)*0.2f * (1.0f/EMITTER_AMT);
       } else {
         col = (float3)(1.0f);
       }
     }
   }
 
-  float4 old_colour = (float4)(0.0f);
-  int pix_pt = out.y*camera.dim.x*4 + out.x*4;
-  {
-    _EvalPreviousOutputHorcrux _hor =
-      Eval_Previous_Output(img, output_img, out, sinfo, pix_pt);
-    old_colour = _hor.old_colour;
-    if ( old_colour.w >= (float)(64) ) return;
-    if ( _hor.raycast_nav ) {
-      write_imagef(output_img, out, (float4)(col, 1.0f));
-      return;
-    }
-  }
-
-  if ( col.x >= 0.0f ) {
-    old_colour = (float4)(mix(col, old_colour.xyz,
-                              (old_colour.w/(old_colour.w+1.0f))),
-                          old_colour.w+1.0f);
-    float4 nold_colour;
-    write_imagef(output_img, out, (float4)(old_colour.xyz, 1.0f));
-    //
-    img[pix_pt+0] = (unsigned char)(old_colour.x*255.0f);
-    img[pix_pt+1] = (unsigned char)(old_colour.y*255.0f);
-    img[pix_pt+2] = (unsigned char)(old_colour.z*255.0f);
-    img[pix_pt+3] = (unsigned char)(old_colour.w);
-  }
+  write_imagef(output_img, out, (float4)(col, 1.0f));
 
   rng_states[out.y*camera.dim.x + out.x] = scene_info.rng_state;
 }
