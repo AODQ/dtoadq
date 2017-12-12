@@ -61,7 +61,7 @@ void Update_Directory ( string dir_prestr ) {
         import std.string;
         bool open = core.info.RFilename == fil;
         if ( igCheckbox(fil[fil.lastIndexOf('/')+1..$].toStringz, &open) ) {
-          core.info.Set_Map_Function(fil);
+          core.info.Set_Any_Function(fil);
         }
       }
     }

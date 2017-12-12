@@ -1,3 +1,0 @@
-#!/usr/bin/rdmd
-import std.stdio;
-void main ( ) { "hello world".writeln; }

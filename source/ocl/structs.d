@@ -24,7 +24,7 @@ struct Camera {
 
 struct ImageMetaData {
   ubyte clear_img = true;
-  ulong finished_samples;
+  ulong finished_samples=0;
   ubyte spp = 255;
 }
 

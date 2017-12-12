@@ -84,6 +84,9 @@ bool Imgui_Render ( ref ocl.Camera camera ) {
     igCheckbox("SmallStats", &small_stats_open);
     if ( small_stats_open ) {Render_SmallStats(camera);}
     igSeparator();
+
+    import glfw.input : camera_velocity;
+    igSliderFloat("Camera Vel", &camera_velocity, 0.0f, 0.2f);
   igEnd();
 
   return change;

@@ -8,9 +8,15 @@ auto TSTR ( int i )  {
   }
 }
 
+bool imgui_render_frame = true;
+
 bool Imgui_Render ( ref ocl.Camera camera ) {
   static import gui.render;
-  return gui.render.Imgui_Render ( camera );
+  static import glfw.input;
+  glfw.input.GUI_Update();
+  if ( imgui_render_frame )
+    return gui.render.Imgui_Render ( camera );
+  return false;
 }
 
 // -- allow variadic calls to igFN, ei, igText(gui.Accum("lbl: ", l), ..);

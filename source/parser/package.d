@@ -1,5 +1,7 @@
 module parser;
 public import parser.checker;
+static import shared_info = core.shared_info;
+static import core.image;
 import parser.file : KernelFile;
 static import stl;
 
@@ -27,7 +29,9 @@ static import core.info;
 void Change_Kernel ( core.info.KernelType kernel_type ) {
   alias KT = core.info.KernelType;
   final switch ( kernel_type ) {
-    case KT.VideoRender: assert(false, "Video Render kernel must be DTQ or RT");
+    case KT.VideoRender:
+      KernelFile.Create_File(DTOADQ_filename);
+    break;
     case KT.DTQ:      KernelFile.Create_File(DTOADQ_filename);   break;
     case KT.Raytrace: KernelFile.Create_File(Raytrace_filename); break;
     case KT.Raycast:  KernelFile.Create_File(Raycast_filename);  break;

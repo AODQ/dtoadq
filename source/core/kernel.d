@@ -68,12 +68,16 @@ void Update_DTOADQ ( ) {
 
 void Update_Video_Render ( ) {
   Update_DTOADQ();
-  // static import VI = videorender;
-  // auto len = core.image.RResolution_Length(VI.RRender_Resolution);
-  // if ( shared_info.finished_samples >= len ) {
-  //   running = !VI.Update(rw_image[0..len*3]);
-  //   shared_info.finished_samples = 0;
-  //   shared_info.clear_img = true;
+  static import VI = emitter.video;
+  static int cnt = 0;
+  auto len = core.image.RResolution_Length(VI.RRender_Resolution);
+  if ( shared_info.image_metadata.finished_samples >= len*0.85f ||
+       ++cnt > cast(int)(shared_info.image_metadata.spp*1.25f) ) {
+    cnt = 0;
+    running = !VI.Update(shared_info.rw_image);
+    shared_info.image_metadata.finished_samples = 0;
+    shared_info.image_metadata.clear_img = true;
+  }
 }
 
 ///

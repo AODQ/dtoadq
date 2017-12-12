@@ -93,7 +93,7 @@ bool Compile ( inout string source, string kernel_name ) {
   static import std.file;
   std.file.write("BUILD", source);
   working_program =
-    clBuildProgram(CL.program, 0, null, "-cl-no-signed-zeros -Werror",
+    clBuildProgram(CL.program, 0, null, "-Werror",
                    null, null) == CL_SUCCESS;
   if ( !working_program ) {
     import std.datetime;
@@ -156,8 +156,8 @@ void Sync_GL_Event ( cl_event event ) {
   import derelict.opengl3.gl3;
   // event = glCreateSyncFromCLeventARB(cast(_cl_context)CL.context, event, 0);
   // glWaitSynx(event, 0, GL_TIMEOUT_IGNORE);
-  glFinish(); // TODO remove this if possible
-  clFinish(CL.command_queue); // and this
+  // glFinish(); // TODO remove this if possible
+  // clFinish(CL.command_queue); // and this
 }
 
 void Flush ( ) {
@@ -267,7 +267,7 @@ auto Set_Current_Platform() {
     }
     write("CHOOSE A PLATFORM: ");
     // index = readln.chomp.to!int;
-    index = 1;
+    index = 0;
     writeln();
     assert(index >= 0 && index < platforms.length, " invalid platform index");
   }

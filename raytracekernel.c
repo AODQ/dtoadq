@@ -52,6 +52,7 @@ typedef struct T_Material {
 typedef struct T_Emitter {
   float3 origin, emission;
   float radius;
+  int index;
 } Emitter;
 
 typedef struct T_SharedInfo {
@@ -64,11 +65,11 @@ typedef struct T_SharedInfo {
 typedef struct T_SceneInfo {
   float time;
   // __read_only image2d_array_t textures; IMAGES CANT BE USED AS FIELD TYPES:-(
-  Material* materials;
+  __constant Material* materials;
   float3 debug_values;
   uint2 rng_state;
 } SceneInfo;
-SceneInfo New_SceneInfo(float time, Material* materials,
+SceneInfo New_SceneInfo(float time, __constant Material* materials,
                         float3 debug_values, uint2 rng){
   SceneInfo si;
   si.time         = time;
@@ -246,7 +247,8 @@ float Smith_G_GGX_Correlated ( float L, float R, float a ) {
   return L * sqrt(R - a*sqr(R) + a);
 }
 
-float3 BRDF_F ( float3 wi, float3 N, float3 wo, Material* m, float3 col ) {
+float3 BRDF_F ( float3 wi, float3 N, float3 wo, __constant Material* m,
+                float3 col ) {
   // get binormal, bitangent, half vec etc
   const float3 binormal  = Binormal(N),
                bitangent = cross(binormal, N),
@@ -315,7 +317,7 @@ float3 BRDF_F ( float3 wi, float3 N, float3 wo, Material* m, float3 col ) {
              m->specular+m->transmittive);
 }
 
-float3 RColour ( float3 pt_colour, Material* m ) {
+float3 RColour ( float3 pt_colour, __constant Material* m ) {
   return (pt_colour.x >= 0.0f) ? pt_colour : m->albedo;
 }
 
@@ -323,8 +325,8 @@ typedef struct T_IlluminateHorcrux {
   float3 colour;
   float3 N;
 } IlluminateHorcrux;
-IlluminateHorcrux Illuminate ( float3 O, float3 Wi, float3 col, Material* m,
-                               SCENE_T(si, Tx) ) {
+IlluminateHorcrux Illuminate ( float3 O, float3 Wi, float3 col,
+                               __constant Material* m, SCENE_T(si, Tx) ) {
   float3 colour = (float3)(0.0f);
   float3 N = Normal(O, si, Tx);
   for ( int i = 0; i != EMITTER_AMT; ++ i ) {
@@ -334,21 +336,21 @@ IlluminateHorcrux Illuminate ( float3 O, float3 Wi, float3 col, Material* m,
            L = normalize(emit.origin - O);
     float3 brdf = BRDF_F(V, N, L, m, RColour(col, m));
 
-    colour += (brdf);
+    colour += (brdf) * emit.emission * dot(N, L);
   }
   return (IlluminateHorcrux){Float3_Min(colour / EMITTER_AMT, 1.0f), N};
 }
 
 typedef struct T_SpecularApproxHorcrux {
   float3 origin, colour, N;
-  Material* mat;
+  __constant Material* mat;
 } SpecularApproxHorcrux;
 SpecularApproxHorcrux Specular_Approx(Ray ray, SCENE_T(si, Tx)) {
   ray.origin += ray.dir*0.01f;
   SampledPt spec_result = March(-1, ray, si, Tx);
   if ( spec_result.dist < 0.0f )
     return (SpecularApproxHorcrux){ray.origin, ray.origin, NULL};
-  Material* sm = si->materials + spec_result.material_index;
+  __constant Material* sm = si->materials + spec_result.material_index;
   float3 colour = spec_result.colour;
   float3 origin = ray.origin + ray.dir*spec_result.dist;
   IlluminateHorcrux ih = Illuminate(origin, ray.dir, colour, sm, si, Tx);
@@ -359,7 +361,7 @@ SampledPt Colour_Pixel(Ray ray, SCENE_T(si, Tx)) {
   SampledPt result = March(-1, ray, si, Tx);
   if ( result.dist < 0.0f ) return result;
   float3 origin = ray.origin + ray.dir*result.dist;
-  Material* m = si->materials + result.material_index;
+  __constant Material* m = si->materials + result.material_index;
 
   IlluminateHorcrux res = Illuminate(origin, ray.dir, result.colour, m, si, Tx);
   result.colour = res.colour;
@@ -456,7 +458,7 @@ __kernel void DTOADQ_Kernel (
     __global Camera*            camera_ptr,
     __global float*             time_ptr,
     __read_only image2d_array_t textures,
-    __global Material*          g_materials,
+    __constant Material*        g_materials,
     __global float*             debug_val_ptr,
     __global uint2*             rng_states
   ) {
@@ -468,12 +470,7 @@ __kernel void DTOADQ_Kernel (
   //    (counter is stored in alpha channel)
   Update_Camera(&camera, time);
 
-  Material materials[MAT_LEN];
-  for ( int i = 0; i != MAT_LEN; ++ i ) {
-    materials[i] = *(g_materials + i);
-  }
-
-  SceneInfo scene_info = New_SceneInfo(time, materials, dval,
+  SceneInfo scene_info = New_SceneInfo(time, g_materials, dval,
                       rng_states[out.y*camera.dim.x + out.x]);
 
   Ray ray = Camera_Ray(&camera, &scene_info);

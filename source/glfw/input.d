@@ -80,10 +80,12 @@ private struct CameraInputInfo {
   }
 }
 
+float camera_velocity = 0.005f;
+
 float RKey_Velocity() {
-  if ( RKey_Input(32) ) return 0.01f;
-  if ( RKey_Input(340) ) return 0.001f;
-  return 0.005f;
+  if ( RKey_Input(32)  ) return camera_velocity*5.0f;
+  if ( RKey_Input(340) ) return camera_velocity/5.0f;
+  return camera_velocity;
 }
 
 import ocl : Camera;
@@ -107,4 +109,16 @@ bool Update_Camera ( ref Camera camera ) {
     camera.lookat[1] += input_info.direction.cos_theta*0.01f;
   }
   return input_info.update_camera;
+}
+
+void GUI_Update ( ) {
+  static import gui;
+  static bool keyst = false;
+  import std.stdio;
+  if ( RKey_Input(80) ) { //Hide
+    if ( !keyst ) {
+      keyst = true;
+      gui.imgui_render_frame ^= 1;
+    }
+  } else keyst = false;
 }

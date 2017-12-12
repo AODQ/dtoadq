@@ -47,10 +47,10 @@ MATERIALSSTART
       "anisotropic":  "0.706"
     },
     {
-      "albedo":       "[0.65, 0.55, 0.42]",
+      "albedo":       "[1.0, 1.0, 1.0]",
       "diffuse":      "0.0",
-      "specular":     "0.0",
-      "glossy":       "1.0",
+      "specular":     "1.0",
+      "glossy":       "0.0",
       "glossy_lobe":  "0.6",
       "transmittive": "0.0",
       "ior":          "0.5",

@@ -4,7 +4,7 @@ float4 txCheckerboard ( float2 origin ) {
   colour.x = voronoise(origin*20.0f,  0.2f, 2.2f);
   colour.y = pow(colour.x, 2.2f);
   colour.xyz = colour.xxx;
-  // colour.y = voronoise(origin* 20.0f, 0.8f, 0.8f);
-  // colour.z = voronoise(origin* 10.0f, 0.2f, 2.3f);
+  colour.y = voronoise(origin* 20.0f, 0.8f, 0.8f);
+  colour.z = voronoise(origin* 10.0f, 0.2f, 2.3f);
   return colour;
 }

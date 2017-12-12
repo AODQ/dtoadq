@@ -15,7 +15,7 @@ Usage: dtoadq             Run real-time editor
 
 Arguments:
   -scene       The file of scene to be rendered
-  -out         The output file (mp4 format)
+  -out         The output file (GIF)
   -spp         Samples-per-pixel
   -fps         Frames-per-second
   -time        Seconds of scene render time

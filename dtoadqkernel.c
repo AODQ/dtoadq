@@ -1,4 +1,5 @@
-#define MAX_DEPTH 4
+#define MAX_EYE_DEPTH 5
+#define MAX_EMI_DEPTH 2
 #define MARCH_DIST //%MARCH_DIST.0f
 #define MARCH_REPS //%MARCH_REPS
 #define MAT_LEN //%MAT_LENGTH
@@ -97,7 +98,7 @@ SampledPt SampledPt_From_Origin(float3 origin) {
 typedef struct T_Vertex {
   float3 origin, irradiance, normal, mat_col;
   float pdf_fwd, pdf_bwd;
-  Material* material;
+  __constant Material* material;
   int M_ID;
 } Vertex;
 
@@ -110,18 +111,18 @@ float Calc_Prob(Vertex* t) {
 }
 
 typedef struct T_Subpath {
-  Vertex vertices[MAX_DEPTH];
+  Vertex vertices[MAX_EMI_DEPTH];
   uint length;
 } Subpath;
 
 typedef struct T_SceneInfo {
   float time;
   // __read_only image2d_array_t textures; IMAGES CANT BE USED AS FIELD TYPES:-(
-  Material* materials;
+  __constant Material* materials;
   float3 debug_values;
   uint2 rng_state;
 } SceneInfo;
-SceneInfo New_SceneInfo(float time, Material* materials,
+SceneInfo New_SceneInfo(float time, __constant Material* materials,
                         float3 debug_values, uint2 rng_state) {
   SceneInfo si;
   si.time         = time;
@@ -266,7 +267,7 @@ float3 Normal ( float3 p, SCENE_T(s, t)) {
     e.yxy*Map(-1, p + e.yxy, s, t).dist + e.xxx*Map(-1, p + e.xxx, s, t).dist);
 }
 
-float3 RColour ( float3 pt_colour, Material* m ) {
+float3 RColour ( float3 pt_colour, __constant Material* m ) {
   return (pt_colour.x >= 0.0f) ? pt_colour : m->albedo;
 }
 
@@ -404,7 +405,8 @@ float BRDF_Transmittive_PDF ( float3 wi, float3 wo, float3 N, float ior ) {
 
 
 // Actual BRDF function that returns the albedo of the surface
-Spectrum _BRDF_F ( float3 wi, float3 N, float3 wo, Material* m, float3 col ) {
+Spectrum _BRDF_F ( float3 wi, float3 N, float3 wo, __constant Material* m,
+                   float3 col ) {
   // get binormal, bitangent, half vec etc
   const float3 binormal  = Binormal(N),
                bitangent = cross(binormal, N),
@@ -501,7 +503,7 @@ void _BSDF_Sample ( float3 wi, float3 N, Vertex* vtx,
                     float3* sample_dir, float* sample_pdf, float3* sample_f,
                     SceneInfo* si ) {
   // get sample_dir and pdf which is based off material brdf samples
-  Material* m = vtx->material;
+  __constant Material* m = vtx->material;
   float4 weights = (float4){m->diffuse, m->glossy, m->specular, m->transmittive};
   int indx = Weighted_Uniform(weights, Sample_Uniform(si), 4);
 
@@ -531,7 +533,7 @@ void _BSDF_Sample ( float3 wi, float3 N, Vertex* vtx,
 // generates PDF, wo doesn't really do anything
 float BSDF_PDF ( Vertex* vtx, float3 wi, float3 wo) {
   float pdf = 0.0f;
-  Material* m = vtx->material;
+  __constant Material* m = vtx->material;
   float3 N = vtx->normal;
 
   pdf += m->diffuse      * BRDF_Diffuse_PDF     (wi, wo, N);
@@ -556,7 +558,7 @@ Spectrum Subpath_Connection ( Vertex* V0, Vertex* V1, Vertex* V2 ) {
 
 /* sets vtx with random sample from material
 */
-void BSDF_Sample ( float3 O, float3 wi, float3 N, Material* m,
+void BSDF_Sample ( float3 O, float3 wi, float3 N, __constant Material* m,
                    Ray* ray, float3* irradiance, float* pdf,
                    Vertex* prev_vtx, Vertex* vtx, SceneInfo* si){
   // vertex info
@@ -578,7 +580,7 @@ void BSDF_Sample ( float3 O, float3 wi, float3 N, Material* m,
   prev_vtx->pdf_bwd = BSDF_PDF(vtx, sample_dir, wi) * fabs(dot(-edge, N));
   // delta check [specular/transmittive]
   if ( Is_Delta(vtx) ) {
-    vtx->pdf_bwd = vtx->pdf_fwd = 0.0f;
+    prev_vtx->pdf_bwd = vtx->pdf_fwd = 0.0f;
   }
   // misc scope info
   sample_pdf = sample_pdf == 0.0f ? 1.0f : sample_pdf;
@@ -611,9 +613,9 @@ SampledPt March_Visibility ( int avoid, Ray ray, SCENE_T(si, Tx)) {
 float Visibility_Ray(float3 orig, float3 other, SCENE_T(si, Tx)) {
   float theoretical = Distance(orig, other);
   float3 dir = normalize(other - orig);
-  orig += dir*(0.005f);
+  orig += dir*(0.1f);
   SampledPt ptinfo = March_Visibility(-1, (Ray){orig, dir}, si, Tx);
-  float actual = ptinfo.dist + MARCH_ACC + 0.01f;
+  float actual = ptinfo.dist + MARCH_ACC + 0.1f;
   return 1.0f*(actual >= theoretical*0.9f);
 }
 
@@ -665,8 +667,6 @@ __constant int Eval_Vertex_Enum_Hit   = 0,
                Eval_Vertex_Enum_Light = 2;
 int Eval_Vertex ( Ray* ray, float3* irradiance, float* pdf,
                   Vertex* V0, Vertex* V1, SCENE_T(si, Tx) ) {
-  // russian roulette
-  if ( Sample_Uniform(si) < 0.05f ) return Eval_Vertex_Enum_Miss;
   // raymarch
   if ( V1->material && V1->material->transmittive > 0.0 )
     (*ray).origin += 0.1f*(*ray).dir;
@@ -680,7 +680,7 @@ int Eval_Vertex ( Ray* ray, float3* irradiance, float* pdf,
   // exit if hit light
   int mindex = ptinfo.mat_index;
   if ( mindex <= EMIT_MAT ) return mindex;
-  Material* mat = si->materials + ptinfo.mat_index;
+  __constant Material* mat = si->materials + ptinfo.mat_index;
   // set col
   float3 tcol = ptinfo.colour;
   V1->mat_col = RColour(tcol, mat);
@@ -721,14 +721,14 @@ float Calculate_MIS ( Vertex* L0, Vertex* L1, Vertex* E0, Vertex* E1,
 
   // calculate eye probability/mis with connection
   if ( E0 ) {
-    eye_prob *= Calc_Prob(E0); eye_sum += (eye_prob);
+    eye_prob *= Calc_Prob(E0); eye_sum += SQR(eye_prob);
   }
-  eye_prob *= Calc_Prob(E1); eye_sum += (eye_prob);
+  eye_prob *= Calc_Prob(E1); eye_sum += SQR(eye_prob);
 
   if ( L0 ) {
-    light_prob *= Calc_Prob(L0); light_sum += (light_prob);
+    light_prob *= Calc_Prob(L0); light_sum += SQR(light_prob);
   }
-  light_prob *= Calc_Prob(L1); light_sum += (light_prob);
+  light_prob *= Calc_Prob(L1); light_sum += SQR(light_prob);
 
 
   return 1.0f/(1.0f + eye_sum + light_sum);
@@ -768,7 +768,7 @@ Emitter Generate_Light_Subpath ( Subpath* path, float* light_sum,
   light_prob[0] = 1.0f;
 
   // Generate path
-  for ( int depth = 1; depth != MAX_DEPTH; ++ depth ) {
+  for ( int depth = 1; depth != MAX_EMI_DEPTH; ++ depth ) {
     Vertex* L0 = path->vertices+depth-1,
           * L1 = path->vertices+depth;
     int res = Eval_Vertex(&ray, &irradiance, &pdf_fwd, L0, L1, si, Tx);
@@ -807,8 +807,8 @@ void Set_Sample_Colour(float3* sample_col, float3 con) {
 
 Spectrum BDPT_Integrate ( float3 pixel, float3 dir, SCENE_T(si, Tx)) {
   Subpath path;
-  float light_sum_arr[MAX_DEPTH];
-  float light_prob_arr[MAX_DEPTH];
+  float light_sum_arr[MAX_EMI_DEPTH];
+  float light_prob_arr[MAX_EMI_DEPTH];
   // α₀⁽ᴸᴱ⁾ = 1
   // instead of generating a light and bsdf path, only the light path is
   // generated and the BSDF path is walked while evaluating the vertex behind it
@@ -843,7 +843,7 @@ Spectrum BDPT_Integrate ( float3 pixel, float3 dir, SCENE_T(si, Tx)) {
    E2  &0   NUL   &1   NUL   &2   &2          NUL    &N     &N
   */
   float t_prob = 1.0f, t_sum = 0.0f;
-  for ( int eye_depth = 1; eye_depth != MAX_DEPTH+2; ++ eye_depth ) {
+  for ( int eye_depth = 1; eye_depth != MAX_EYE_DEPTH; ++ eye_depth ) {
     // shift edges
     E0 = E1;
     E1 = E2;
@@ -991,14 +991,16 @@ Ray Camera_Ray(Camera* camera, SceneInfo* si) {
   float3 cam_up = normalize(cross(cam_right, cam_front));
   /* // ------ DOF & antialiasing ----- */
   // Adapted from https://www.shadertoy.com/view/lsX3DH
-  float3 dof_puv = (float3)(puv, fov_r);
-  float3 ray_dir = dof_puv.x*cam_right + dof_puv.y*cam_up + fov_r*cam_front;
-  float3 dof_origin = camera->radius*(float3)(Sample_Uniform2_2(si), 0.0f);
-  float3 dof_dir = normalize(dof_puv * camera->focal - dof_origin);
-  cam_pos += dof_origin.x*cam_right + dof_origin.y*cam_up;
-  ray_dir += dof_dir.x*cam_right + dof_dir.y*cam_up;
-  ray_dir = normalize(ray_dir);
-  return (Ray){cam_pos, ray_dir};
+  /* float3 dof_puv = (float3)(puv, fov_r); */
+  /* float3 ray_dir = dof_puv.x*cam_right + dof_puv.y*cam_up + fov_r*cam_front; */
+  /* float3 dof_origin = camera->radius*(float3)(Sample_Uniform2_2(si), 0.0f); */
+  /* float3 dof_dir = normalize(dof_puv * camera->focal - dof_origin); */
+  /* cam_pos += dof_origin.x*cam_right + dof_origin.y*cam_up; */
+  /* ray_dir += dof_dir.x*cam_right + dof_dir.y*cam_up; */
+  /* ray_dir = normalize(ray_dir); */
+  /* return (Ray){cam_pos, ray_dir}; */
+  return (Ray){cam_pos, normalize(puv.x*cam_right + puv.y*cam_up +
+                                  fov_r*cam_front)};
 }
 
 typedef struct _T_EvalPreviousOutputHorcrux {
@@ -1033,7 +1035,7 @@ __kernel void DTOADQ_Kernel (
     __global Camera*            camera_ptr,
     __global float*             time_ptr,
     __read_only image2d_array_t textures,
-    __global Material*          g_materials,
+    __constant Material*        g_materials,
     __global float*             debug_val_ptr,
     __global uint2*             rng_states
   ) {
@@ -1045,20 +1047,14 @@ __kernel void DTOADQ_Kernel (
   // pixel pos
   int pix_pt = out.y*camera.dim.x*4 + out.x*4;
   // -- set up scene info ---
-  Material materials[MAT_LEN];
-  for ( int i = 0; i != MAT_LEN; ++ i ) {
-    Material tm = *(g_materials + i);
-    // set to material buffer
-    materials[i] = tm;
-    /* writefloat3(materials[i].albedo); */
-    /* writeint(sizeof(Material)); */
-    /* writefloat4((float4)(materials[i].metallic, materials[i].fresnel, */
-    /*              materials[i].subsurface, materials[i].anisotropic)); */
-  }
   float3 dval = (float3)(debug_val_ptr[0], debug_val_ptr[1],
                           debug_val_ptr[2]);
-  SceneInfo scene_info = New_SceneInfo(time, materials, dval,
+  SceneInfo scene_info = New_SceneInfo(time, g_materials, dval,
                                        rng_states[out.y*camera.dim.x + out.x]);
+  if ( Sample_Uniform(&scene_info) < 0.3f ) {
+    rng_states[out.y*camera.dim.x + out.x] = scene_info.rng_state;
+    return;
+  }
   // -- update camera / generate ray --
   Update_Camera(&camera, time);
   Ray ray = Camera_Ray(&camera, &scene_info);
@@ -1070,12 +1066,16 @@ __kernel void DTOADQ_Kernel (
     _EvalPreviousOutputHorcrux _hor =
           Eval_Previous_Output(img, output_img, out, sinfo, pix_pt);
     old_colour = _hor.old_colour;
-    if ( old_colour.w >= 64 ) return;
+    if ( (int)(old_colour.w) == spp ) {
+      sinfo->finished_samples += 1;
+      old_colour.w += 1;
+    }
+    if ( old_colour.w >= spp ) return; /*  */
     if ( _hor.raycast_nav && DO_NAVIGATION ) {
       // Laughably bad raycast to make it easy to navigate a scene
       SampledPt pt = March(-1, ray, &scene_info, textures);
       if ( pt.mat_index >= 0 )
-        pt.colour = RColour(pt.colour, materials+pt.mat_index);
+        pt.colour = RColour(pt.colour, g_materials+pt.mat_index);
       pt.colour = (float3)((pt.colour.x+pt.colour.y+pt.colour.z)/3.0f);
       write_imagef(output_img, out, (float4)(pt.colour, 1.0f));
       return;
@@ -1102,25 +1102,4 @@ __kernel void DTOADQ_Kernel (
     img[pix_pt+2] = (unsigned char)(old_colour.z*255.0f);
     img[pix_pt+3] = (unsigned char)(old_colour.w);
   }
-
-
-
-  //
-  // convert to Y CB R, from matlab
-  // if ( sinfo->finished_samples >= camera.dim.x*camera.dim.y ) {
-  //   float3 colour;
-  //   colour = (float3)(img[pt+0]/255.0f, img[pt+1]/255.0f, img[pt+2]/255.0f);
-  //   colour = (float3)(
-  //       16.0f + (  65.481f*colour.x + 128.553f*colour.y + 24.966f*colour.z),
-  //       128.0f + (- 37.797f*colour.x - 74.2030f*colour.y + 112.00f*colour.z),
-  //       128.0f + ( 112.000f*colour.x - 93.7860f*colour.y - 18.214f*colour.z)
-  //   );
-  //   int irwx = (camera.dim.y - out.y)*camera.dim.x + out.x;
-  //   int irwy = irwx + camera.dim.x*camera.dim.y;
-  //   int irwz = irwx + camera.dim.x*camera.dim.y*2;
-  //   img[irwx] = (unsigned char)(colour.x);
-  //   img[irwy] = (unsigned char)(colour.y);
-  //   img[irwz] = (unsigned char)(colour.z);
-  // }
 }
-// DTOADQ_kernel string

@@ -41,6 +41,14 @@ void Set_Texture_Function ( string filename ){
   parser.Change_Scene(filename);
 }
 
+void Set_Any_Function ( string filename ) {
+  switch ( stl.RMatching_File_Extensions(filename, "dtq", "txt") ) {
+    default: assert(false, "Unknown file type");
+    case "dtq": Set_Map_Function(filename); break;
+    case "txt": Set_Texture_Function(filename); break;
+  }
+}
+
 int        RVar ( KernelVar var ) { return kernel_info.vars [var ]; }
 KernelType RType    ()            { return kernel_info.type;        }
 string     RFilename()            { return kernel_info.filename;    }

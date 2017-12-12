@@ -45,6 +45,7 @@ typedef struct T_Material {
 typedef struct T_Emitter {
   float3 origin, emission;
   float radius;
+  int index;
 } Emitter;
 
 typedef struct T_SharedInfo {
@@ -57,11 +58,11 @@ typedef struct T_SharedInfo {
 typedef struct T_SceneInfo {
   float time;
   // __read_only image2d_array_t textures; IMAGES CANT BE USED AS FIELD TYPES:-(
-  Material* materials;
+  __constant Material* materials;
   float3 debug_values;
   uint2 rng_state;
 } SceneInfo;
-SceneInfo New_SceneInfo(float time, Material* materials,
+SceneInfo New_SceneInfo(float time, __constant Material* materials,
                         float3 debug_values, uint2 rng){
   SceneInfo si;
   si.time         = time;
@@ -73,7 +74,7 @@ SceneInfo New_SceneInfo(float time, Material* materials,
 
 __constant float PI  = 3.141592654f;
 __constant float TAU = 6.283185307f;
-// -----------------------------------------------------------------------------
+ // -----------------------------------------------------------------------------
 // --------------- GENERAL STRUCTS ---------------------------------------------
 typedef struct T_Ray {
   float3 origin, dir;
@@ -160,7 +161,7 @@ SampledPt March ( int avoid, Ray ray, SCENE_T(si, Tx) ) {
   SampledPt t_info;
   for ( int i = 0; i < MARCH_REPS; ++ i ) {
     t_info = Map(avoid, ray.origin + ray.dir*distance, si, Tx);
-    if ( t_info.dist <= MARCH_ACC || t_info.dist > MARCH_DIST ) break;
+    if ( t_info.dist <= 0.0001f || t_info.dist > MARCH_DIST ) break;
     distance += t_info.dist;
   }
   if ( t_info.dist > MARCH_DIST || t_info.dist < 0.0f ) {
@@ -176,7 +177,7 @@ float Distance(float3 u, float3 v) {
   return sqrt(x*x + y*y + z*z);
 }
 
-float3 RColour ( float3 pt_colour, Material* m ) {
+float3 RColour ( float3 pt_colour, __constant Material* m ) {
   return (pt_colour.x >= 0.0f) ? pt_colour : m->albedo;
 }
 
@@ -213,6 +214,14 @@ Ray Camera_Ray(Camera* camera, SceneInfo* si) {
   return (Ray){cam_pos, normalize(ray_dir)};
 }
 
+float3 Normal ( float3 p, SCENE_T(si, Tx) ) {
+  float2 e = (float2)(1.0f, -1.0f)*0.5773f*0.0005f;
+  return normalize(
+                   e.xyy*Map(-1, p + e.xyy, si, Tx).dist +
+                   e.yyx*Map(-1, p + e.yyx, si, Tx).dist +
+                   e.yxy*Map(-1, p + e.yxy, si, Tx).dist +
+                   e.xxx*Map(-1, p + e.xxx, si, Tx).dist);
+}
 // -----------------------------------------------------------------------------
 // --------------- RAYTRACE KERNEL ---------------------------------------------
 __kernel void DTOADQ_Kernel (
@@ -222,7 +231,7 @@ __kernel void DTOADQ_Kernel (
     __global Camera*            camera_ptr,
     __global float*             time_ptr,
     __read_only image2d_array_t textures,
-    __global Material*          g_materials,
+    __constant Material*          materials,
     __global float*             debug_val_ptr,
     __global uint2*             rng_states
   ) {
@@ -234,31 +243,29 @@ __kernel void DTOADQ_Kernel (
   //    (counter is stored in alpha channel)
   Update_Camera(&camera, time);
 
-  Material materials[MAT_LEN];
-  for ( int i = 0; i != MAT_LEN; ++ i ) {
-    Material tm = *(g_materials + i);
-    materials[i] = tm;
-  }
   SceneInfo scene_info = New_SceneInfo(time, materials, dval,
                                        rng_states[out.y*camera.dim.x + out.x]);
 
   Ray ray = Camera_Ray(&camera, &scene_info);
   SampledPt pt = March(-1, ray, &scene_info, textures);
-  float3 col = (float3)(-1.0f);
+  float3 col = (float3)(0.0f);
   if ( pt.dist >= 0 ) {
     float3 O = ray.origin + pt.dist*ray.dir;
     for ( int i = 0; i != EMITTER_AMT; ++ i ) {
       Emitter emit = REmission(i, scene_info.debug_values, scene_info.time);
       if ( pt.material_index >= 0 && pt.material_index < MAT_LEN ) {
-        Material m = materials[pt.material_index];
-        float3 albedo = RColour(pt.colour, &m);
+        float3 albedo = RColour(pt.colour, materials+pt.material_index);
         // diffusive component i made up, no normal needed
-        float3 V = -ray.dir, L = normalize(emit.origin-O);
-        col = albedo*0.6f + dot(V, L)*0.2f * (1.0f/EMITTER_AMT);
-      } else {
-        col = (float3)(1.0f);
+        float3 lo = emit.origin - O;
+        float3 V = -ray.dir, L = normalize(lo);
+        col += albedo*0.6f + dot(V, L)*0.2f;
+        /* col += normalize(lo)*0.1f; */
+        /* col += Normal(O, &scene_info, textures)*0.2f; */
+      } else if ( pt.material_index < -10 ) {
+        col = (float3)(1.0f, 1.0f, 1.0f)*ray.dir;
       }
     }
+    col /= (float)(EMITTER_AMT);
   }
 
   write_imagef(output_img, out, (float4)(col, 1.0f));
