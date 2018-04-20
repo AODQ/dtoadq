@@ -1,5 +1,5 @@
 # DTOADQ
-GPU-Accelerated Light Transport on Sigend Distance Fields Video Emitter and Prototyping Tool.
+GPU-Accelerated Light Transport on Signed Distance Fields Video Emitter and Prototyping Tool.
 
 # build
   Requires GLFW, OpenGL3.3, OpenCL1.2 with the cl\_khr\_gl\_sharing extension
